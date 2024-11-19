@@ -466,8 +466,8 @@ class KitchenCabinetFactory(KitchenCabinetBaseFactory):
     def sample_params(self):
         params = dict()
         if self.dimensions is None:
-            #dimensions = (uniform(0.25, 0.35), uniform(1.0, 4.0), uniform(0.5, 1.3))
-            dimensions = (uniform(0.25, 0.35), uniform(1.0, 40), uniform(0.5, 13))
+            dimensions = (uniform(0.25, 0.35), uniform(1.0, 4.0), uniform(0.5, 1.3))
+            #dimensions = (uniform(0.25, 0.35), uniform(1.0, 40), uniform(0.5, 13))
             self.dimensions = dimensions
         else:
             dimensions = self.dimensions

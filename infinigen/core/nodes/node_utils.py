@@ -211,6 +211,9 @@ def save_geometry(
     first=False,
     bevel=False,
     bevel_edges=None,
+    use_bpy=True,
+    parent_obj_id=None,
+    joint_info=None,
 ):
     output = nw.new_node(
         Nodes.GroupOutput,
@@ -230,6 +233,7 @@ def save_geometry(
 
     # Assign vertices and faces to the new mesh
     vertices, faces = get_geometry_data(geometry)
+    res = None
     if vertices and faces:
         new_mesh.from_pydata(
             vertices,  # Assuming your geometry outputs vertices
@@ -238,12 +242,15 @@ def save_geometry(
         )
         new_mesh.update()  # Update the mesh
 
-        if name != "whole":
-            save_obj_parts_add([new_object], path, idx, name, first=first)
+        if name == 'whole':
+            join_objects_save_whole([new_object], path, idx, name, join=False, use_bpy=use_bpy)
+            res = True
         else:
-            join_objects_save_whole([new_object], path, idx, name, join=False)
-        return True
-    return False
+            res = save_obj_parts_add([new_object], path, idx, name, first=first, use_bpy=True, parent_obj_id=parent_obj_id, joint_info=joint_info)
+    #bpy.ops.export_scene.obj(filepath='./file.obj', use_selection=True)
+    # 取消选择新对象
+    #new_obj.select_set(False)
+    return res
 
 def get_seperate_objects(obj):
     # print(bpy.context.collection.objects.keys())

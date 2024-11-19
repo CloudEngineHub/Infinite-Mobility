@@ -19,6 +19,14 @@ from infinigen.core.placement.factory import AssetFactory
 from infinigen.core.util import blender as butil
 from infinigen.core.util.math import FixedSeed
 from infinigen.core.nodes.node_utils import save_geometry
+import random
+
+from infinigen.assets.utils.object import (
+    join_objects_save_whole,
+    save_file_path_obj,
+    save_obj_parts_add,
+    add_joint
+)
 
 
 def geometry_assemble_chair(nw: NodeWrangler, **kwargs):
@@ -68,6 +76,8 @@ def geometry_assemble_chair(nw: NodeWrangler, **kwargs):
     parts = [3, parts_legs[kwargs["Leg Style"]]]
 
     first = True
+    last_idx = None
+    first_wheel = True
     if kwargs["Leg Style"] != "wheeled":
         for i, name in enumerate(names):
             named_attribute = nw.new_node(
@@ -140,18 +150,70 @@ def geometry_assemble_chair(nw: NodeWrangler, **kwargs):
                             },
                         )
                         output_geometry = separate_geometry_1
-                        a = save_geometry(
+                        joint_info = None
+                        parent_idx = None
+                        if k == 3:
+                            parent_idx = last_idx + 2
+                            joint_info = {
+                                "name": f"rotation_wheel_leg_{random.randint(-100000000, 1000000000000000000000000000000000000)}",
+                                "type": "continuous",
+                                "axis": (0, 1, 0)
+                            }
+                        elif k == 1:
+                            parent_idx = last_idx + 2
+                            joint_info = {
+                                "name": f"wheel_spin_{random.randint(-100000000, 10000000000000000000000000)}",
+                                "type": "continuous",
+                                "axis": (1, 0, 0),
+                                "substitute_mesh_idx": 9,
+                                #"origin_shift": (0, -kwargs.get("Leg Wheel Width", 0) / 2, 0)
+                            }
+                            first_wheel = False
+                        elif k == 4:
+                            parent_idx = 21
+                            joint_info = {
+                                "name": f"fixed_{random.randint(-100000000, 10000000000000000000000000)}",
+                                "type": "fixed"
+                            }
+                        else:
+                            parent_idx = last_idx + 2
+                            joint_info = {
+                                "name": f"fixed_{random.randint(-100000000, 10000000000000000000000000)}",
+                                "type": "fixed",
+                                "substitute_mesh_idx": 10,
+                            }
+                        a = save_geometry(  
                             nw,
                             output_geometry,
                             kwargs.get("path", None),
                             name,
                             kwargs.get("i", "unknown"),
                             first=first,
+                            joint_info=joint_info,
+                            parent_obj_id=parent_idx,
                         )
                         if a:
                             first = False
+                            last_idx = a[0]
                 else:
                     output_geometry = separate_geometry
+                    joint_info = None
+                    parent_idx = None
+                    if(i == 1 and j == parts[1]):
+                        parent_idx = last_idx
+                        joint_info = {
+                            "name": "up_down_prismatic",
+                            "type": "prismatic",
+                            "axis": (0, 1, 0),
+                            "limit": {
+                                "lower": -0.2,
+                                "upper": 0,
+                                "lower_1": -0.2,
+                                "upper_1": 0
+                            },
+                            "axis_1": (0, 1, 0),
+                        }
+
                     a = save_geometry(
                         nw,
                         output_geometry,
@@ -159,10 +221,17 @@ def geometry_assemble_chair(nw: NodeWrangler, **kwargs):
                         name,
                         kwargs.get("i", "unknown"),
                         first=first,
+                        joint_info=joint_info,
+                        parent_obj_id=parent_idx,
                     )
                     if a:
                         first = False
-
+                        last_idx = a[0]
+    
+    add_joint(last_idx, 0, {
+        "name": "continuous_chair_leg",
+        "type" :    "continuous",
+        "axis": (0, 1, 0)})
     save_geometry(
         nw,
         join_geometry,
@@ -231,6 +300,7 @@ class OfficeChairFactory(AssetFactory):
 
         # leg_style = choice(['straight', 'single_stand', 'wheeled'])
         leg_style = choice(["single_stand", "wheeled"])
+        leg_style = "wheeled"
 
         parameters = {
             "Top Profile Width": x,
@@ -324,6 +394,7 @@ class OfficeChairFactory(AssetFactory):
         return parameters, leg_style
 
     def create_asset(self, **params):
+        #params.update("wheel_width", self.wheel_width)
         bpy.ops.mesh.primitive_plane_add(
             size=2,
             enter_editmode=False,

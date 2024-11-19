@@ -351,6 +351,10 @@ def join_objects(obj):
     return obj
 
 
+def add_joint(parent, child, joint_info):
+    robot_tree[child] = (parent, joint_info)
+
+
 def join_objects_save_whole(obj, path=None, idx="unknown", name=None, join=True, use_bpy=False):
     butil.select_none()
     if not isinstance(obj, list):
@@ -643,7 +647,10 @@ def save_whole_object_normalized(object, path=None, idx="unknown", name=None, us
     links["world"] = root
     for link in robot_tree.keys():
         if link not in links.keys():
-            l = urdfpy.Link(f'{link}', visuals=[urdfpy.Visual(geometry=urdfpy.Geometry(mesh=urdfpy.Mesh(filename=os.path.join(path, idx, "objs", f"{link}.obj"))))], collisions=[urdfpy.Collision(name="temp", origin=None, geometry=urdfpy.Geometry(mesh=urdfpy.Mesh(filename=os.path.join(path, idx, "objs", f"{link}.obj"))))], inertial=None)
+            mesh_idx = link
+            if robot_tree[link][1].get("substitute_mesh_idx", None) is not None:
+                mesh_idx = robot_tree[link][1]["substitute_mesh_idx"]
+            l = urdfpy.Link(f'{link}', visuals=[urdfpy.Visual(geometry=urdfpy.Geometry(mesh=urdfpy.Mesh(filename=os.path.join(path, idx, "objs", f"{mesh_idx}.obj"))))], collisions=[urdfpy.Collision(name="temp", origin=None, geometry=urdfpy.Geometry(mesh=urdfpy.Mesh(filename=os.path.join(path, idx, "objs", f"{link}.obj"))))], inertial=None)
             links[link] = l
         else:
             l = links[link]
@@ -666,7 +673,10 @@ def save_whole_object_normalized(object, path=None, idx="unknown", name=None, us
                 "origin": get_translation_matrix(pos[0], pos[1], pos[2])
             }
         if parent not in links.keys():
-            p = urdfpy.Link(f'{parent}', visuals=[urdfpy.Visual(geometry=urdfpy.Geometry(mesh=urdfpy.Mesh(filename=os.path.join(path, idx, "objs", f"{parent}.obj"))))], collisions=None, inertial=None)
+            mesh_idx = parent
+            if robot_tree.get(parent, None) is not None and robot_tree[parent][1] is not None and robot_tree[parent][1].get("substitute_mesh_idx", None) is not None:
+                mesh_idx = robot_tree[parent][1]["substitute_mesh_idx"]
+            p = urdfpy.Link(f'{parent}', visuals=[urdfpy.Visual(geometry=urdfpy.Geometry(mesh=urdfpy.Mesh(filename=os.path.join(path, idx, "objs", f"{mesh_idx}.obj"))))], collisions=None, inertial=None)
             links[parent] = p
         else:
             p = links[parent]
@@ -680,16 +690,18 @@ def save_whole_object_normalized(object, path=None, idx="unknown", name=None, us
         #         limit_info["upper"] *= scale_factor
         if limit_info:
             limit = urdfpy.JointLimit(limit_info.get("effort", 2000), limit_info.get("velocity", 2), limit_info.get("lower", -1), limit_info.get("upper", 1))
+            if limit_info.get("lower_1"):
+                limit_1 = urdfpy.JointLimit(limit_info.get("effort", 2000), limit_info.get("velocity", 2), limit_info.get("lower_1", -1), limit_info.get("upper_1", 1))
         else:
             limit = None
         type = joint_info.get("type", "fixed")
-        if type != "revolute" and type != "continuous":
+        if type == "fixed" or type == "prismatic":
             j = urdfpy.Joint(joint_info.get("name", "temp"), joint_info.get("type", "fixed"), parent, link,
                              axis=joint_info.get("axis", None),
                              origin=get_translation_matrix(origin_shift[0], origin_shift[1], origin_shift[2]),
                              limit=limit)
             joints.append(j)
-        else:
+        elif type == "revolute" or type == "continuous":
             shift_axis = joint_info.get("origin_shift", (0, 0, 0))
             l_abstract = urdfpy.Link(f'abstract_{parent}_{link}', visuals=None, collisions=None, inertial=None)
             links[f'abstract_{parent}_{link}'] = l_abstract
@@ -697,6 +709,24 @@ def save_whole_object_normalized(object, path=None, idx="unknown", name=None, us
             j_abstract = urdfpy.Joint(str(random.randint(-10, 100000000000000000000000000000000000000)), "fixed", f"abstract_{parent}_{link}", link, axis=None, limit=None, origin=get_translation_matrix(-shift_axis[0], -shift_axis[1], -shift_axis[2]))
             joints.append(j_real)
             joints.append(j_abstract)
+        elif type == "revolute_prismatic" or type == "continuous_prismatic":
+            shift_axis = joint_info.get("origin_shift", (0, 0, 0))
+            l_abstract = urdfpy.Link(f'abstract_{parent}_{link}', visuals=None, collisions=None, inertial=None)
+            links[f'abstract_{parent}_{link}'] = l_abstract
+            j_real = urdfpy.Joint(joint_info.get("name"), joint_info.get("type").split('_')[0], parent,
+                                  f'abstract_{parent}_{link}', axis=joint_info.get("axis", None), limit=limit,
+                                  origin=get_translation_matrix(origin_shift[0] + shift_axis[0],
+                                                                origin_shift[1] + shift_axis[1],
+                                                                origin_shift[2] + shift_axis[2]))
+            j_abstract = urdfpy.Joint(str(random.randint(-10, 100000000000000000000000000000000000000)), "fixed",
+                                      f"abstract_{parent}_{link}", link, axis=None, limit=None,
+                                      origin=get_translation_matrix(-shift_axis[0], -shift_axis[1], -shift_axis[2]))
+            joints.append(j_real)
+            joints.append(j_abstract)
+            joint_prismatic = urdfpy.Joint(f"joint_prismatic_{random.randint(0, 1000000000000000000000000000)}",
+                                           "prismatic", parent, link, axis=joint_info.get("axis_1", None), limit=limit_1, origin=get_translation_matrix(origin_shift[0], origin_shift[1], origin_shift[2]))
+            joints.append(joint_prismatic)
+
     robot = urdfpy.URDF("scene", list(links.values()), joints=joints)
     robot.save(os.path.join(path, idx, "scene.urdf"))
     #robot.show()

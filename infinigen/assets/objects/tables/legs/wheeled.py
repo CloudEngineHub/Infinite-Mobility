@@ -27,7 +27,7 @@ def nodegroup_chair_wheel(nw: NodeWrangler):
         expose_input=[
             ("NodeSocketFloat", "Arc Sweep Angle", 240.0000),
             ("NodeSocketFloat", "Wheel Width", 0.0000),
-            ("NodeSocketFloat", "Wheel Rotation", 0.5000),
+            ("NodeSocketFloat", "Wheel Rotation", 0.0000),
             ("NodeSocketFloat", "Pole Width", 0.0000),
             ("NodeSocketFloat", "Pole Aspect Ratio", 0.6000),
             ("NodeSocketFloat", "Pole Length", 3.0000),
@@ -296,7 +296,7 @@ def nodegroup_chair_wheel_nocap(nw: NodeWrangler):
         expose_input=[
             ("NodeSocketFloat", "Arc Sweep Angle", 240.0000),
             ("NodeSocketFloat", "Wheel Width", 0.0000),
-            ("NodeSocketFloat", "Wheel Rotation", 0.5000),
+            ("NodeSocketFloat", "Wheel Rotation", 0.0000),
             ("NodeSocketFloat", "Pole Width", 0.0000),
             ("NodeSocketFloat", "Pole Aspect Ratio", 0.6000),
             ("NodeSocketFloat", "Pole Length", 3.0000),
@@ -647,7 +647,7 @@ def nodegroup_wheeled_leg(nw: NodeWrangler, **kwargs):
         input_kwargs={
             "Arc Sweep Angle": group_input.outputs["Arc Sweep Angle"],
             "Wheel Width": group_input.outputs["Wheel Width"],
-            "Wheel Rotation": group_input.outputs["Wheel Rotation"],
+            #"Wheel Rotation": group_input.outputs["Wheel Rotation"],
             "Pole Width": 0.5000,
             "Pole Length": group_input.outputs["Pole Length"],
         },
@@ -823,7 +823,7 @@ def nodegroup_wheeled_leg_nocap(nw: NodeWrangler, **kwargs):
         input_kwargs={
             "Arc Sweep Angle": group_input.outputs["Arc Sweep Angle"],
             "Wheel Width": group_input.outputs["Wheel Width"],
-            "Wheel Rotation": group_input.outputs["Wheel Rotation"],
+            #"Wheel Rotation": group_input.outputs["Wheel Rotation"],
             "Pole Width": 0.5000,
             "Pole Length": group_input.outputs["Pole Length"],
         },
