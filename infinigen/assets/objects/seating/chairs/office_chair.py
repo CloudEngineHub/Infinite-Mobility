@@ -165,12 +165,12 @@ def geometry_assemble_chair(nw: NodeWrangler, **kwargs):
                                 "name": f"wheel_spin_{random.randint(-100000000, 10000000000000000000000000)}",
                                 "type": "continuous",
                                 "axis": (1, 0, 0),
-                                "substitute_mesh_idx": 9,
+                                "substitute_mesh_idx": 9 if kwargs['Leg Pole Number'] == 5 else 5,
                                 #"origin_shift": (0, -kwargs.get("Leg Wheel Width", 0) / 2, 0)
                             }
                             first_wheel = False
                         elif k == 4:
-                            parent_idx = 21
+                            parent_idx = 21 if kwargs['Leg Pole Number'] == 5 else 13
                             joint_info = {
                                 "name": f"fixed_{random.randint(-100000000, 10000000000000000000000000)}",
                                 "type": "fixed"
@@ -180,7 +180,7 @@ def geometry_assemble_chair(nw: NodeWrangler, **kwargs):
                             joint_info = {
                                 "name": f"fixed_{random.randint(-100000000, 10000000000000000000000000)}",
                                 "type": "fixed",
-                                "substitute_mesh_idx": 10,
+                                "substitute_mesh_idx": 10 if kwargs['Leg Pole Number'] == 5 else 6,
                             }
                         a = save_geometry(  
                             nw,
@@ -367,7 +367,8 @@ class OfficeChairFactory(AssetFactory):
         elif leg_style == "wheeled":
             leg_diameter = uniform(0.03, 0.05)
             leg_number = 1
-            pole_number = choice([4, 5])
+            pole_number = choice([3, 5])
+            pole_number = 3
             joint_height = uniform(0.5, 0.8) * (z - top_thickness)
             wheel_arc_sweep_angle = uniform(120, 240)
             wheel_width = uniform(0.11, 0.15)
