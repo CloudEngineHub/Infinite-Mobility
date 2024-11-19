@@ -1,0 +1,8 @@
+infinigen.assets.objects.bathroom.ToiletFactory
+infinigen.assets.objects.tableware.BottleFactory
+infinigen.assets.objects.tableware.BowlFactory
+infinigen.assets.objects.tableware.CanFactory
+infinigen.assets.objects.tableware.ChopsticksFactory
+infinigen.assets.objects.tableware.CupFactory
+infinigen.assets.objects.tableware.JarFactory
+infinigen.assets.objects.tableware.LidFactory

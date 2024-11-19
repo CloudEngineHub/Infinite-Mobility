@@ -1,0 +1,4 @@
+infinigen.assets.objects.seating.chairs.ChairFactory
+infinigen.assets.objects.shelves.SimpleDeskFactory
+infinigen.assets.objects.shelves.SidetableDeskFactory
+infinigen.assets.objects.seating.BedFrameFactory

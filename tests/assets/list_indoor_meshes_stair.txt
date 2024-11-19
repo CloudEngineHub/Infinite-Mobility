@@ -1,0 +1,4 @@
+infinigen.assets.objects.elements.staircases.CantileverStaircaseFactory
+infinigen.assets.objects.elements.staircases.CurvedStaircaseFactory
+infinigen.assets.objects.elements.staircases.SpiralStaircaseFactory
+infinigen.assets.objects.elements.staircases.StraightStaircaseFactory

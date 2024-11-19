@@ -1,0 +1,3 @@
+infinigen.assets.objects.shelves.CellShelfFactory
+infinigen.assets.objects.bathroom.BathtubFactory
+infinigen.assets.objects.bathroom.HardwareFactory

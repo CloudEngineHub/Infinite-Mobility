@@ -1,0 +1,685 @@
+[
+  {
+    "part": [
+      {
+        "part_name": "drawer_door_board_part",
+        "file_name": "0.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/0.obj"
+      },
+      {
+        "part_name": "drawer_board_part",
+        "file_name": "1.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/1.obj"
+      },
+      {
+        "part_name": "drawer_board_part",
+        "file_name": "2.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/2.obj"
+      },
+      {
+        "part_name": "drawer_board_part",
+        "file_name": "3.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/3.obj"
+      },
+      {
+        "part_name": "drawer_board_part",
+        "file_name": "4.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/4.obj"
+      },
+      {
+        "part_name": "knob_part",
+        "file_name": "5.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/5.obj"
+      },
+      {
+        "part_name": "drawer_door_board_part",
+        "file_name": "6.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/6.obj"
+      },
+      {
+        "part_name": "drawer_board_part",
+        "file_name": "7.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/7.obj"
+      },
+      {
+        "part_name": "drawer_board_part",
+        "file_name": "8.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/8.obj"
+      },
+      {
+        "part_name": "drawer_board_part",
+        "file_name": "9.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/9.obj"
+      },
+      {
+        "part_name": "drawer_board_part",
+        "file_name": "10.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/10.obj"
+      },
+      {
+        "part_name": "knob_part",
+        "file_name": "11.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/11.obj"
+      },
+      {
+        "part_name": "bottomboard_part",
+        "file_name": "12.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/12.obj"
+      },
+      {
+        "part_name": "divisionboard_part",
+        "file_name": "13.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/13.obj"
+      },
+      {
+        "part_name": "divisionboard_part",
+        "file_name": "14.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/14.obj"
+      },
+      {
+        "part_name": "divisionboard_part",
+        "file_name": "15.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/15.obj"
+      },
+      {
+        "part_name": "back_board_part",
+        "file_name": "16.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/16.obj"
+      },
+      {
+        "part_name": "side_board_part",
+        "file_name": "17.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/17.obj"
+      },
+      {
+        "part_name": "side_board_part",
+        "file_name": "18.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/18.obj"
+      },
+      {
+        "part_name": "panel_edge_frame_part",
+        "file_name": "19.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/19.obj"
+      },
+      {
+        "part_name": "panel_edge_frame_part",
+        "file_name": "20.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/20.obj"
+      },
+      {
+        "part_name": "panel_edge_frame_part",
+        "file_name": "21.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/21.obj"
+      },
+      {
+        "part_name": "panel_edge_frame_part",
+        "file_name": "22.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/22.obj"
+      },
+      {
+        "part_name": "mid_board_part",
+        "file_name": "23.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/23.obj"
+      },
+      {
+        "part_name": "knob_handle_part",
+        "file_name": "24.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/24.obj"
+      },
+      {
+        "part_name": "bottomboard_part",
+        "file_name": "25.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/25.obj"
+      },
+      {
+        "part_name": "divisionboard_part",
+        "file_name": "26.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/26.obj"
+      },
+      {
+        "part_name": "divisionboard_part",
+        "file_name": "27.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/27.obj"
+      },
+      {
+        "part_name": "divisionboard_part",
+        "file_name": "28.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/28.obj"
+      },
+      {
+        "part_name": "back_board_part",
+        "file_name": "29.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/29.obj"
+      },
+      {
+        "part_name": "side_board_part",
+        "file_name": "30.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/30.obj"
+      },
+      {
+        "part_name": "side_board_part",
+        "file_name": "31.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/31.obj"
+      },
+      {
+        "part_name": "panel_edge_frame_part",
+        "file_name": "32.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/32.obj"
+      },
+      {
+        "part_name": "panel_edge_frame_part",
+        "file_name": "33.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/33.obj"
+      },
+      {
+        "part_name": "panel_edge_frame_part",
+        "file_name": "34.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/34.obj"
+      },
+      {
+        "part_name": "panel_edge_frame_part",
+        "file_name": "35.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/35.obj"
+      },
+      {
+        "part_name": "mid_board_part",
+        "file_name": "36.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/36.obj"
+      },
+      {
+        "part_name": "knob_handle_part",
+        "file_name": "37.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/37.obj"
+      },
+      {
+        "part_name": "bottomboard_part",
+        "file_name": "38.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/38.obj"
+      },
+      {
+        "part_name": "divisionboard_part",
+        "file_name": "39.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/39.obj"
+      },
+      {
+        "part_name": "divisionboard_part",
+        "file_name": "40.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/40.obj"
+      },
+      {
+        "part_name": "divisionboard_part",
+        "file_name": "41.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/41.obj"
+      },
+      {
+        "part_name": "back_board_part",
+        "file_name": "42.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/42.obj"
+      },
+      {
+        "part_name": "side_board_part",
+        "file_name": "43.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/43.obj"
+      },
+      {
+        "part_name": "side_board_part",
+        "file_name": "44.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/44.obj"
+      },
+      {
+        "part_name": "drawer_door_board_part",
+        "file_name": "45.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/45.obj"
+      },
+      {
+        "part_name": "drawer_board_part",
+        "file_name": "46.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/46.obj"
+      },
+      {
+        "part_name": "drawer_board_part",
+        "file_name": "47.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/47.obj"
+      },
+      {
+        "part_name": "drawer_board_part",
+        "file_name": "48.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/48.obj"
+      },
+      {
+        "part_name": "drawer_board_part",
+        "file_name": "49.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/49.obj"
+      },
+      {
+        "part_name": "knob_part",
+        "file_name": "50.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/50.obj"
+      },
+      {
+        "part_name": "drawer_door_board_part",
+        "file_name": "51.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/51.obj"
+      },
+      {
+        "part_name": "drawer_board_part",
+        "file_name": "52.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/52.obj"
+      },
+      {
+        "part_name": "drawer_board_part",
+        "file_name": "53.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/53.obj"
+      },
+      {
+        "part_name": "drawer_board_part",
+        "file_name": "54.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/54.obj"
+      },
+      {
+        "part_name": "drawer_board_part",
+        "file_name": "55.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/55.obj"
+      },
+      {
+        "part_name": "knob_part",
+        "file_name": "56.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/56.obj"
+      },
+      {
+        "part_name": "bottomboard_part",
+        "file_name": "57.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/57.obj"
+      },
+      {
+        "part_name": "divisionboard_part",
+        "file_name": "58.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/58.obj"
+      },
+      {
+        "part_name": "divisionboard_part",
+        "file_name": "59.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/59.obj"
+      },
+      {
+        "part_name": "divisionboard_part",
+        "file_name": "60.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/60.obj"
+      },
+      {
+        "part_name": "back_board_part",
+        "file_name": "61.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/61.obj"
+      },
+      {
+        "part_name": "side_board_part",
+        "file_name": "62.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/62.obj"
+      },
+      {
+        "part_name": "side_board_part",
+        "file_name": "63.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/63.obj"
+      },
+      {
+        "part_name": "drawer_door_board_part",
+        "file_name": "64.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/64.obj"
+      },
+      {
+        "part_name": "drawer_board_part",
+        "file_name": "65.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/65.obj"
+      },
+      {
+        "part_name": "drawer_board_part",
+        "file_name": "66.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/66.obj"
+      },
+      {
+        "part_name": "drawer_board_part",
+        "file_name": "67.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/67.obj"
+      },
+      {
+        "part_name": "drawer_board_part",
+        "file_name": "68.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/68.obj"
+      },
+      {
+        "part_name": "knob_part",
+        "file_name": "69.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/69.obj"
+      },
+      {
+        "part_name": "drawer_door_board_part",
+        "file_name": "70.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/70.obj"
+      },
+      {
+        "part_name": "drawer_board_part",
+        "file_name": "71.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/71.obj"
+      },
+      {
+        "part_name": "drawer_board_part",
+        "file_name": "72.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/72.obj"
+      },
+      {
+        "part_name": "drawer_board_part",
+        "file_name": "73.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/73.obj"
+      },
+      {
+        "part_name": "drawer_board_part",
+        "file_name": "74.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/74.obj"
+      },
+      {
+        "part_name": "knob_part",
+        "file_name": "75.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/75.obj"
+      },
+      {
+        "part_name": "bottomboard_part",
+        "file_name": "76.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/76.obj"
+      },
+      {
+        "part_name": "divisionboard_part",
+        "file_name": "77.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/77.obj"
+      },
+      {
+        "part_name": "divisionboard_part",
+        "file_name": "78.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/78.obj"
+      },
+      {
+        "part_name": "divisionboard_part",
+        "file_name": "79.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/79.obj"
+      },
+      {
+        "part_name": "back_board_part",
+        "file_name": "80.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/80.obj"
+      },
+      {
+        "part_name": "side_board_part",
+        "file_name": "81.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/81.obj"
+      },
+      {
+        "part_name": "side_board_part",
+        "file_name": "82.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/82.obj"
+      },
+      {
+        "part_name": "drawer_door_board_part",
+        "file_name": "83.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/83.obj"
+      },
+      {
+        "part_name": "drawer_board_part",
+        "file_name": "84.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/84.obj"
+      },
+      {
+        "part_name": "drawer_board_part",
+        "file_name": "85.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/85.obj"
+      },
+      {
+        "part_name": "drawer_board_part",
+        "file_name": "86.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/86.obj"
+      },
+      {
+        "part_name": "drawer_board_part",
+        "file_name": "87.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/87.obj"
+      },
+      {
+        "part_name": "knob_part",
+        "file_name": "88.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/88.obj"
+      },
+      {
+        "part_name": "drawer_door_board_part",
+        "file_name": "89.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/89.obj"
+      },
+      {
+        "part_name": "drawer_board_part",
+        "file_name": "90.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/90.obj"
+      },
+      {
+        "part_name": "drawer_board_part",
+        "file_name": "91.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/91.obj"
+      },
+      {
+        "part_name": "drawer_board_part",
+        "file_name": "92.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/92.obj"
+      },
+      {
+        "part_name": "drawer_board_part",
+        "file_name": "93.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/93.obj"
+      },
+      {
+        "part_name": "knob_part",
+        "file_name": "94.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/94.obj"
+      },
+      {
+        "part_name": "bottomboard_part",
+        "file_name": "95.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/95.obj"
+      },
+      {
+        "part_name": "divisionboard_part",
+        "file_name": "96.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/96.obj"
+      },
+      {
+        "part_name": "divisionboard_part",
+        "file_name": "97.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/97.obj"
+      },
+      {
+        "part_name": "divisionboard_part",
+        "file_name": "98.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/98.obj"
+      },
+      {
+        "part_name": "back_board_part",
+        "file_name": "99.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/99.obj"
+      },
+      {
+        "part_name": "side_board_part",
+        "file_name": "100.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/100.obj"
+      },
+      {
+        "part_name": "side_board_part",
+        "file_name": "101.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/101.obj"
+      },
+      {
+        "part_name": "panel_edge_frame_part",
+        "file_name": "102.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/102.obj"
+      },
+      {
+        "part_name": "panel_edge_frame_part",
+        "file_name": "103.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/103.obj"
+      },
+      {
+        "part_name": "panel_edge_frame_part",
+        "file_name": "104.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/104.obj"
+      },
+      {
+        "part_name": "panel_edge_frame_part",
+        "file_name": "105.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/105.obj"
+      },
+      {
+        "part_name": "mid_board_part",
+        "file_name": "106.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/106.obj"
+      },
+      {
+        "part_name": "knob_handle_part",
+        "file_name": "107.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/107.obj"
+      },
+      {
+        "part_name": "bottomboard_part",
+        "file_name": "108.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/108.obj"
+      },
+      {
+        "part_name": "divisionboard_part",
+        "file_name": "109.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/109.obj"
+      },
+      {
+        "part_name": "divisionboard_part",
+        "file_name": "110.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/110.obj"
+      },
+      {
+        "part_name": "divisionboard_part",
+        "file_name": "111.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/111.obj"
+      },
+      {
+        "part_name": "back_board_part",
+        "file_name": "112.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/112.obj"
+      },
+      {
+        "part_name": "side_board_part",
+        "file_name": "113.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/113.obj"
+      },
+      {
+        "part_name": "side_board_part",
+        "file_name": "114.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/114.obj"
+      },
+      {
+        "part_name": "panel_edge_frame_part",
+        "file_name": "115.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/115.obj"
+      },
+      {
+        "part_name": "panel_edge_frame_part",
+        "file_name": "116.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/116.obj"
+      },
+      {
+        "part_name": "panel_edge_frame_part",
+        "file_name": "117.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/117.obj"
+      },
+      {
+        "part_name": "panel_edge_frame_part",
+        "file_name": "118.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/118.obj"
+      },
+      {
+        "part_name": "mid_board_part",
+        "file_name": "119.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/119.obj"
+      },
+      {
+        "part_name": "knob_handle_part",
+        "file_name": "120.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/120.obj"
+      },
+      {
+        "part_name": "panel_edge_frame_part",
+        "file_name": "121.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/121.obj"
+      },
+      {
+        "part_name": "panel_edge_frame_part",
+        "file_name": "122.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/122.obj"
+      },
+      {
+        "part_name": "panel_edge_frame_part",
+        "file_name": "123.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/123.obj"
+      },
+      {
+        "part_name": "panel_edge_frame_part",
+        "file_name": "124.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/124.obj"
+      },
+      {
+        "part_name": "mid_board_part",
+        "file_name": "125.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/125.obj"
+      },
+      {
+        "part_name": "knob_handle_part",
+        "file_name": "126.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/126.obj"
+      },
+      {
+        "part_name": "bottomboard_part",
+        "file_name": "127.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/127.obj"
+      },
+      {
+        "part_name": "divisionboard_part",
+        "file_name": "128.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/128.obj"
+      },
+      {
+        "part_name": "divisionboard_part",
+        "file_name": "129.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/129.obj"
+      },
+      {
+        "part_name": "divisionboard_part",
+        "file_name": "130.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/130.obj"
+      },
+      {
+        "part_name": "back_board_part",
+        "file_name": "131.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/131.obj"
+      },
+      {
+        "part_name": "side_board_part",
+        "file_name": "132.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/132.obj"
+      },
+      {
+        "part_name": "side_board_part",
+        "file_name": "133.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/133.obj"
+      }
+    ]
+  },
+  {
+    "part": [
+      {
+        "part_name": "top_part",
+        "file_name": "0.obj",
+        "file_obj_path": "outputs/KitchenIslandFactory/0/objs/0.obj"
+      }
+    ]
+  }
+]

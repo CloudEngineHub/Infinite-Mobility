@@ -1,0 +1,2 @@
+infinigen.assets.objects.appliances.BeverageFridgeFactory
+infinigen.assets.objects.appliances.DishwasherFactory
