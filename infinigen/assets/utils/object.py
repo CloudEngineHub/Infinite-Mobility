@@ -696,9 +696,10 @@ def save_whole_object_normalized(object, path=None, idx="unknown", name=None, us
             limit = None
         type = joint_info.get("type", "fixed")
         if type == "fixed" or type == "prismatic":
+            shift_axis = joint_info.get("origin_shift", (0, 0, 0))
             j = urdfpy.Joint(joint_info.get("name", "temp"), joint_info.get("type", "fixed"), parent, link,
                              axis=joint_info.get("axis", None),
-                             origin=get_translation_matrix(origin_shift[0], origin_shift[1], origin_shift[2]),
+                             origin=get_translation_matrix(origin_shift[0] + shift_axis[0], origin_shift[1]+ shift_axis[1], origin_shift[2] + shift_axis[2]),
                              limit=limit)
             joints.append(j)
         elif type == "revolute" or type == "continuous":

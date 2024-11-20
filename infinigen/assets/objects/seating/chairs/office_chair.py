@@ -160,11 +160,27 @@ def geometry_assemble_chair(nw: NodeWrangler, **kwargs):
                                 "axis": (0, 1, 0)
                             }
                         elif k == 1:
+                            origin_shift = (0, 0, 0)
+                            if kwargs["Leg Pole Number"] == 3:
+                                if j == 1:
+                                    origin_shift = (0.03, 0, 0.035)
+                                if j == 3:
+                                    origin_shift = (-0.03, 0, 0.035)
+                            else:
+                                if j == 1:
+                                    origin_shift = (0.03, 0, 0.045)
+                                if j == 2:
+                                    origin_shift = (0.03, 0, 0.015)
+                                if j == 4:
+                                    origin_shift = (-0.03, 0, 0.015)
+                                if j == 5:
+                                    origin_shift = (-0.03, 0, 0.045)
                             parent_idx = last_idx + 2
                             joint_info = {
                                 "name": f"wheel_spin_{random.randint(-100000000, 10000000000000000000000000)}",
                                 "type": "continuous",
                                 "axis": (1, 0, 0),
+                                "origin_shift": origin_shift,
                                 "substitute_mesh_idx": 9 if kwargs['Leg Pole Number'] == 5 else 5,
                                 #"origin_shift": (0, -kwargs.get("Leg Wheel Width", 0) / 2, 0)
                             }
@@ -176,11 +192,27 @@ def geometry_assemble_chair(nw: NodeWrangler, **kwargs):
                                 "type": "fixed"
                             }
                         else:
+                            origin_shift = (0, 0, 0)
+                            if kwargs["Leg Pole Number"] == 3:
+                                if j == 1:
+                                    origin_shift = (0.03, 0, 0.035)
+                                if j == 3:
+                                    origin_shift = (-0.03, 0, 0.035)
+                            else:
+                                if j == 1:
+                                    origin_shift = (0.03, 0, 0.045)
+                                if j == 2:
+                                    origin_shift = (0.03, 0, 0.015)
+                                if j == 4:
+                                    origin_shift = (-0.03, 0, 0.015)
+                                if j == 5:
+                                    origin_shift = (-0.03, 0, 0.045)
                             parent_idx = last_idx + 2
                             joint_info = {
                                 "name": f"fixed_{random.randint(-100000000, 10000000000000000000000000)}",
                                 "type": "fixed",
                                 "substitute_mesh_idx": 10 if kwargs['Leg Pole Number'] == 5 else 6,
+                                "origin_shift": origin_shift
                             }
                         a = save_geometry(  
                             nw,
@@ -368,7 +400,7 @@ class OfficeChairFactory(AssetFactory):
             leg_diameter = uniform(0.03, 0.05)
             leg_number = 1
             pole_number = choice([3, 5])
-            pole_number = 3
+            pole_number = 5
             joint_height = uniform(0.5, 0.8) * (z - top_thickness)
             wheel_arc_sweep_angle = uniform(120, 240)
             wheel_width = uniform(0.11, 0.15)
