@@ -90,6 +90,17 @@ from infinigen.tools import export
 robot_tree = {}
 root = None
 
+uuid = 0
+def get_uuid():
+    global uuid
+    uuid += 1
+    return uuid
+
+def get_joint_name(type):
+    return f"joint_{type}_{get_uuid()}" 
+
+def get_link_name(name):
+    return f"link_{name}_{get_uuid()}"
 
 def center(obj):
     return (Vector(obj.bound_box[0]) + Vector(obj.bound_box[-2])) * obj.scale / 2.0
@@ -670,8 +681,29 @@ def save_whole_object_normalized(object, path=None, idx="unknown", name=None, us
 
     # sample point clouds
     # sample_and_save_points(torch.tensor(trimesh_object.vertices, dtype=torch.float32), torch.tensor(trimesh_object.faces), os.path.join(path, f"{idx}/point_cloud/whole"))
-    path_list = glob.glob(os.path.join(path, idx, "objs", "*.obj"))
-    path_list.remove(file_path)
+    #path_list = glob.glob(os.path.join(path, idx, "objs", "*.obj"))
+    path_list = []
+    obj_dirs = os.listdir(os.path.join(path, idx, "objs"))
+    for obj_dir in obj_dirs:
+        path_single_obj = os.path.join(path, idx, "objs", obj_dir)
+        if os.path.isdir(path_single_obj):
+            shutil.rmtree(os.path.join(path_single_obj, "textures"))
+            dir = os.listdir(path_single_obj)[0]
+            dir = os.path.join(path_single_obj, dir)
+            all_files = os.listdir(dir)
+            for file in all_files:
+                if not file.endswith(".obj") and not file.endswith(".mtl"):
+                    #print(os.path.join(path_single_obj, file), os.path.join(dir, file))
+                    shutil.copyfile(os.path.join(dir, file), os.path.join(path_single_obj, file))
+                elif file.endswith(".obj"):
+                    #print(os.path.join(path_single_obj, obj_dir + '.obj'), os.path.join(dir, file))
+                    shutil.copyfile(os.path.join(dir, file), os.path.join(path_single_obj, obj_dir + '.obj'))
+                    path_list.append(os.path.join(path_single_obj, obj_dir + '.obj'))
+                else:
+                    shutil.copyfile(os.path.join(dir, file), os.path.join(path_single_obj, obj_dir + '.mtl'))
+            shutil.rmtree(dir)
+
+    #path_list.remove(file_path)
 
     x_min, y_min, z_min, x_max, y_max, z_max = 300, 300, 300, -300, -300, -300
     origins = {}
@@ -726,8 +758,8 @@ def save_whole_object_normalized(object, path=None, idx="unknown", name=None, us
             material = None
             if os.path.isfile(os.path.join(path, idx, "objs", f"{mesh_idx}.png")):
                 texture = urdfpy.Texture(filename=os.path.join(path, idx, "objs", f"{mesh_idx}.png"))
-                material = urdfpy.Material(name=f"{link}_{random.randint(0, 1000000000000000000000000000000000000000000000000000000000000000000)}", texture=texture)
-            l = urdfpy.Link(f'{link}', visuals=[urdfpy.Visual(material=material, geometry=urdfpy.Geometry(mesh=urdfpy.Mesh(filename=os.path.join(path, idx, "objs", f"{mesh_idx}.obj"))))], collisions=[urdfpy.Collision(name="temp", origin=None, geometry=urdfpy.Geometry(mesh=urdfpy.Mesh(filename=os.path.join(path, idx, "objs", f"{link}.obj"))))], inertial=None)
+                material = urdfpy.Material(name=get_link_name("material"), texture=texture)
+            l = urdfpy.Link(f'{link}', visuals=[urdfpy.Visual(material=material, geometry=urdfpy.Geometry(mesh=urdfpy.Mesh(filename=os.path.join(path, idx, "objs",f"{mesh_idx}", f"{mesh_idx}.obj"))))], collisions=[urdfpy.Collision(name="temp", origin=None, geometry=urdfpy.Geometry(mesh=urdfpy.Mesh(filename=os.path.join(path, idx, "objs", f"{mesh_idx}",f"{mesh_idx}.obj"))))], inertial=None)
             links[link] = l
         else:
             l = links[link]
@@ -745,7 +777,7 @@ def save_whole_object_normalized(object, path=None, idx="unknown", name=None, us
             parent = "world"
             pos = origins[link]
             joint_info = {
-                "name": f"{random.randint(0, 10000000000000000000000000000000000000000)}_root",
+                "name": get_joint_name("fixed"),
                 "type": "fixed",
                 "origin": get_translation_matrix(pos[0], pos[1], pos[2])
             }
@@ -756,8 +788,8 @@ def save_whole_object_normalized(object, path=None, idx="unknown", name=None, us
             material = None
             if os.path.isfile(os.path.join(path, idx, "objs", f"{mesh_idx}.png")):
                 texture = urdfpy.Texture(filename=os.path.join(path, idx, "objs", f"{mesh_idx}.png"))
-                material = urdfpy.Material(name=f"{link}_{random.randint(0, 1000000000000000000000000000000000000000000000000000000000000000000000000000)}", texture=texture)
-            p = urdfpy.Link(f'{parent}', visuals=[urdfpy.Visual(material=material, geometry=urdfpy.Geometry(mesh=urdfpy.Mesh(filename=os.path.join(path, idx, "objs", f"{mesh_idx}.obj"))))], collisions=None, inertial=None)
+                material = urdfpy.Material(name=get_link_name("material"), texture=texture)
+            p = urdfpy.Link(f'{parent}', visuals=[urdfpy.Visual(material=material, geometry=urdfpy.Geometry(mesh=urdfpy.Mesh(filename=os.path.join(path, idx, "objs",f"{mesh_idx}",  f"{mesh_idx}.obj"))))], collisions=None, inertial=None)
             links[parent] = p
         else:
             p = links[parent]
@@ -788,7 +820,7 @@ def save_whole_object_normalized(object, path=None, idx="unknown", name=None, us
             l_abstract = urdfpy.Link(f'abstract_{parent}_{link}', visuals=None, collisions=None, inertial=None)
             links[f'abstract_{parent}_{link}'] = l_abstract
             j_real = urdfpy.Joint(joint_info.get("name"), joint_info.get("type", "fixed"), parent, f'abstract_{parent}_{link}', axis=joint_info.get("axis", None), limit=limit, origin=get_translation_matrix(origin_shift[0] + shift_axis[0], origin_shift[1] + shift_axis[1], origin_shift[2] + shift_axis[2]))
-            j_abstract = urdfpy.Joint(str(random.randint(-10, 100000000000000000000000000000000000000)), "fixed", f"abstract_{parent}_{link}", link, axis=None, limit=None, origin=get_translation_matrix(-shift_axis[0], -shift_axis[1], -shift_axis[2]))
+            j_abstract = urdfpy.Joint(get_joint_name("fixed"), "fixed", f"abstract_{parent}_{link}", link, axis=None, limit=None, origin=get_translation_matrix(-shift_axis[0], -shift_axis[1], -shift_axis[2]))
             joints.append(j_real)
             joints.append(j_abstract)
         elif type == "revolute_prismatic" or type == "continuous_prismatic":
@@ -800,17 +832,17 @@ def save_whole_object_normalized(object, path=None, idx="unknown", name=None, us
                                   origin=get_translation_matrix(origin_shift[0] + shift_axis[0],
                                                                 origin_shift[1] + shift_axis[1],
                                                                 origin_shift[2] + shift_axis[2]))
-            j_abstract = urdfpy.Joint(str(random.randint(-10, 100000000000000000000000000000000000000)), "fixed",
+            j_abstract = urdfpy.Joint(get_joint_name("fixed"), "fixed",
                                       f"abstract_{parent}_{link}", link, axis=None, limit=None,
                                       origin=get_translation_matrix(-shift_axis[0], -shift_axis[1], -shift_axis[2]))
             joints.append(j_real)
             joints.append(j_abstract)
-            joint_prismatic = urdfpy.Joint(f"joint_prismatic_{random.randint(0, 1000000000000000000000000000)}",
+            joint_prismatic = urdfpy.Joint(get_joint_name("prismatic"),
                                            "prismatic", parent, link, axis=joint_info.get("axis_1", None), limit=limit_1, origin=get_translation_matrix(origin_shift[0], origin_shift[1], origin_shift[2]))
             joints.append(joint_prismatic)
 
     robot = urdfpy.URDF("scene", list(links.values()), joints=joints)
-    robot.save(os.path.join(path, idx, "scene.urdf"))
+    robot.save(os.path.join(path, idx,f"{mesh_idx}", "scene.urdf"))
     robot.show()
     robot_tree = {}
     butil.select_none()
