@@ -18,7 +18,7 @@ from infinigen.core.nodes.node_wrangler import Nodes, NodeWrangler
 from infinigen.core.placement.factory import AssetFactory
 from infinigen.core.util import blender as butil
 from infinigen.core.util.math import FixedSeed
-from infinigen.core.nodes.node_utils import save_geometry
+from infinigen.core.nodes.node_utils import save_geometry, save_geometry_new
 import random
 
 from infinigen.assets.utils.object import (
@@ -223,6 +223,7 @@ def geometry_assemble_chair(nw: NodeWrangler, **kwargs):
                             first=first,
                             joint_info=joint_info,
                             parent_obj_id=parent_idx,
+                            material=kwargs["LegMaterial"]
                         )
                         if a:
                             first = False
@@ -255,6 +256,7 @@ def geometry_assemble_chair(nw: NodeWrangler, **kwargs):
                         first=first,
                         joint_info=joint_info,
                         parent_obj_id=parent_idx,
+                        material=kwargs["TopMaterial"]
                     )
                     if a:
                         first = False
@@ -301,6 +303,7 @@ class OfficeChairFactory(AssetFactory):
         wrapped_params = {
             k: surface.shaderfunc_to_material(v) for k, v in params.items()
         }
+        print(wrapped_params["TopMaterial"].name)
 
         scratch_prob, edge_wear_prob = material_assignments["wear_tear_prob"]
         scratch, edge_wear = material_assignments["wear_tear"]
@@ -459,3 +462,4 @@ class OfficeChairFactory(AssetFactory):
             self.scratch.apply(assets)
         if self.edge_wear:
             self.edge_wear.apply(assets)
+        

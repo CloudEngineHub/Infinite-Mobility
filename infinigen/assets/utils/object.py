@@ -4,10 +4,15 @@
 
 # Authors: Lingjie Mei
 import glob
+import importlib
 import json
 import os
 from pathlib import Path
 from math import radians
+import shutil
+import subprocess
+
+import gin
 from mathutils import Matrix
 
 import bpy
@@ -27,6 +32,7 @@ from infinigen.assets.utils.decorate import read_co
 from infinigen.core.util.blender import select_none
 
 import urdfpy
+from infinigen.tools import export
 
 # def sample_and_save_points(verts, faces, path, num_samples=50000, return_normals=True):
 
@@ -499,6 +505,73 @@ def get_translation_matrix(x, y, z):
     ])
     return matrix
 
+# def setup_camera():
+#     cam_dist = 6
+    
+#     camera = bpy.context.active_object
+#     camera.data.sensor_height = (
+#         camera.data.sensor_width * scene.render.resolution_y / scene.render.resolution_x
+#     )
+#     for area in bpy.context.screen.areas:
+#         if area.type == "VIEW_3D":
+#             area.spaces.active.region_3d.view_perspective = "CAMERA"
+#             break
+#     cam_info_ng = bpy.data.node_groups.get("nodegroup_active_cam_info")
+#     if cam_info_ng is not None:
+#         cam_info_ng.nodes["Object Info"].inputs["Object"].default_value = camera
+#     return camera, camera.parent
+
+def render_object_texture_and_save(obj, material, path):
+    if material is None:
+        return
+    name = material.name
+    r = subprocess.call(['python' ,'-m' ,'infinigen_examples.generate_individual_assets' ,'--output_folder' ,path ,'-f' ,name ,'-n' ,'1'])
+    # template = None
+    # for subdir in os.listdir("infinigen/assets/materials"):
+    #     with gin.unlock_config():
+    #         module = importlib.import_module(
+    #         f'infinigen.assets.materials.{subdir.split(".")[0]}'
+    #         )
+    #         if hasattr(module, name) and hasattr(module, 'apply'):
+    #             template = getattr(module, 'apply')
+    #             break
+    # if template is None:
+    #     return
+    # #template(obj, material)
+        
+    # # create new scene
+    # original_scene = bpy.context.scene
+    # scene = bpy.data.scenes.new("temp_scene")
+    # scene.render.engine = "CYCLES"
+    # scene.render.resolution_x, scene.render.resolution_y = 1024, 1024
+    # scene.cycles.samples = 200
+    # bpy.context.window.scene = scene
+    # bpy.ops.object.camera_add(location=(0, -6, 0), rotation=(np.pi / 2, 0, 0))
+    # camera = bpy.context.active_object
+    # scene.camera = camera
+    # #bpy.ops.mesh.primitive_plane_add(size=100)
+    # #obj = bpy.context.active_object
+    # #template(obj)
+     
+    # light_data = bpy.data.lights.new(name='Direct_Light', type='POINT')
+ 
+    # # 将光源对象转换为方向光类型
+    # light_data.type = 'SUN'
+    # light_data.energy = 200
+    # # 将方向光源添加到场景中
+    # light_object = bpy.data.objects.new(name='My Directional Light', object_data=light_data)
+    # scene.collection.objects.link(light_object)
+    # light_object.location = (-10, -10, 10)
+ 
+    # # 设置方向光源的方向
+    # # light_object.rotation_euler = Vector((0, 0, 0))
+    # # light_object.rotation_euler.rotate_axis('X', 1.5708)  # 90度弧度值
+ 
+    # scene.render.filepath = str(path)
+    # #add camera
+    # bpy.ops.render.render(write_still=True)
+    # bpy.context.window.scene = original_scene 
+
 def save_whole_object_normalized(object, path=None, idx="unknown", name=None, use_bpy=False):
     global robot_tree, root
     if idx == "unknown":
@@ -650,7 +723,11 @@ def save_whole_object_normalized(object, path=None, idx="unknown", name=None, us
             mesh_idx = link
             if robot_tree[link][1].get("substitute_mesh_idx", None) is not None:
                 mesh_idx = robot_tree[link][1]["substitute_mesh_idx"]
-            l = urdfpy.Link(f'{link}', visuals=[urdfpy.Visual(geometry=urdfpy.Geometry(mesh=urdfpy.Mesh(filename=os.path.join(path, idx, "objs", f"{mesh_idx}.obj"))))], collisions=[urdfpy.Collision(name="temp", origin=None, geometry=urdfpy.Geometry(mesh=urdfpy.Mesh(filename=os.path.join(path, idx, "objs", f"{link}.obj"))))], inertial=None)
+            material = None
+            if os.path.isfile(os.path.join(path, idx, "objs", f"{mesh_idx}.png")):
+                texture = urdfpy.Texture(filename=os.path.join(path, idx, "objs", f"{mesh_idx}.png"))
+                material = urdfpy.Material(name=f"{link}_{random.randint(0, 1000000000000000000000000000000000000000000000000000000000000000000)}", texture=texture)
+            l = urdfpy.Link(f'{link}', visuals=[urdfpy.Visual(material=material, geometry=urdfpy.Geometry(mesh=urdfpy.Mesh(filename=os.path.join(path, idx, "objs", f"{mesh_idx}.obj"))))], collisions=[urdfpy.Collision(name="temp", origin=None, geometry=urdfpy.Geometry(mesh=urdfpy.Mesh(filename=os.path.join(path, idx, "objs", f"{link}.obj"))))], inertial=None)
             links[link] = l
         else:
             l = links[link]
@@ -676,7 +753,11 @@ def save_whole_object_normalized(object, path=None, idx="unknown", name=None, us
             mesh_idx = parent
             if robot_tree.get(parent, None) is not None and robot_tree[parent][1] is not None and robot_tree[parent][1].get("substitute_mesh_idx", None) is not None:
                 mesh_idx = robot_tree[parent][1]["substitute_mesh_idx"]
-            p = urdfpy.Link(f'{parent}', visuals=[urdfpy.Visual(geometry=urdfpy.Geometry(mesh=urdfpy.Mesh(filename=os.path.join(path, idx, "objs", f"{mesh_idx}.obj"))))], collisions=None, inertial=None)
+            material = None
+            if os.path.isfile(os.path.join(path, idx, "objs", f"{mesh_idx}.png")):
+                texture = urdfpy.Texture(filename=os.path.join(path, idx, "objs", f"{mesh_idx}.png"))
+                material = urdfpy.Material(name=f"{link}_{random.randint(0, 1000000000000000000000000000000000000000000000000000000000000000000000000000)}", texture=texture)
+            p = urdfpy.Link(f'{parent}', visuals=[urdfpy.Visual(material=material, geometry=urdfpy.Geometry(mesh=urdfpy.Mesh(filename=os.path.join(path, idx, "objs", f"{mesh_idx}.obj"))))], collisions=None, inertial=None)
             links[parent] = p
         else:
             p = links[parent]
@@ -730,7 +811,7 @@ def save_whole_object_normalized(object, path=None, idx="unknown", name=None, us
 
     robot = urdfpy.URDF("scene", list(links.values()), joints=joints)
     robot.save(os.path.join(path, idx, "scene.urdf"))
-    #robot.show()
+    robot.show()
     robot_tree = {}
     butil.select_none()
 
@@ -775,7 +856,7 @@ def save_obj_parts_join_objects(
 
 
 def save_obj_parts_add(
-    obj, path=None, idx="unknown", name=None, obj_name=None, first=True, use_bpy=False, parent_obj_id=None, joint_info=None
+    obj, path=None, idx="unknown", name=None, obj_name=None, first=True, use_bpy=False, parent_obj_id=None, joint_info=None, material=None
 ):
     butil.select_none()
     if not isinstance(obj, list):
@@ -789,7 +870,7 @@ def save_obj_parts_add(
     # original_node_tree = bpy.context.scene.world.node_tree
     # Save a reference to the original scene
     original_scene = bpy.context.scene
-    saved = save_part_export_obj_normalized_add_json(obj, path, idx, name, first=first, use_bpy=use_bpy, parent_obj_id=parent_obj_id, joint_info=joint_info)
+    saved = save_part_export_obj_normalized_add_json(obj, path, idx, name, first=first, use_bpy=use_bpy, parent_obj_id=parent_obj_id, joint_info=joint_info, material=material)
     # We need to link all these objects into view_layer
     view_layer = bpy.context.view_layer
     for part in obj:
@@ -967,10 +1048,112 @@ def save_parts_export_obj_normalized_json(
 
     butil.select_none()
 
+def export_curr_scene(
+    objs: bpy.types.Object,
+    output_folder: Path,
+    format="usdc",
+    image_res=1024,
+    vertex_colors=False,
+    individual_export=True,
+) -> Path:
+    #wait = input("Press Enter to continue.")
+    export_usd = format in ["usda", "usdc"]
+
+    export_folder = output_folder
+    export_folder.mkdir(exist_ok=True)
+    export_file = export_folder / output_folder.with_suffix(f".{format}").name
+
+    export.remove_obj_parents()
+    export.delete_objects()
+    export.triangulate_meshes()
+    export.rename_all_meshes()
+
+    scatter_cols = []
+    if export_usd:
+        if bpy.data.collections.get("scatter"):
+            scatter_cols.append(bpy.data.collections["scatter"])
+        if bpy.data.collections.get("scatters"):
+            scatter_cols.append(bpy.data.collections["scatters"])
+        for col in scatter_cols:
+            for obj in col.all_objects:
+                export.remove_shade_smooth(obj)
+
+    # remove 0 polygon meshes except for scatters
+    # if export_usd:
+    #     for obj in bpy.data.objects:
+    #         if obj.type == 'MESH' and len(obj.data.polygons) == 0:
+    #             if scatter_cols is not None:
+    #                 if any(x in scatter_cols for x in obj.users_collection):
+    #                      continue
+    #             logging.info(f"{obj.name} has no faces, removing...")
+    #             bpy.data.objects.remove(obj, do_unlink=True)
+
+    collection_views, obj_views = export.update_visibility()
+
+    for obj in bpy.data.objects:
+        if obj.type != "MESH" or obj not in list(bpy.context.view_layer.objects):
+            continue
+        if export_usd:
+            export.apply_all_modifiers(obj)
+        else:
+            export.realizeInstances(obj)
+            export.apply_all_modifiers(obj)
+
+    bpy.context.scene.render.engine = "CYCLES"
+    bpy.context.scene.cycles.device = "GPU"
+    bpy.context.scene.cycles.samples = 1  # choose render sample
+    # Set the tile size
+    bpy.context.scene.cycles.tile_x = image_res
+    bpy.context.scene.cycles.tile_y = image_res
+
+    # iterate through all objects and bake them
+    export.bake_scene(
+        folderPath=export_folder / "textures",
+        image_res=image_res,
+        vertex_colors=vertex_colors,
+        export_usd=export_usd,
+    )
+
+    for collection, status in collection_views.items():
+        collection.hide_render = status
+
+    for obj, status in obj_views.items():
+        obj.hide_render = status
+
+    export.clean_names()
+
+    for obj in bpy.data.objects:
+        obj.hide_viewport = obj.hide_render
+
+    if individual_export:
+        bpy.ops.object.select_all(action="SELECT")
+        bpy.ops.object.location_clear()  # send all objects to (0,0,0)
+        bpy.ops.object.select_all(action="DESELECT")
+        for obj in objs:
+            # if (
+            #     obj.type != "MESH"
+            #     or obj.hide_render
+            #     or len(obj.data.vertices) == 0
+            #     or obj not in list(bpy.context.view_layer.objects)
+            # ):
+            #     continue
+
+            export_subfolder = export_folder / obj.name
+            export_subfolder.mkdir(exist_ok=True)
+            export_file = export_subfolder / f"{obj.name}.{format}"
+
+            obj.hide_viewport = False
+            obj.select_set(True)
+            export.run_blender_export(export_file, format, vertex_colors, individual_export)
+            obj.select_set(False)
+        #wait = input("Press Enter to continue.")
+        #shutil.rmtree(export_folder / "textures")
+        return export_file
 
 def save_part_export_obj_normalized_add_json(
-    parts, path=None, idx="unknown", name=None, use_bpy=False, first=True, parent_obj_id=None, joint_info=None
+    parts, path=None, idx="unknown", name=None, use_bpy=False, first=True, parent_obj_id=None, joint_info=None, material=None
 ):
+    #render_object_texture_and_save(material, 'res.png')
     global robot_tree, root
     assert len(parts) == len(name)
     if idx == "unknown":
@@ -1018,6 +1201,7 @@ def save_part_export_obj_normalized_add_json(
         bpy.ops.object.select_all(action="DESELECT")
         # Select the current object
         part.select_set(True)
+        part.data.materials.append(material)
         # Create a new scene
         # new_scene = bpy.data.scenes.new(f"Scene_for_{part.name}")
         # Link the object to the new scene
@@ -1026,13 +1210,17 @@ def save_part_export_obj_normalized_add_json(
         # bpy.context.window.scene = new_scene
         # File path for saving the .blend file
         file_path = os.path.join(path, idx, f"objs/{i + length}.obj")
+        #part.data.materials.append(material)
+        #render_object_texture_and_save(part, material, os.path.join(path, idx, f"objs/{i + length}.png"))
         robot_tree[i + length] = [parent_obj_id, joint_info]
         if parent_obj_id is not None and root is None:
             root = i + length
         saved.append(i + length)
         if use_bpy:
-            bpy.ops.export_scene.obj(filepath=file_path, use_selection=True)
-            os.remove(os.path.join(path, idx, f"objs/{i + length}.mtl"))
+            #export.run_blender_export(Path(file_path), 'obj', True, True)
+            #bpy.ops.export_scene.obj(filepath=file_path, use_selection=True)
+            #os.remove(os.path.join(path, idx, f"objs/{i + length}.mtl"))
+            export_curr_scene([part], Path(os.path.join(path, idx, f"objs/{i + length}")), format="obj", image_res=1024, vertex_colors=False, individual_export=True)
 
         # Save the current scene as a new .obj file
         else:
