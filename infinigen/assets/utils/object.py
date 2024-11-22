@@ -759,7 +759,7 @@ def save_whole_object_normalized(object, path=None, idx="unknown", name=None, us
     for link in robot_tree.keys():
         if link not in links.keys():
             mesh_idx = link
-            if robot_tree[link][1].get("substitute_mesh_idx", None) is not None:
+            if robot_tree[link][1] is not None and robot_tree[link][1].get("substitute_mesh_idx", None) is not None:
                 mesh_idx = robot_tree[link][1]["substitute_mesh_idx"]
             material = None
             if os.path.isfile(os.path.join(path, idx, "objs", f"{mesh_idx}.png")):
@@ -1239,7 +1239,10 @@ def save_part_export_obj_normalized_add_json(
         bpy.ops.object.select_all(action="DESELECT")
         # Select the current object
         part.select_set(True)
-        part.data.materials.append(material)
+        if isinstance(material, bpy.types.Material):
+            part.data.materials.append(material)
+        else:
+            material.apply(part)
         # Create a new scene
         # new_scene = bpy.data.scenes.new(f"Scene_for_{part.name}")
         # Link the object to the new scene

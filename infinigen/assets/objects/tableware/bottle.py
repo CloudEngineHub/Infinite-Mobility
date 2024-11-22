@@ -23,6 +23,7 @@ from infinigen.assets.utils.object import (
 
 # save_objects,
 from infinigen.assets.utils.uv import wrap_front_back
+from infinigen.core import surface
 from infinigen.core.nodes.node_utils import save_geometry_new
 from infinigen.core.placement.factory import AssetFactory
 from infinigen.core.util import blender as butil
@@ -193,7 +194,6 @@ class BottleFactory(AssetFactory):
         bottle = self.make_bottle()
         wrap = self.make_wrap(bottle)
         cap = self.make_cap()
-        obj = join_objects([bottle, wrap, cap])
         
         # obj = save_obj_parts_join_objects(
         #     [bottle, wrap, cap],
@@ -205,6 +205,7 @@ class BottleFactory(AssetFactory):
         save_obj_parts_add([bottle], params.get("path", None), params.get("i", "unknown"), "bottle", first=True, use_bpy=True, parent_obj_id=None, joint_info=None, material=self.surface)
         save_obj_parts_add([wrap], params.get("path", None), params.get("i", "unknown"), "wrap", first=False, use_bpy=True, parent_obj_id=None, joint_info=None, material=self.wrap_surface)
         save_obj_parts_add([cap], params.get("path", None), params.get("i", "unknown"), "cap", first=False, use_bpy=True, parent_obj_id=None, joint_info=None, material=self.cap_surface)
+        obj = join_objects([bottle, wrap, cap])
         join_objects_save_whole([obj], params.get("path", None), params.get("i", "unknown"), "bottle_whole", join=False, use_bpy=True)
         return obj
 
