@@ -380,6 +380,7 @@ def add_geomod(
             )
 
         mod.show_viewport = show_viewport
+        reuse = False
         if ng is None:  # Create a unique node_group for the first one only
             if reuse and name in bpy.data.node_groups:
                 mod.node_group = bpy.data.node_groups[name]

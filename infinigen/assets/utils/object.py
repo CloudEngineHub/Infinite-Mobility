@@ -28,7 +28,7 @@ from tqdm import tqdm
 # from bpy_lib import *
 # from pytorch3d.io import load_ply, save_ply
 import infinigen.core.util.blender as butil
-from infinigen.assets.utils.decorate import read_co
+from infinigen.assets.utils.decorate import read_co, write_co
 from infinigen.core.util.blender import select_none
 
 import urdfpy
@@ -677,7 +677,7 @@ def save_whole_object_normalized(object, path=None, idx="unknown", name=None, us
         vertices=rotated_vertices, faces=trimesh_object.faces
     )
 
-    trimesh_object.export(file_path)
+    #input()
 
     # sample point clouds
     # sample_and_save_points(torch.tensor(trimesh_object.vertices, dtype=torch.float32), torch.tensor(trimesh_object.faces), os.path.join(path, f"{idx}/point_cloud/whole"))
@@ -699,6 +699,12 @@ def save_whole_object_normalized(object, path=None, idx="unknown", name=None, us
                     #print(os.path.join(path_single_obj, obj_dir + '.obj'), os.path.join(dir, file))
                     shutil.copyfile(os.path.join(dir, file), os.path.join(path_single_obj, obj_dir + '.obj'))
                     path_list.append(os.path.join(path_single_obj, obj_dir + '.obj'))
+                    with open(os.path.join(path_single_obj, obj_dir + '.obj'), 'r') as f:
+                        lines = f.readlines()
+                        lines[1] = 'mtllib ' + obj_dir + '.mtl\n'
+                        lines[2] = 'usemtl ' + obj_dir + '\n'
+                    with open(os.path.join(path_single_obj, obj_dir + '.obj'), 'w') as f:
+                        f.writelines(lines)
                 else:
                     shutil.copyfile(os.path.join(dir, file), os.path.join(path_single_obj, obj_dir + '.mtl'))
             shutil.rmtree(dir)
@@ -708,43 +714,42 @@ def save_whole_object_normalized(object, path=None, idx="unknown", name=None, us
     x_min, y_min, z_min, x_max, y_max, z_max = 300, 300, 300, -300, -300, -300
     origins = {}
     for obj_path in path_list:
-        mesh = trimesh.load_mesh(obj_path)
-        bs = mesh.bounds
+        butil.select_none()
+        bpy.ops.wm.obj_import(filepath=obj_path)
+        obj = bpy.context.active_object
+        co = read_co(obj)
+        bs = [
+            [co[:, 0].min(), co[:, 1].min(), co[:, 2].min()],
+            [co[:, 0].max(), co[:, 1].max(), co[:, 2].max()],
+        ]
+        # bs = mesh.bounds
         index = int(str(obj_path).split('/')[-1].split('.')[0])
         origins[index] = ((bs[0][0] + bs[1][0]) / 2, (bs[0][1] + bs[1][1]) / 2, (bs[0][2] + bs[1][2]) / 2)
-        x_min, y_min, z_min, x_max, y_max, z_max = min(x_min, bs[0][0]), min(y_min, bs[0][1]), min(z_min, bs[0][2]), max(x_max, bs[1][0]), max(y_max, bs[1][1]), max(z_max, bs[1][2])
-        mesh.vertices -= [origins[index][0], origins[index][1], origins[index][2]]
-        mesh = trimesh.Trimesh(vertices=mesh.vertices, faces=mesh.faces)
-        mesh.export(obj_path)
+        # x_min, y_min, z_min, x_max, y_max, z_max = min(x_min, bs[0][0]), min(y_min, bs[0][1]), min(z_min, bs[0][2]), max(x_max, bs[1][0]), max(y_max, bs[1][1]), max(z_max, bs[1][2])
+        co[:, 0] -= origins[index][0]
+        co[:, 1] -= origins[index][1]
+        co[:, 2] -= origins[index][2]
+        write_co(obj, co)
+        butil.apply_transform(obj, loc=True)
+        bpy.ops.wm.obj_export(
+                filepath=obj_path,
+                export_colors=True,
+                export_eval_mode="DAG_EVAL_VIEWPORT",
+                export_selected_objects=True,
+                export_materials=True,
+                export_pbr_extensions = True,
+                export_normals = True,
+                apply_modifiers = True
+            )
+        # mesh = trimesh.Trimesh(vertices=mesh.vertices, faces=mesh.faces)
+        #mesh.export(obj_path)
+        # with open(os.path.join(obj_path), 'r') as f:
+        #                 lines = f.readlines()
+        #                 lines.insert(1, 'mtllib ' + obj_path.split('/')[-1].split('.')[0] + '.mtl\n')
+        # os.remove(os.path.join(obj_path))
+        # with open(os.path.join(obj_path), 'w') as f:
+        #                 f.writelines(lines)
 
-    # for obj_path in path_list:
-    #     mesh = trimesh.load_mesh(obj_path)
-    #
-    #     # Translate the mesh to center it around the origin
-    #     mesh.vertices -= [
-    #         (x_min + x_max) / 2, (y_min + y_max) / 2, (z_min + z_max) / 2
-    #     ]
-    #
-    #     mesh.vertices *= scale_factor
-    #
-    #     rotated_vertices = np.dot(mesh.vertices, rotation_matrix.T)
-    #
-    #     # Apply the rotation matrix to the vertices
-    #
-    #
-    #     # Create a new Trimesh object with the rotated vertices
-    #     if use_bpy:
-    #         mesh = trimesh.Trimesh(vertices=mesh.vertices, faces=mesh.faces)
-    #     else:
-    #         mesh = trimesh.Trimesh(rotated_vertices, faces=mesh.faces)
-    #
-    #     mesh.export(obj_path)
-    #
-    #     base_filename = os.path.basename(obj_path)
-    #     n = base_filename.split(".")[0]
-
-        # sample points
-        # sample_and_save_points(torch.tensor(mesh.vertices, dtype=torch.float32), torch.tensor(mesh.faces), os.path.join(path, f"{idx}/point_cloud/{n}"))
     links = {}
     joints= []
     origins["world"] = (0, 0, 0)
@@ -765,12 +770,6 @@ def save_whole_object_normalized(object, path=None, idx="unknown", name=None, us
             l = links[link]
         joint_info = robot_tree[link][1]
         parent = robot_tree[link][0]
-        # if parent is None:
-        #     joint_root = urdfpy.Joint(f"joint_root_{random.randint(0, 10000000000000000000000000000000000000)}", "prismatic", "world", link, axis=(0, 0, 1), origin=None, limit=urdfpy.JointLimit(
-        #         0, 1, -1, 1
-        #     ))
-        #     joints.append(joint_root)
-        #     continue
         if link == root:
             continue
         if parent is None:
@@ -842,8 +841,12 @@ def save_whole_object_normalized(object, path=None, idx="unknown", name=None, us
             joints.append(joint_prismatic)
 
     robot = urdfpy.URDF("scene", list(links.values()), joints=joints)
-    robot.save(os.path.join(path, idx,f"{mesh_idx}", "scene.urdf"))
-    robot.show()
+    robot.save(os.path.join(path, idx, "scene.urdf"))
+    shutil.rmtree(os.path.join(path, idx, path, idx, "objs"))
+    shutil.copytree(os.path.join(path, idx, "objs"), os.path.join(path, idx, path, idx, "objs"))
+    shutil.rmtree(os.path.join(path, idx, "objs"))
+
+    #robot.show()
     robot_tree = {}
     butil.select_none()
 

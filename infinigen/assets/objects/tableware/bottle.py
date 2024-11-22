@@ -14,12 +14,16 @@ from infinigen.assets.utils.decorate import read_co, subdivide_edge_ring, subsur
 from infinigen.assets.utils.draw import spin
 from infinigen.assets.utils.object import (
     # join_objects,
+    join_objects,
+    join_objects_save_whole,
     new_cylinder,
+    save_obj_parts_add,
     save_obj_parts_join_objects,
 )
 
 # save_objects,
 from infinigen.assets.utils.uv import wrap_front_back
+from infinigen.core.nodes.node_utils import save_geometry_new
 from infinigen.core.placement.factory import AssetFactory
 from infinigen.core.util import blender as butil
 from infinigen.core.util.math import FixedSeed
@@ -189,15 +193,19 @@ class BottleFactory(AssetFactory):
         bottle = self.make_bottle()
         wrap = self.make_wrap(bottle)
         cap = self.make_cap()
-        # obj = join_objects([bottle, wrap, cap])
-        obj = save_obj_parts_join_objects(
-            [bottle, wrap, cap],
-            params.get("path", None),
-            params.get("i", "unknown"),
-            name=["bottle", "wrap", "cap"],
-            obj_name="Bottle"
-        )
-
+        obj = join_objects([bottle, wrap, cap])
+        
+        # obj = save_obj_parts_join_objects(
+        #     [bottle, wrap, cap],
+        #     params.get("path", None),
+        #     params.get("i", "unknown"),
+        #     name=["bottle", "wrap", "cap"],
+        #     obj_name="Bottle"
+        # )
+        save_obj_parts_add([bottle], params.get("path", None), params.get("i", "unknown"), "bottle", first=True, use_bpy=True, parent_obj_id=None, joint_info=None, material=self.surface)
+        save_obj_parts_add([wrap], params.get("path", None), params.get("i", "unknown"), "wrap", first=False, use_bpy=True, parent_obj_id=None, joint_info=None, material=self.wrap_surface)
+        save_obj_parts_add([cap], params.get("path", None), params.get("i", "unknown"), "cap", first=False, use_bpy=True, parent_obj_id=None, joint_info=None, material=self.cap_surface)
+        join_objects_save_whole([obj], params.get("path", None), params.get("i", "unknown"), "bottle_whole", join=False, use_bpy=True)
         return obj
 
     def finalize_assets(self, assets):
