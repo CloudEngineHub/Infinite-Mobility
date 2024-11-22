@@ -14,6 +14,7 @@ from infinigen.assets.objects.seating.chairs.seats.curvy_seats import (
 from infinigen.assets.objects.tables.cocktail_table import geometry_create_legs
 from infinigen.assets.utils.object import save_file_path
 from infinigen.core import surface, tagging
+from infinigen.core.nodes import node_utils
 from infinigen.core.nodes.node_wrangler import Nodes, NodeWrangler
 from infinigen.core.placement.factory import AssetFactory
 from infinigen.core.util import blender as butil
@@ -27,7 +28,6 @@ from infinigen.assets.utils.object import (
     save_obj_parts_add,
     add_joint
 )
-
 
 def geometry_assemble_chair(nw: NodeWrangler, **kwargs):
     # Code generated using version 2.6.4 of the node_transpiler
@@ -182,7 +182,7 @@ def geometry_assemble_chair(nw: NodeWrangler, **kwargs):
                                 "axis": (1, 0, 0),
                                 "origin_shift": origin_shift,
                                 "substitute_mesh_idx": 9 if kwargs['Leg Pole Number'] == 5 else 5,
-                                #"origin_shift": (0, -kwargs.get("Leg Wheel Width", 0) / 2, 0)
+                                "origin_shift": (0, -kwargs.get("Leg Wheel Width", 0) / 2, 0)
                             }
                             first_wheel = False
                         elif k == 4:
@@ -273,7 +273,6 @@ def geometry_assemble_chair(nw: NodeWrangler, **kwargs):
         "whole",
         kwargs.get("i", "unknown"),
     )
-
     group_output = nw.new_node(
         Nodes.GroupOutput,
         input_kwargs={"Geometry": join_geometry},
@@ -403,7 +402,6 @@ class OfficeChairFactory(AssetFactory):
             leg_diameter = uniform(0.03, 0.05)
             leg_number = 1
             pole_number = choice([3, 5])
-            pole_number = 5
             joint_height = uniform(0.5, 0.8) * (z - top_thickness)
             wheel_arc_sweep_angle = uniform(120, 240)
             wheel_width = uniform(0.11, 0.15)

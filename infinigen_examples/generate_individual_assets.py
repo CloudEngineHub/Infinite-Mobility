@@ -21,6 +21,7 @@ import traceback
 from itertools import product
 from multiprocessing import Pool
 from pathlib import Path
+import cv2
 
 # from torch.multiprocessing import Pool
 # # from multiprocessing import Pool
@@ -112,6 +113,7 @@ def build_scene_asset(args, factory_name, idx, path):
             print(f"{fac}.spawn_asset({idx=}) FAILED!! {e}")
             raise e
         fac.finalize_assets(asset)
+        return asset
         if args.fire:
             from infinigen.assets.fluid.fluid import set_obj_on_fire
 
@@ -208,14 +210,20 @@ def build_scene_surface(args, factory_name, idx):
                         f"infinigen.assets.materials.{factory_name}"
                     )
                 except ImportError:
-                    for subdir in os.listdir("infinigen/assets/materials"):
+                    for subdir in os.listdir("infinigen/assets/materials" if 'plastic' not in factory_name else "infinigen/assets/materials/plastics"):
                         with gin.unlock_config():
-                            module = importlib.import_module(
-                                f'infinigen.assets.materials.{subdir.split(".")[0]}'
-                            )
-                        if hasattr(module, factory_name):
-                            template = getattr(module, factory_name)
-                            break
+                            if 'plastic' in factory_name:
+                                module = importlib.import_module(
+                                    f'infinigen.assets.materials.plastics.{subdir.split(".")[0]}'
+                                )
+                            else:
+                                module = importlib.import_module(
+                                    f'infinigen.assets.materials.{subdir.split(".")[0]}'
+                                )
+                            if hasattr(module, factory_name) and hasattr(module, 'apply'):
+                                template = module#getattr(module, factory_name)
+                                print(template)
+                                break
                     else:
                         raise Exception(f"{factory_name} not Found.")
 
@@ -225,7 +233,8 @@ def build_scene_surface(args, factory_name, idx):
                 if hasattr(template, "make_sphere"):
                     asset = template.make_sphere()
                 else:
-                    bpy.ops.mesh.primitive_ico_sphere_add(radius=0.8, subdivisions=9)
+                    bpy.ops.mesh.primitive_plane_add(size=100)
+                    #bpy.ops.mesh.primitive_ico_sphere_add(radius=0.8, subdivisions=9)
                     asset = bpy.context.active_object
                 if type(template) is type:
                     template = template(idx)
@@ -248,19 +257,20 @@ def build_and_save_asset(payload: dict):
         idx = args.seed
 
     path = args.output_folder / factory_name
-    if (path / f"images/image_{idx:03d}.png").exists() and args.skip_existing:
-        print(f"Skipping {path}")
-        return
-    if (path / f"{idx}").exists():
-        return
-    path.mkdir(exist_ok=True)
+    if not factory_name.startswith("shader"):
+        if (path / f"images/image_{idx:03d}.png").exists() and args.skip_existing:
+            print(f"Skipping {path}")
+            return
+        if (path / f"{idx}").exists():
+            return
+        path.mkdir(exist_ok=True)
 
     scene = bpy.context.scene
     scene.render.engine = "CYCLES"
     scene.render.resolution_x, scene.render.resolution_y = map(
         int, args.resolution.split("x")
     )
-    scene.cycles.samples = args.samples
+    scene.cycles.samples = 20
     butil.clear_scene()
 
     if not args.fire:
@@ -273,11 +283,13 @@ def build_and_save_asset(payload: dict):
     if "Factory" in factory_name:
         asset = build_scene_asset(args, factory_name, idx, path)
     else:
-        asset = build_scene_surface(args, factory_name, idx, path)
+        asset = build_scene_surface(args, factory_name, idx)
 
     if args.dryrun:
         return
-    return
+    if not factory_name.startswith('shader'):
+        print("here")
+        exit(0)
     configure_cycles_devices()
 
     with FixedSeed(args.lighting + idx):
@@ -303,11 +315,11 @@ def build_and_save_asset(payload: dict):
         center.location = (np.amin(co, 0) + np.amax(co, 0)) / 2
         center.location[-1] += args.cam_zoff
 
-    if args.cam_dist <= 0 and asset:
-        if "Factory" in factory_name:
-            adjust_cam_distance(asset, camera, args.margin)
-        else:
-            adjust_cam_distance(asset, camera, args.margin, 0.75)
+    # if args.cam_dist <= 0 and asset:
+    #     if "Factory" in factory_name:
+    #         adjust_cam_distance(asset, camera, args.margin)
+    #     else:
+    #         adjust_cam_distance(asset, camera, args.margin, 0.75)
 
     cam_info_ng = bpy.data.node_groups.get("nodegroup_active_cam_info")
     if cam_info_ng is not None:
@@ -325,10 +337,15 @@ def build_and_save_asset(payload: dict):
         bpy.context.scene.view_settings.exposure = -2
 
     if args.render == "image":
-        (path / "images").mkdir(exist_ok=True)
-        imgpath = path / f"images/image_{idx:03d}.png"
+        #(path / "images").mkdir(exist_ok=True)
+        #imgpath = path / f"images/image_{idx:03d}.png"
+        imgpath = args.output_folder
+        print(imgpath)
         scene.render.filepath = str(imgpath)
-        # bpy.ops.render.render(write_still=True)
+        bpy.ops.render.render(write_still=True)
+        img = cv2.imread(imgpath)
+        cropped = img[256: 256+512, 256:256+512]  # 裁剪坐标为[y0:y1, x0:x1]
+        cv2.imwrite(imgpath, cropped)
     elif args.render == "video":
         bpy.context.scene.frame_end = args.frame_end
         parent(asset).driver_add("rotation_euler")[
@@ -439,7 +456,7 @@ def setup_camera(args):
     camera = bpy.context.active_object
     camera.parent = butil.spawn_empty("Camera parent")
     camera.parent.location = (0, 0, args.cam_zoff)
-    camera.parent.rotation_euler = np.deg2rad(np.array(args.cam_angle))
+    #camera.parent.rotation_euler = np.deg2rad(np.array(args.cam_angle))
     bpy.data.scenes["Scene"].camera = camera
     scene = bpy.context.scene
     camera.data.sensor_height = (
@@ -507,7 +524,7 @@ def main(args):
         args.output_folder = Path(os.getcwd()) / "outputs"
 
     path = Path(args.output_folder) / name
-    path.mkdir(exist_ok=True, parents=True)
+    #path.mkdir(exist_ok=True, parents=True)
 
     factories = list(args.factories)
 

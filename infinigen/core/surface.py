@@ -334,8 +334,6 @@ def add_material(
 def add_geomod(
     objs,
     geo_func,
-    path="geomod",
-    idx="unknown",
     name=None,
     apply=False,
     reuse=False,
@@ -380,7 +378,6 @@ def add_geomod(
             )
 
         mod.show_viewport = show_viewport
-        reuse = False
         if ng is None:  # Create a unique node_group for the first one only
             if reuse and name in bpy.data.node_groups:
                 mod.node_group = bpy.data.node_groups[name]
@@ -392,6 +389,11 @@ def add_geomod(
                 nw = NodeWrangler(mod)
                 geo_func(nw, *input_args, **input_kwargs)
             ng = mod.node_group
+            if ng is None:
+                mod = obj.modifiers.new(name=name, type="NODES")
+                ng = nw.node_group
+                mod = nw.modifier
+                mod.node_group = ng
             ng.name = name
         else:
             mod.node_group = ng

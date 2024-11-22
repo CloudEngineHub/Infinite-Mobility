@@ -298,16 +298,34 @@ def save_geometry_new(obj, name, part_idx, idx, path, first, use_bpy=False, sepa
     bpy.context.view_layer.objects.active = obj
     bpy.ops.object.mode_set(mode='EDIT')
     bm = bmesh.from_edit_mesh(obj.data)
-    # print(bm.verts.layers.float.keys(), bm.faces.layers.float.keys(), bm.edges.layers.float.keys())
-    if name not in bm.verts.layers.float.keys() and name not in bm.verts.layers.int.keys() and name != "whole":
-        # 切换回对象模式
-        bpy.ops.object.mode_set(mode='OBJECT')
-        return
-    elif name is not None and name != "whole":
-        if name in bm.verts.layers.float.keys():
-            attr_layer = bm.verts.layers.float[name]
-        else:
-            attr_layer = bm.verts.layers.int[name]
+    print(bm.verts.layers.float.keys(), bm.faces.layers.int.keys(), bm.edges.layers.float.keys())
+    # if name not in bm.verts.layers.float.keys() and name not in bm.verts.layers.int.keys() and name != "whole":
+    #     # 切换回对象模式
+    #     bpy.ops.object.mode_set(mode='OBJECT')
+    #     return
+    if name is not None and name != "whole":
+        if not isinstance(name, list):
+            name = [name]
+        if not isinstance(part_idx, list):
+            part_idx = [part_idx]
+        attr_layers = []
+        for n in name:
+            if n in bm.verts.layers.float.keys():
+                attr_layer = bm.verts.layers.float[n]
+            elif n in bm.verts.layers.int.keys():
+                attr_layer = bm.verts.layers.int[n]
+            else:
+                continue
+            attr_layers.append(attr_layer)
+        found_verts = []
+        for v in bm.verts:
+            check = True
+            for i, attr_layer in enumerate(attr_layers):
+                if v[attr_layer] != part_idx[i]:
+                    check = False
+                    break
+            if check:
+                found_verts.append(v)
         found_verts = [v for v in bm.verts if v[attr_layer] == part_idx]
     else:
         found_verts = [v for v in bm.verts]

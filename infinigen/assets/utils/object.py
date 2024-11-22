@@ -687,7 +687,8 @@ def save_whole_object_normalized(object, path=None, idx="unknown", name=None, us
     for obj_dir in obj_dirs:
         path_single_obj = os.path.join(path, idx, "objs", obj_dir)
         if os.path.isdir(path_single_obj):
-            shutil.rmtree(os.path.join(path_single_obj, "textures"))
+            if os.path.exists(os.path.join(path_single_obj, "textures")):
+                shutil.rmtree(os.path.join(path_single_obj, "textures"))
             dir = os.listdir(path_single_obj)[0]
             dir = os.path.join(path_single_obj, dir)
             all_files = os.listdir(dir)
@@ -1093,6 +1094,7 @@ def export_curr_scene(
 ) -> Path:
     #wait = input("Press Enter to continue.")
     export_usd = format in ["usda", "usdc"]
+    #create a new scene
 
     export_folder = output_folder
     export_folder.mkdir(exist_ok=True)
@@ -1147,6 +1149,7 @@ def export_curr_scene(
         image_res=image_res,
         vertex_colors=vertex_colors,
         export_usd=export_usd,
+        objs=objs,
     )
 
     for collection, status in collection_views.items():
