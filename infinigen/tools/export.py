@@ -577,6 +577,7 @@ def remove_params(mat, node_tree):
 
 
 def process_interfering_params(obj):
+    paramDict = {}
     for slot in obj.material_slots:
         mat = slot.material
         if mat is None or not mat.use_nodes:
@@ -671,8 +672,8 @@ def bake_object(obj, dest, img_size, export_usd):
     obj.select_set(False)
 
 
-def bake_scene(folderPath: Path, image_res, vertex_colors, export_usd):
-    for obj in bpy.data.objects:
+def bake_scene(folderPath: Path, image_res, vertex_colors, export_usd, objs=None):
+    for obj in (bpy.data.objects if objs is None else objs):
         logging.info("---------------------------")
         logging.info(obj.name)
 
@@ -711,6 +712,10 @@ def run_blender_export(
                 export_colors=True,
                 export_eval_mode="DAG_EVAL_RENDER",
                 export_selected_objects=individual_export,
+                export_materials=True,
+                export_pbr_extensions = True,
+                export_normals = True,
+                apply_modifiers = True
             )
         else:
             bpy.ops.wm.obj_export(
