@@ -298,7 +298,7 @@ def save_geometry_new(obj, name, part_idx, idx, path, first, use_bpy=False, sepa
     bpy.context.view_layer.objects.active = obj
     bpy.ops.object.mode_set(mode='EDIT')
     bm = bmesh.from_edit_mesh(obj.data)
-    print(bm.verts.layers.float.keys(), bm.faces.layers.int.keys(), bm.edges.layers.float.keys())
+    #print(bm.verts.layers.float.keys(), bm.verts.layers.int.keys(), bm.faces.layers.int.keys(), bm.edges.layers.float.keys())
     # if name not in bm.verts.layers.float.keys() and name not in bm.verts.layers.int.keys() and name != "whole":
     #     # 切换回对象模式
     #     bpy.ops.object.mode_set(mode='OBJECT')
@@ -326,7 +326,7 @@ def save_geometry_new(obj, name, part_idx, idx, path, first, use_bpy=False, sepa
                     break
             if check:
                 found_verts.append(v)
-        found_verts = [v for v in bm.verts if v[attr_layer] == part_idx]
+        #found_verts = [v for v in bm.verts if v[attr_layer] == part_idx]
     else:
         found_verts = [v for v in bm.verts]
     if len(found_verts) == 0:

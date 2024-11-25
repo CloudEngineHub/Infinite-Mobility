@@ -58,7 +58,7 @@ class Suppress:
     def __enter__(self, logfile=os.devnull):
         open(logfile, "w").close()
         self.old = os.dup(1)
-        sys.stdout.flush()
+        #sys.stdout.flush()
         os.close(1)
         os.open(logfile, os.O_WRONLY)
         self.level = logging.root.manager.disable

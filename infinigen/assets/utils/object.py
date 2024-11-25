@@ -738,7 +738,6 @@ def save_whole_object_normalized(object, path=None, idx="unknown", name=None, us
                 export_eval_mode="DAG_EVAL_VIEWPORT",
                 export_selected_objects=True,
                 export_materials=True,
-                export_pbr_extensions = True,
                 export_normals = True,
                 apply_modifiers = True
             )
@@ -803,7 +802,7 @@ def save_whole_object_normalized(object, path=None, idx="unknown", name=None, us
         #         limit_info["upper"] *= scale_factor
         if limit_info:
             limit = urdfpy.JointLimit(limit_info.get("effort", 2000), limit_info.get("velocity", 2), limit_info.get("lower", -1), limit_info.get("upper", 1))
-            if limit_info.get("lower_1"):
+            if limit_info.get("lower_1") or limit_info.get("upper_1"):
                 limit_1 = urdfpy.JointLimit(limit_info.get("effort", 2000), limit_info.get("velocity", 2), limit_info.get("lower_1", -1), limit_info.get("upper_1", 1))
         else:
             limit = None
@@ -819,7 +818,7 @@ def save_whole_object_normalized(object, path=None, idx="unknown", name=None, us
             shift_axis = joint_info.get("origin_shift", (0, 0, 0))
             l_abstract = urdfpy.Link(f'abstract_{parent}_{link}', visuals=None, collisions=None, inertial=None)
             links[f'abstract_{parent}_{link}'] = l_abstract
-            j_real = urdfpy.Joint(joint_info.get("name"), joint_info.get("type", "fixed"), parent, f'abstract_{parent}_{link}', axis=joint_info.get("axis", None), limit=limit, origin=get_translation_matrix(origin_shift[0] + shift_axis[0], origin_shift[1] + shift_axis[1], origin_shift[2] + shift_axis[2]))
+            j_real = urdfpy.Joint(joint_info.get("name"), type, parent, f'abstract_{parent}_{link}', axis=joint_info.get("axis", None), limit=limit, origin=get_translation_matrix(origin_shift[0] + shift_axis[0], origin_shift[1] + shift_axis[1], origin_shift[2] + shift_axis[2]))
             j_abstract = urdfpy.Joint(get_joint_name("fixed"), "fixed", f"abstract_{parent}_{link}", link, axis=None, limit=None, origin=get_translation_matrix(-shift_axis[0], -shift_axis[1], -shift_axis[2]))
             joints.append(j_real)
             joints.append(j_abstract)
@@ -827,18 +826,10 @@ def save_whole_object_normalized(object, path=None, idx="unknown", name=None, us
             shift_axis = joint_info.get("origin_shift", (0, 0, 0))
             l_abstract = urdfpy.Link(f'abstract_{parent}_{link}', visuals=None, collisions=None, inertial=None)
             links[f'abstract_{parent}_{link}'] = l_abstract
-            j_real = urdfpy.Joint(joint_info.get("name"), joint_info.get("type").split('_')[0], parent,
-                                  f'abstract_{parent}_{link}', axis=joint_info.get("axis", None), limit=limit,
-                                  origin=get_translation_matrix(origin_shift[0] + shift_axis[0],
-                                                                origin_shift[1] + shift_axis[1],
-                                                                origin_shift[2] + shift_axis[2]))
-            j_abstract = urdfpy.Joint(get_joint_name("fixed"), "fixed",
-                                      f"abstract_{parent}_{link}", link, axis=None, limit=None,
-                                      origin=get_translation_matrix(-shift_axis[0], -shift_axis[1], -shift_axis[2]))
+            j_real = urdfpy.Joint(joint_info.get("name"), joint_info.get("type").split('_')[0], f"abstract_{parent}_{link}", link, axis=joint_info.get("axis"), limit=limit, origin=get_translation_matrix(origin_shift[0] + shift_axis[0], origin_shift[1] + shift_axis[1], origin_shift[2] + shift_axis[2]))
             joints.append(j_real)
-            joints.append(j_abstract)
             joint_prismatic = urdfpy.Joint(get_joint_name("prismatic"),
-                                           "prismatic", parent, link, axis=joint_info.get("axis_1", None), limit=limit_1, origin=get_translation_matrix(origin_shift[0], origin_shift[1], origin_shift[2]))
+                                           "prismatic", parent, f"abstract_{parent}_{link}", axis=joint_info.get("axis_1", None), limit=limit_1)
             joints.append(joint_prismatic)
 
     robot = urdfpy.URDF("scene", list(links.values()), joints=joints)
@@ -1239,10 +1230,11 @@ def save_part_export_obj_normalized_add_json(
         bpy.ops.object.select_all(action="DESELECT")
         # Select the current object
         part.select_set(True)
-        if isinstance(material, bpy.types.Material):
-            part.data.materials.append(material)
-        else:
-            material.apply(part)
+        if material is not None:
+            if isinstance(material, bpy.types.Material):
+                part.data.materials.append(material)
+            else:
+                material.apply(part)
         # Create a new scene
         # new_scene = bpy.data.scenes.new(f"Scene_for_{part.name}")
         # Link the object to the new scene

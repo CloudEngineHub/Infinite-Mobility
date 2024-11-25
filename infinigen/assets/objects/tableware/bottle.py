@@ -19,6 +19,7 @@ from infinigen.assets.utils.object import (
     new_cylinder,
     save_obj_parts_add,
     save_obj_parts_join_objects,
+    get_joint_name
 )
 
 # save_objects,
@@ -202,9 +203,23 @@ class BottleFactory(AssetFactory):
         #     name=["bottle", "wrap", "cap"],
         #     obj_name="Bottle"
         # )
-        save_obj_parts_add([bottle], params.get("path", None), params.get("i", "unknown"), "bottle", first=True, use_bpy=True, parent_obj_id=None, joint_info=None, material=self.surface)
-        save_obj_parts_add([wrap], params.get("path", None), params.get("i", "unknown"), "wrap", first=False, use_bpy=True, parent_obj_id=None, joint_info=None, material=self.wrap_surface)
-        save_obj_parts_add([cap], params.get("path", None), params.get("i", "unknown"), "cap", first=False, use_bpy=True, parent_obj_id=None, joint_info=None, material=self.cap_surface)
+        res = save_obj_parts_add([bottle], params.get("path", None), params.get("i", "unknown"), "bottle", first=True, use_bpy=True, parent_obj_id=None, joint_info=None, material=self.surface)
+        save_obj_parts_add([wrap], params.get("path", None), params.get("i", "unknown"), "wrap", first=False, use_bpy=True, material=self.wrap_surface,
+                           parent_obj_id=res[0], joint_info={
+                                "name": get_joint_name("continuous"),
+                                "type": "continuous",
+                                "axis": (0, 1, 0),
+                           })
+        save_obj_parts_add([cap], params.get("path", None), params.get("i", "unknown"), "cap", first=False, use_bpy=True, material=self.cap_surface, parent_obj_id=res[0], joint_info={
+            "name": get_joint_name("continuous_prismatic"),
+            "type": "continuous_prismatic",
+            "axis": (0, 1, 0),
+            "axis_1": (0, 1, 0),
+            "limit": {
+                "lower_1": 0,
+                "upper_1": 0.05,
+            }
+        })
         obj = join_objects([bottle, wrap, cap])
         join_objects_save_whole([obj], params.get("path", None), params.get("i", "unknown"), "bottle_whole", join=False, use_bpy=True)
         return obj
