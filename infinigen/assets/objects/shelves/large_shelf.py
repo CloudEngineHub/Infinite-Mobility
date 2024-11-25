@@ -1181,15 +1181,20 @@ class LargeShelfBaseFactory(AssetFactory):
         parts = [1, len(params["shelf_cell_width"]), len(params["shelf_cell_width"])*len(params["division_board_z_translation"]), len(params["side_board_x_translation"])]
         object_id = -1
         for j, name in enumerate(names):
+            if name != "divisionboard":
+                material = params["board_material"]
+            else:
+                material = params["frame_material"]
+            material = surface.shaderfunc_to_material(material)
             for k in range(1, parts[j] + 1):
                 if name == "back_board":
-                    res = save_geometry_new(obj, name, k, params.get("i", None), params.get("path", None), first, use_bpy=True, parent_obj_id=None, joint_info=None)
+                    res = save_geometry_new(obj, name, k, params.get("i", None), params.get("path", None), first, use_bpy=True, parent_obj_id=None, joint_info=None, material=material)
                     object_id = res[0]
                 else:
                     res = save_geometry_new(obj, name, k, params.get("i", None), params.get("path", None), first, use_bpy=True, parent_obj_id=object_id, joint_info={
                         "name": f"fixed_{name}_{k}_{obj.name}_{random.randint(0, 10000000000000000000000000000000000000000000000000000000000000)}",
                         "type": "fixed"
-                    })
+                    }, material=material)
                 if res:
                     first = False
         return object_id

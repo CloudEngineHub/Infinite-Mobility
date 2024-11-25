@@ -1631,6 +1631,13 @@ class CabinetDoorBaseFactory(AssetFactory):
         parts = [2, 4, 4, 1]
         object_idx = -1
         for j, name in enumerate(names):
+            if name in ['mid_board']:
+                material = params["panel_material"]
+            else:
+                material = params["frame_material"]
+            if isinstance(material, list):
+                material = material[0]
+            material = surface.shaderfunc_to_material(material)
             for k in range(1, parts[j] + 1):
                 if name == "mid_board" and object_idx == -1:
                     res = save_geometry_new(obj, name, k, params.get("i", None), params.get("path", None), first, use_bpy=True, parent_obj_id=parent_id, joint_info={
@@ -1642,13 +1649,13 @@ class CabinetDoorBaseFactory(AssetFactory):
                             "upper": 0 if left else math.pi / 2
                         },
                         "origin_shift": (0, 0, params["door_width"] / 2) if left else (0, 0, - params["door_width"] / 2)
-                    })
+                    }, material=material)
                     object_idx = res[0]
                 else:
                     res = save_geometry_new(obj, name, k, params.get("i", None), params.get("path", None), first, use_bpy=True, parent_obj_id=object_idx, joint_info={
                         "name": f"fixed_door_{obj.name}_{random.randint(0, 10000000000000000000000000000000000000000000000000000000000000)}",
                         "type": "fixed",
-                    })
+                    }, material=material)
                 if res:
                     first = False
 

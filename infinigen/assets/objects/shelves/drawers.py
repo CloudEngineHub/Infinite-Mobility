@@ -789,9 +789,10 @@ class CabinetDrawerBaseFactory(AssetFactory):
         names = ["drawer_door_board", "drawer_board", "knob"]
         parts = [1, 4, 1]
         object_id = -1
-        print(obj.matrix_world.translation)
         for j, name in enumerate(names):
                 for k in range(1, parts[j] + 1):
+                    material = params.get("frame_material", None)
+                    material = surface.shaderfunc_to_material(material)
                     if name == "drawer_door_board":
                         res = save_geometry_new(obj, name, k, params.get("i", None), params.get("path", None), first, use_bpy=True, parent_obj_id=parent_id, joint_info={
                             "name": f"primastic_{obj.name}_{name}_{k}__{random.randint(0, 10000000000000000000000000000000000000000000000000000000000000)}",
@@ -801,13 +802,13 @@ class CabinetDrawerBaseFactory(AssetFactory):
                                 "lower": 0,
                                 "upper": params["drawer_depth"] * 0.8,
                             }
-                        })
+                        }, material=material)
                         object_id = res[0]
                     else:
                         res = save_geometry_new(obj, name, k, params.get("i", None), params.get("path", None), first, use_bpy=True, parent_obj_id=object_id, joint_info={
                             "name": f"fixed_{obj.name}_{name}_{k}__{random.randint(0, 10000000000000000000000000000000000000000000000000000000000000)}",
                             "type": "fixed",
-                        })
+                        }, material=material)
                     if res:
                         first = False
 
