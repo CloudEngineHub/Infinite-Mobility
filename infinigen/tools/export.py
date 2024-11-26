@@ -894,14 +894,14 @@ def export_curr_scene(
                 remove_shade_smooth(obj)
 
     # remove 0 polygon meshes except for scatters
-    # if export_usd:
-    #     for obj in bpy.data.objects:
-    #         if obj.type == 'MESH' and len(obj.data.polygons) == 0:
-    #             if scatter_cols is not None:
-    #                 if any(x in scatter_cols for x in obj.users_collection):
-    #                      continue
-    #             logging.info(f"{obj.name} has no faces, removing...")
-    #             bpy.data.objects.remove(obj, do_unlink=True)
+    if export_usd:
+        for obj in bpy.data.objects:
+            if obj.type == 'MESH' and len(obj.data.polygons) == 0:
+                if scatter_cols is not None:
+                    if any(x in scatter_cols for x in obj.users_collection):
+                         continue
+                logging.info(f"{obj.name} has no faces, removing...")
+                bpy.data.objects.remove(obj, do_unlink=True)
 
     collection_views, obj_views = update_visibility()
 
