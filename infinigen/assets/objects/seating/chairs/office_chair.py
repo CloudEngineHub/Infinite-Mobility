@@ -26,7 +26,8 @@ from infinigen.assets.utils.object import (
     join_objects_save_whole,
     save_file_path_obj,
     save_obj_parts_add,
-    add_joint
+    add_joint,
+    get_joint_name
 )
 
 def geometry_assemble_chair(nw: NodeWrangler, **kwargs):
@@ -155,9 +156,9 @@ def geometry_assemble_chair(nw: NodeWrangler, **kwargs):
                         if k == 3:
                             parent_idx = last_idx + 2
                             joint_info = {
-                                "name": f"rotation_wheel_leg_{random.randint(-100000000, 1000000000000000000000000000000000000)}",
+                                "name": get_joint_name("revolute"),
                                 "type": "continuous",
-                                "axis": (0, 1, 0)
+                                "axis": (0, 0, 1)
                             }
                         elif k == 1:
                             origin_shift = (0, 0, 0)
@@ -168,27 +169,28 @@ def geometry_assemble_chair(nw: NodeWrangler, **kwargs):
                                     origin_shift = (-0.03, 0, 0.035)
                             else:
                                 if j == 1:
-                                    origin_shift = (0.03, 0, 0.045)
+                                    origin_shift = (0.03, 0, 0.3)
                                 if j == 2:
                                     origin_shift = (0.03, 0, 0.015)
                                 if j == 4:
                                     origin_shift = (-0.03, 0, 0.015)
                                 if j == 5:
-                                    origin_shift = (-0.03, 0, 0.045)
+                                    origin_shift = (-0.03, 0, 0.3)
                             parent_idx = last_idx + 2
+                            origin_shift = origin_shift[0], origin_shift[2], origin_shift[1]
                             joint_info = {
-                                "name": f"wheel_spin_{random.randint(-100000000, 10000000000000000000000000)}",
+                                "name": get_joint_name("continuous"),
                                 "type": "continuous",
                                 "axis": (1, 0, 0),
-                                "origin_shift": origin_shift,
+                                #"origin_shift": origin_shift,
                                 "substitute_mesh_idx": 9 if kwargs['Leg Pole Number'] == 5 else 5,
-                                "origin_shift": (0, -kwargs.get("Leg Wheel Width", 0) / 2, 0)
+                                #"origin_shift": (0, -kwargs.get("Leg Wheel Width", 0) / 2, 0)
                             }
                             first_wheel = False
                         elif k == 4:
                             parent_idx = 21 if kwargs['Leg Pole Number'] == 5 else 13
                             joint_info = {
-                                "name": f"fixed_{random.randint(-100000000, 10000000000000000000000000)}",
+                                "name": get_joint_name("fixed"),
                                 "type": "fixed"
                             }
                         else:
@@ -200,19 +202,20 @@ def geometry_assemble_chair(nw: NodeWrangler, **kwargs):
                                     origin_shift = (-0.03, 0, 0.035)
                             else:
                                 if j == 1:
-                                    origin_shift = (0.03, 0, 0.045)
+                                    origin_shift = (0.03, 0, 0.05)
                                 if j == 2:
                                     origin_shift = (0.03, 0, 0.015)
                                 if j == 4:
                                     origin_shift = (-0.03, 0, 0.015)
                                 if j == 5:
-                                    origin_shift = (-0.03, 0, 0.045)
+                                    origin_shift = (-0.03, 0, 0.05)
                             parent_idx = last_idx + 2
+                            origin_shift = origin_shift[0], origin_shift[2], origin_shift[1]
                             joint_info = {
-                                "name": f"fixed_{random.randint(-100000000, 10000000000000000000000000)}",
+                                "name": get_joint_name("fixed"),
                                 "type": "fixed",
                                 "substitute_mesh_idx": 10 if kwargs['Leg Pole Number'] == 5 else 6,
-                                "origin_shift": origin_shift
+                                #"origin_shift": origin_shift
                             }
                         a = save_geometry(  
                             nw,
@@ -235,16 +238,16 @@ def geometry_assemble_chair(nw: NodeWrangler, **kwargs):
                     if(i == 1 and j == parts[1]):
                         parent_idx = last_idx
                         joint_info = {
-                            "name": "up_down_prismatic",
+                            "name": get_joint_name("prismatic"),
                             "type": "prismatic",
-                            "axis": (0, 1, 0),
+                            "axis": (0, 0, 1),
                             "limit": {
                                 "lower": -0.2,
                                 "upper": 0,
                                 "lower_1": -0.2,
                                 "upper_1": 0
                             },
-                            "axis_1": (0, 1, 0),
+                            "axis_1": (0, 0, 1),
                         }
 
                     a = save_geometry(
@@ -263,9 +266,9 @@ def geometry_assemble_chair(nw: NodeWrangler, **kwargs):
                         last_idx = a[0]
     
     add_joint(last_idx, 0, {
-        "name": "continuous_chair_leg",
+        "name": get_joint_name("continuous"),
         "type" :    "continuous",
-        "axis": (0, 1, 0)})
+        "axis": (0, 0, 1)})
     save_geometry(
         nw,
         join_geometry,

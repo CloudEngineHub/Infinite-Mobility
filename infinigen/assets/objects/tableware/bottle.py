@@ -208,13 +208,13 @@ class BottleFactory(AssetFactory):
                            parent_obj_id=res[0], joint_info={
                                 "name": get_joint_name("continuous"),
                                 "type": "continuous",
-                                "axis": (0, 1, 0),
+                                "axis": (0, 0, 1),
                            })
         save_obj_parts_add([cap], params.get("path", None), params.get("i", "unknown"), "cap", first=False, use_bpy=True, material=self.cap_surface, parent_obj_id=res[0], joint_info={
             "name": get_joint_name("continuous_prismatic"),
             "type": "continuous_prismatic",
-            "axis": (0, 1, 0),
-            "axis_1": (0, 1, 0),
+            "axis": (0, 0, 1),
+            "axis_1": (0, 0, 1),
             "limit": {
                 "lower_1": 0,
                 "upper_1": 0.05,

@@ -6,7 +6,7 @@ import open3d as o3d
 
 max_try = 100
 
-
+name2path = {}
 stage = None
 def init_usd_stage(path):
     """
@@ -26,7 +26,7 @@ def init_usd_stage(path):
     stage = Usd.Stage.CreateNew(path)
     
     # Create the root Xform
-    root_xform = UsdGeom.Xform.Define(stage, "/Root")
+    root_xform = UsdGeom.Xform.Define(stage, "/World")
     stage.SetDefaultPrim(root_xform.GetPrim())
 
 
@@ -53,12 +53,25 @@ def add_mesh(obj_file, name, translate=(0, 0, 0)):
     """
     # Import the mesh
     global stage
-    mesh1 = UsdGeom.Mesh.Define(stage, f"/Root/{name}")
-    mesh1.GetPrim().GetReferences().AddReference(obj_file)
-    mesh1.AddTranslateOp().Set(value=translate)  # Position mesh1 above the ground
-    UsdPhysics.RigidBodyAPI.Apply(mesh1.GetPrim())  # Enable rigid body physics
-    UsdPhysics.CollisionAPI.Apply(mesh1.GetPrim())  # Enable collision for mesh1
+    print(name, translate)
+    stage1 = Usd.Stage.Open(obj_file)
+    root = UsdGeom.Xform(stage1.GetPrimAtPath("/World"))
+    root.ClearXformOpOrder()
+    translate = translate[0], -translate[2] + 0.2, translate[1]
+    root.AddTranslateOp().Set(Gf.Vec3d(translate))
+    for prim in stage1.Traverse():
+        if prim.GetTypeName() == "Mesh":
+            UsdPhysics.RigidBodyAPI.Apply(prim)  # Enable rigid body physics
+            UsdPhysics.CollisionAPI.Apply(prim)  # Enable collision for mesh1
+            name2path[name] = prim.GetPath()
+            prim.ClearXformOpOrder()
+            
+            #prim.AddTranslateOp().Set(Gf.Vec3d(translate))
+    stage1.GetRootLayer().Export(obj_file)
+    UsdGeom.Xform(stage.DefinePrim(f"/World/{name}", "Xform"))
+    stage.GetPrimAtPath(f"/World/{name}").GetReferences().AddReference(obj_file)
     print(f"Mesh added: {name}")
+
 
 def add_joint(name_joint, name_1, name_2, axis="Z", lower_limit=0.0, upper_limit=0.0, type="fixed", shift_from_body0=(0, 0, 0)):
     """
@@ -74,25 +87,34 @@ def add_joint(name_joint, name_1, name_2, axis="Z", lower_limit=0.0, upper_limit
     """
     # Define a Prismatic Joint
     global stage
+    return 
+    if name_1 == "l_world" or name_2 == "l_world":
+        print("Cannot add joint with l_world")
+        return
     if type == "prismatic":
-        joint = UsdPhysics.PrismaticJoint.Define(stage, f"/Root/{name_joint}")
+        joint = UsdPhysics.PrismaticJoint.Define(stage, f"/World/{name_joint}")
     elif type == "revolute":
-        joint = UsdPhysics.RevoluteJoint.Define(stage, f"/Root/{name_joint}")
+        joint = UsdPhysics.RevoluteJoint.Define(stage, f"/World/{name_joint}")
     elif type == "fixed":
-        joint = UsdPhysics.FixedJoint.Define(stage, f"/Root/{name_joint}")
+        joint = UsdPhysics.FixedJoint.Define(stage, f"/World/{name_joint}")
     else:
         print("Invalid joint type.")
         return
+    path_1 = str(name2path[name_1])
+    path_1 = '/' + '/'.join([path_1.split("/")[1], name_1] + path_1.split("/")[2:])
+    path_2 = str(name2path[name_2])
+    path_2 = '/' + '/'.join([path_2.split("/")[1], name_2] + path_2.split("/")[2:])
+
     #joint = UsdPhysics.PrismaticJoint.Define(stage, f"/Root/{name_joint}")
-    body0 = f"/Root/{name_1}"
-    body1 = f"/Root/{name_2}"
+    body0 = path_1#f"/World/{name_1}"
+    body1 = path_2#f"/World/{name_2}"
     joint.CreateBody0Rel().SetTargets([body0])
     joint.CreateBody1Rel().SetTargets([body1])
     if type == "fixed":
         print(f"Joint added: {name_joint}")
         return
     joint.CreateAxisAttr(axis)  # Movement along X-axis
-    joint.CreateLocalPos0Attr(shift_from_body0)  # Position of the joint in body0's local frame
+    #joint.CreateLocalPos0Attr(shift_from_body0)  # Position of the joint in body0's local frame
     joint.CreateLowerLimitAttr(lower_limit)  # Minimum relative translation
     joint.CreateUpperLimitAttr(upper_limit)  # Maximum relative translation
     print(f"Joint added: {name_joint}")

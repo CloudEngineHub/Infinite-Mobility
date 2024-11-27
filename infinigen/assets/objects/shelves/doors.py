@@ -1643,7 +1643,7 @@ class CabinetDoorBaseFactory(AssetFactory):
                     res = save_geometry_new(obj, name, k, params.get("i", None), params.get("path", None), first, use_bpy=True, parent_obj_id=parent_id, joint_info={
                         "name": f"rotate_door_{obj.name}_{random.randint(0, 10000000000000000000000000000000000000000000000000000000000000)}",
                         "type": "revolute",
-                        "axis": (0, 1, 0),
+                        "axis": (0, 0, 1),
                         "limit": {
                             "lower": (- math.pi / 2) if left else 0,
                             "upper": 0 if left else math.pi / 2
