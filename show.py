@@ -1,6 +1,7 @@
 import sapien as sapien
 from sapien.utils import Viewer
 import numpy as np
+import math
 
 
 def main():
@@ -26,21 +27,55 @@ def main():
     viewer.window.set_camera_parameters(near=0.05, far=100, fovy=1)
 
     loader = scene.create_urdf_loader()
-    robot = loader.load("/home/pjlab/projects/infinigen_sep_part_urdf/outputs/BottleFactory/8/scene.urdf")
+    robot = loader.load("/home/pjlab/projects/infinigen_sep_part_urdf/outputs/OfficeChairFactory/9/scene.urdf")
     robot.set_root_pose(sapien.Pose([0, 0, 0], [1, 0, 0, 0]))
+    poses = []
+    steps = []
+    for joint in robot.get_joints():
+        if joint.type == "fixed":
+            continue
+        limit = joint.limit[0]
+        lower = limit[0]
+        upper = limit[1]
+        steps.append(0.001)
+        if not math.isinf(upper) and not math.isinf(lower):
+            poses.append((lower + upper) / 2)
+        elif not math.isinf(lower):
+            poses.append(lower)
+        else:
+            poses.append(0)
+
+
 
 
     
     active_joints = robot.get_active_joints()
     while not viewer.closed:
         for _ in range(4):  # render every 4 steps
+            valid_idx = 0
             for joint_idx, joint in enumerate(active_joints):
-                joint.set_drive_target(scene.get_timestep())
-            qf = robot.compute_passive_force(
-                gravity=True,
-                coriolis_and_centrifugal=True,
-            )
-            robot.set_qf(qf)
+                if joint.type == "fixed":
+                    continue
+                limit = joint.limit[0]
+                lower = limit[0]
+                upper = limit[1]
+                pos = poses[valid_idx]
+                pos += steps[valid_idx]
+                if not math.isinf(upper):
+                    if steps[valid_idx] > 0:
+                        #pos += steps[valid_idx]
+                        if pos > upper:
+                            pos = upper
+                            steps[valid_idx] *= -1
+                if not math.isinf(lower):
+                    if steps[valid_idx] < 0:
+                        #pos += steps[valid_idx]
+                        if pos < lower:
+                            pos = lower
+                            steps[valid_idx] *= -1
+                poses[valid_idx] = pos
+                valid_idx += 1
+            robot.set_qpos(poses)
             scene.step()    
         scene.update_render()
         viewer.render()

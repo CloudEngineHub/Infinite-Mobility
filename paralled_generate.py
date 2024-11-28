@@ -2,6 +2,8 @@ import sys
 import subprocess
 
 from math import ceil
+import os
+import shutil
 
 fac_name = sys.argv[1]
 number = int(sys.argv[2])
@@ -16,8 +18,14 @@ for i in range(ceil(number / max_process)):
             break
         if cmd != "":
             cmd += " & "
+        urdf_path = f"outputs/{fac_name}/{i*max_process+j}/scene.urdf"
+        if os.path.exists(urdf_path):
+            pass
+        elif os.path.exists(f"outputs/{fac_name}/{i*max_process+j}"):
+            shutil.rmtree(f"outputs/{fac_name}/{i*max_process+j}")
         cmd += f"python -m infinigen_examples.generate_individual_assets --output_folder outputs/ -f {fac_name} -n 1 --start_seed {i*max_process+j}"
     cmd += " & wait"
+    #print(cmd)
     subprocess.call(cmd, shell=True)
         
 # subprocess.call(

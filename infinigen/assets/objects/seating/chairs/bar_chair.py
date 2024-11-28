@@ -12,7 +12,7 @@ from infinigen.assets.objects.seating.chairs.seats.round_seats import (
     generate_round_seats,
 )
 from infinigen.assets.objects.tables.cocktail_table import geometry_create_legs
-from infinigen.assets.utils.object import save_file_path, save_obj_parts_add
+from infinigen.assets.utils.object import add_joint, get_joint_name, save_file_path, save_obj_parts_add
 from infinigen.core import surface, tagging
 from infinigen.core.nodes.node_wrangler import Nodes, NodeWrangler
 from infinigen.core.placement.factory import AssetFactory
@@ -63,6 +63,8 @@ def geometry_assemble_chair(nw: NodeWrangler, **kwargs):
     parts = [3, parts_legs[kwargs["Leg Style"]]]
 
     first = True
+    last_idx = None
+    first_wheel = True
     if kwargs["Leg Style"] != "wheeled":
         for i, name in enumerate(names):
             named_attribute = nw.new_node(
@@ -135,18 +137,111 @@ def geometry_assemble_chair(nw: NodeWrangler, **kwargs):
                             },
                         )
                         output_geometry = separate_geometry_1
-                        a = save_geometry(
+                        joint_info = None
+                        parent_idx = None
+                        if k == 3:
+                            parent_idx = last_idx + 2
+                            joint_info = {
+                                "name": get_joint_name("revolute"),
+                                "type": "continuous",
+                                "axis": (0, 0, 1)
+                            }
+                        elif k == 1:
+                            origin_shift = (0, 0, 0)
+                            if kwargs["Leg Pole Number"] == 3:
+                                if j == 1:
+                                    origin_shift = (0.03, 0, 0.035)
+                                if j == 3:
+                                    origin_shift = (-0.03, 0, 0.035)
+                            else:
+                                if j == 1:
+                                    origin_shift = (0.03, 0, 0.3)
+                                if j == 2:
+                                    origin_shift = (0.03, 0, 0.015)
+                                if j == 4:
+                                    origin_shift = (-0.03, 0, 0.015)
+                                if j == 5:
+                                    origin_shift = (-0.03, 0, 0.3)
+                            parent_idx = last_idx + 2
+                            origin_shift = origin_shift[0], origin_shift[2], origin_shift[1]
+                            joint_info = {
+                                "name": get_joint_name("continuous"),
+                                "type": "continuous",
+                                "axis": (1, 0, 0),
+                                #"origin_shift": origin_shift,
+                                "substitute_mesh_idx": 11 if kwargs['Leg Pole Number'] == 5 else 7,##
+                                #"origin_shift": (0, -kwargs.get("Leg Wheel Width", 0) / 2, 0)
+                            }
+                            first_wheel = False
+                        elif k == 4:
+                            parent_idx = 23 if kwargs['Leg Pole Number'] == 5 else 15##
+                            joint_info = {
+                                "name": get_joint_name("fixed"),
+                                "type": "fixed"
+                            }
+                        else:
+                            origin_shift = (0, 0, 0)
+                            if kwargs["Leg Pole Number"] == 3:
+                                if j == 1:
+                                    origin_shift = (0.03, 0, 0.035)
+                                if j == 3:
+                                    origin_shift = (-0.03, 0, 0.035)
+                            else:
+                                if j == 1:
+                                    origin_shift = (0.03, 0, 0.05)
+                                if j == 2:
+                                    origin_shift = (0.03, 0, 0.015)
+                                if j == 4:
+                                    origin_shift = (-0.03, 0, 0.015)
+                                if j == 5:
+                                    origin_shift = (-0.03, 0, 0.05)
+                            parent_idx = last_idx + 2
+                            origin_shift = origin_shift[0], origin_shift[2], origin_shift[1]
+                            joint_info = {
+                                "name": get_joint_name("fixed"),
+                                "type": "fixed",
+                                "substitute_mesh_idx": 12 if kwargs['Leg Pole Number'] == 5 else 8, ####
+                                #"origin_shift": origin_shift
+                            }
+                        a = save_geometry(  
                             nw,
                             output_geometry,
                             kwargs.get("path", None),
                             name,
                             kwargs.get("i", "unknown"),
                             first=first,
+                            joint_info=joint_info,
+                            parent_obj_id=parent_idx,
+                            material=kwargs["LegMaterial"]
                         )
                         if a:
                             first = False
+                            last_idx = a[0]
                 else:
                     output_geometry = separate_geometry
+                    joint_info = None
+                    parent_idx = None
+                    if(i == 1 and j == parts[1]):
+                        parent_idx = last_idx
+                        joint_info = {
+                            "name": get_joint_name("prismatic"),
+                            "type": "prismatic",
+                            "axis": (0, 0, 1),
+                            "limit": {
+                                "lower": -0.2,
+                                "upper": 0,
+                                "lower_1": -0.2,
+                                "upper_1": 0
+                            },
+                            "axis_1": (0, 0, 1),
+                        }
+                    elif i == 0:
+                        parent_idx = 0
+                        joint_info = {
+                            "name": get_joint_name("fixed"),
+                            "type": "fixed"
+                        }
+
                     a = save_geometry(
                         nw,
                         output_geometry,
@@ -154,10 +249,18 @@ def geometry_assemble_chair(nw: NodeWrangler, **kwargs):
                         name,
                         kwargs.get("i", "unknown"),
                         first=first,
+                        joint_info=joint_info,
+                        parent_obj_id=parent_idx,
+                        material=kwargs["SeatMaterial"]
                     )
                     if a:
                         first = False
-
+                        last_idx = a[0]
+    
+    add_joint(last_idx, 0, {
+        "name": get_joint_name("continuous"),
+        "type" :    "continuous",
+        "axis": (0, 0, 1)})
     save_geometry(
         nw,
         join_geometry,
@@ -165,7 +268,6 @@ def geometry_assemble_chair(nw: NodeWrangler, **kwargs):
         "whole",
         kwargs.get("i", "unknown"),
     )
-
     group_output = nw.new_node(
         Nodes.GroupOutput,
         input_kwargs={"Geometry": join_geometry},
@@ -224,7 +326,7 @@ class BarChairFactory(AssetFactory):
         top_thickness = uniform(0.06, 0.10)
 
         leg_style = choice(["straight", "single_stand", "wheeled"])
-        # leg_style = 'wheeled'
+        leg_style = 'wheeled'
 
         parameters = {
             "Top Profile Width": x,
@@ -282,7 +384,7 @@ class BarChairFactory(AssetFactory):
         elif leg_style == "wheeled":
             leg_diameter = uniform(0.03, 0.05)
             leg_number = 1
-            pole_number = choice([4, 5])
+            pole_number = choice([3, 5])
             joint_height = uniform(0.5, 0.8) * (z - top_thickness)
             wheel_arc_sweep_angle = uniform(120, 240)
             wheel_width = uniform(0.11, 0.15)
@@ -299,7 +401,7 @@ class BarChairFactory(AssetFactory):
                     "Leg Wheel Width": wheel_width,
                     "Leg Wheel Rot": wheel_rot,
                     "Leg Pole Length": pole_length,
-                    # 'Leg Material': choice(['metal'])
+                    #'Leg Material': choice(['metal'])
                 }
             )
 
