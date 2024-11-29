@@ -292,6 +292,7 @@ def save_part(obj, type, path, idx, first):
         return new_obj
 
 def save_geometry_new(obj, name, part_idx, idx, path, first, use_bpy=False, separate=False, parent_obj_id=None, joint_info=None, material=None):
+    print(obj.data.materials)
     butil.select_none()
     if not obj.name in bpy.context.collection.objects.keys():
         bpy.context.collection.objects.link(obj)
@@ -353,8 +354,11 @@ def save_geometry_new(obj, name, part_idx, idx, path, first, use_bpy=False, sepa
 
     for face in bm.faces:
         if all(v.index in vert_map for v in face.verts):
-            new_face = new_bm.faces.new([vert_map[v.index] for v in face.verts])
-            new_face.material_index = face.material_index
+            try:
+                new_face = new_bm.faces.new([vert_map[v.index] for v in face.verts])
+                new_face.material_index = face.material_index
+            except:
+                pass
 
     # 写入新的网格数据并释放 bmesh
     new_bm.to_mesh(new_mesh)

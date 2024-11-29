@@ -61,7 +61,7 @@ class DoorCasingFactory(AssetFactory):
             )
         obj.data.edges.foreach_set("bevel_weight", selection)
         bevel(obj, self.extrude, limit_method="WEIGHT")
-        save_geometry_new(obj, 'whole', 0, params.get("i", None), params.get("path", None), True, use_bpy=True)
+        #save_geometry_new(obj, 'whole', 0, params.get("i", None), params.get("path", None), True, use_bpy=True)
         return obj
 
     def finalize_assets(self, assets):

@@ -902,6 +902,28 @@ def save_whole_object_normalized(object, path=None, idx="unknown", name=None, us
             joint_prismatic = urdfpy.Joint(get_joint_name("prismatic"),
                                            "prismatic", f"l_{parent}", f"abstract_{parent}_{link}", axis=joint_info.get("axis_1", None), limit=limit_1)
             joints.append(joint_prismatic)
+        elif type == "limited_planar":
+            all_axis = [(0, 0, 1), (0, 1, 0), (1, 0, 0)]
+            if not joint_info.get("axis", None) in all_axis:
+                print("Invalid axis for limited planar joint")
+                raise NotImplementedError
+            all_axis.remove(joint_info.get("axis", None))
+            fb_lr = all_axis
+            abstract_link_1 = urdfpy.Link(get_link_name(f'abstract_planar_primastic_fb'), visuals=None, collisions=None, inertial=None)
+            #abstract_link_2 = urdfpy.Link(get_link_name(f'abstract_planar_primastic_lr'), visuals=None, collisions=None, inertial=None)
+            abstract_link_3 = urdfpy.Link(get_link_name(f'abstract_planar_revolute'), visuals=None, collisions=None, inertial=None)
+            limit_revolute = urdfpy.JointLimit(2000, 2, limit_info.get("lower", -1), limit_info.get("upper", 1))
+            limit_prismatic_fb = urdfpy.JointLimit(2000, 2, limit_info.get("lower_1", -1), limit_info.get("upper_1", 1))
+            limit_prismatic_lr = urdfpy.JointLimit(2000, 2, limit_info.get("lower_2", -1), limit_info.get("upper_2", 1))
+            joint_revolute = urdfpy.Joint(get_joint_name("prismatic_lr"), "prismatic", f"l_{parent}", abstract_link_1.name, axis=fb_lr[1], limit=limit_prismatic_lr, origin=get_translation_matrix(origin_shift[0], origin_shift[1], origin_shift[2]))
+            joint_prismatic_fb = urdfpy.Joint(get_joint_name("prismatic_fb"), "prismatic", abstract_link_1.name, abstract_link_3.name, axis=fb_lr[0], limit=limit_prismatic_fb)
+            joint_prismatic_lr = urdfpy.Joint(get_joint_name("revolute"), "revolute", abstract_link_3.name, f"l_{link}", axis=joint_info.get("axis", None), limit=limit_revolute)
+            joints.append(joint_revolute)
+            joints.append(joint_prismatic_fb)
+            joints.append(joint_prismatic_lr)
+            links[abstract_link_1.name] = abstract_link_1
+            #links[abstract_link_2.name] = abstract_link_2
+            links[abstract_link_3.name] = abstract_link_3
 
     robot = urdfpy.URDF("scene", list(links.values()), joints=joints)
     robot.save(os.path.join(path, idx, "scene.urdf"))

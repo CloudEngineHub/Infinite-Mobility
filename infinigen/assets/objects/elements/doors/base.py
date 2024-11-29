@@ -24,7 +24,9 @@ from infinigen.assets.utils.object import (
     save_objects,
     save_parts_join_objects,
     save_obj_parts_add,
-    join_objects_save_whole
+    join_objects_save_whole,
+    get_joint_name,
+    add_joint
 )
 from infinigen.core import surface
 from infinigen.core.constraints.example_solver.room import constants
@@ -36,10 +38,11 @@ from infinigen.core.util.math import FixedSeed
 from infinigen.core.util.random import log_uniform
 
 from infinigen.core.nodes.node_utils import save_geometry_new, save_geometry
+import math
 
 first = True
 
-
+count=0
 class BaseDoorFactory(AssetFactory):
     def __init__(self, factory_seed, coarse=False):
         super(BaseDoorFactory, self).__init__(factory_seed, coarse)
@@ -112,6 +115,9 @@ class BaseDoorFactory(AssetFactory):
     def create_asset(self, **params) -> bpy.types.Object:
         global first
         self.params = params
+        #casing = self.casing_factory.create_asset()
+        #save_obj_parts_add([casing], self.params.get("path", None), self.params.get("i", None), "casing", first=first, use_bpy=True)
+
         for _ in range(100):
             obj = self._create_asset()
             if max(obj.dimensions) < 5:
@@ -119,6 +125,32 @@ class BaseDoorFactory(AssetFactory):
                 return obj
         else:
             raise ValueError("Bad door booleaning")
+    def get_seperate_objects(self, obj):
+        butil.select_none()
+        print(bpy.context.active_object)
+        bpy.context.view_layer.objects.active = obj
+        obj.select_set(True)
+        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.mesh.separate(type='MATERIAL')
+        bpy.ops.object.mode_set(mode='OBJECT')
+        butil.select_none()
+    def save_part(self, obj, type, path, idx, first):
+        global count
+        name = str(count)
+        obj.name = name
+        initial = bpy.context.collection.objects.keys()
+        temp_obj = obj.copy()
+        bpy.context.collection.objects.link(temp_obj)
+        self.get_seperate_objects(obj)
+        new_obj = []
+        for ob in bpy.context.collection.objects:
+            if not ob.name in initial and name in ob.name:
+                butil.select_none()
+                save_obj_parts_add([ob], path, idx, type, first=first, use_bpy=True)
+                new_obj.append(ob)
+                first = False
+        count += 1
+        return new_obj
 
     def _create_asset(self, path=None, i="unknown"):
         global first
@@ -134,8 +166,33 @@ class BaseDoorFactory(AssetFactory):
             extras.extend(panel_func)
             name.extend(["panel_func"] * len(panel_func))
         if self.type == "panel" or self.type == "louver":
-                save_obj_parts_add([obj], self.params.get("path", None), self.params.get("i", None), "panel", first=first, use_bpy=True)
-                first = False
+                self.surface.apply(obj, metal_color=self.metal_color, vertical=True)
+                if self.has_glass:
+                    self.glass_surface.apply(obj, selection="glass", clear=True)
+                if self.has_louver:
+                    self.louver_surface.apply(
+                        obj, selection="louver", metal_color=self.metal_color
+                    )
+        save_obj_parts_add([obj], self.params.get("path", None), self.params.get("i", None), "panel", first=first, use_bpy=True, parent_obj_id="world", joint_info={
+            "name": get_joint_name("revolute"),
+            "type": "revolute",
+            "limit":{
+                "lower": -math.pi / 2,
+                "upper": math.pi / 2
+            },
+            "axis": (0, 0, 1),
+            "origin_shift": (self.width / 2, 0, 0)
+        })
+        first = False
+        # objs = self.save_part(obj, "panel", path, i, True)
+        # first = False
+        # for i, ob in enumerate(objs):
+        #     if i != 0:
+        #         print(i)
+        #         add_joint(0, i, {
+        #             "name": get_joint_name("fixed"),
+        #             "type": "fixed",
+        #         })
         match self.handle_type:
             case "knob":
                 knobs = self.make_knobs()
@@ -152,8 +209,8 @@ class BaseDoorFactory(AssetFactory):
         obj = join_objects([obj] + extras)
         self.auto_bevel(obj)
         obj.location = -self.width, -self.depth, 0
-        butil.apply_transform(obj, True)
-        obj = add_bevel(obj, get_bevel_edges(obj), offset=self.side_bevel)
+        #butil.apply_transform(obj, True)
+        #obj = add_bevel(obj, get_bevel_edges(obj), offset=self.side_bevel)
         save_geometry_new(obj, 'whole', 0, self.params.get("i", None), self.params.get("path", None), True, use_bpy=True)
         return obj
 
@@ -190,9 +247,25 @@ class BaseDoorFactory(AssetFactory):
             obj.location[1] += self.depth
             butil.apply_transform(obj, loc=True)
             mirror(other, 1)
-            save_obj_parts_add([obj], self.params.get("path", None), self.params.get("i", None), "knob", first=first, use_bpy=True)
+            self.handle_surface.apply(obj, selection="handle", metal_color="natural")
+            self.handle_surface.apply(other, selection="handle", metal_color="natural")
+            save_obj_parts_add([obj], self.params.get("path", None), self.params.get("i", None), "knob", first=first, use_bpy=True, parent_obj_id=0, joint_info={
+                "name": get_joint_name("fixed"),
+                "type": "fixed",
+            })
             first = False
-            save_obj_parts_add([other], self.params.get("path", None), self.params.get("i", None), "knob", first=first, use_bpy=True)
+            if name == "knob":
+                joint_info = {
+                    "name": get_joint_name("revolute"),
+                    "type": "continuous",
+                    "axis": (0, 1, 0),
+                }
+            else:
+                joint_info = {
+                    "name": get_joint_name("fixed"),
+                    "type": "fixed",
+                }
+            save_obj_parts_add([other], self.params.get("path", None), self.params.get("i", None), "knob", first=first, use_bpy=True, parent_obj_id=0, joint_info=joint_info)
         else:
             write_attribute(obj[0], 1, "handle", "FACE")
             write_attribute(obj[1], 1, "handle", "FACE")
@@ -208,11 +281,37 @@ class BaseDoorFactory(AssetFactory):
             obj[1].location[1] += self.depth
             butil.apply_transform(obj[1], loc=True)
             mirror(other_, 1)
-            save_obj_parts_add([other_], self.params.get("path", None), self.params.get("i", None), "knob", first=first, use_bpy=True)
+            self.handle_surface.apply(other_, selection="handle", metal_color="natural")
+            self.handle_surface.apply(other, selection="handle", metal_color="natural")
+            self.handle_surface.apply(obj[0], selection="handle", metal_color="natural")
+            self.handle_surface.apply(obj[1], selection="handle", metal_color="natural")
+            res = save_obj_parts_add([other_], self.params.get("path", None), self.params.get("i", None), "knob", first=first, use_bpy=True, parent_obj_id=0, joint_info={
+                "name": get_joint_name("revolute"),
+                "type": "revolute",
+                "axis": (0, 1, 0),
+                "limit": {
+                    "lower": 0,
+                    "upper": math.pi / 2
+                },
+            })
             first = False
-            save_obj_parts_add([other], self.params.get("path", None), self.params.get("i", None), "knob", first=first, use_bpy=True)
-            save_obj_parts_add([obj[0]], self.params.get("path", None), self.params.get("i", None), "knob", first=first, use_bpy=True)
-            save_obj_parts_add([obj[1]], self.params.get("path", None), self.params.get("i", None), "knob", first=first, use_bpy=True)
+            save_obj_parts_add([other], self.params.get("path", None), self.params.get("i", None), "knob", first=first, use_bpy=True, parent_obj_id=res[0], joint_info={
+                "name": get_joint_name("fixed"),
+                "type": "fixed",
+            })
+            res = save_obj_parts_add([obj[0]], self.params.get("path", None), self.params.get("i", None), "knob", first=first, use_bpy=True, parent_obj_id=0, joint_info={
+                "name": get_joint_name("revolute"),
+                "type": "revolute",
+                "axis": (0, 1, 0),
+                "limit": {
+                    "lower": 0,
+                    "upper": math.pi / 2
+                },
+            })
+            save_obj_parts_add([obj[1]], self.params.get("path", None), self.params.get("i", None), "knob", first=first, use_bpy=True, parent_obj_id=res[0], joint_info={
+                "name": get_joint_name("fixed"),
+                "type": "fixed",
+            })
             obj = join_objects(obj)
             other = join_objects([other, other_])
 

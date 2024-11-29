@@ -85,7 +85,7 @@ class PalletFactory(AssetFactory):
                 first = False
         return new_obj
 
-    def create_asset(self, save=False, **params) -> bpy.types.Object:
+    def create_asset(self, save=False, save_whole=True, **params) -> bpy.types.Object:
         global first
         self.params = params
         vertical = self.make_vertical(save)
@@ -111,7 +111,7 @@ class PalletFactory(AssetFactory):
         if save:
             _ = self.save_part(support, 'support', "Support") 
         obj = join_objects([horizontal, horizontal_, vertical, vertical_, support])
-        if not save:
+        if not save and save_whole:
             self.create_asset(save=True, **params)
             save_geometry_new(obj, 'whole', 0, self.params.get("i", None), self.params.get("path", None), True, use_bpy=True)
             first = True

@@ -32,6 +32,8 @@ from infinigen.assets.utils.object import (
     new_plane,
     save_obj_parts_join_objects,
     save_objects_obj,
+    save_obj_parts_add,
+    get_joint_name
 )
 from infinigen.assets.utils.uv import (
     compute_uv_direction,
@@ -136,6 +138,20 @@ class TVFactory(AssetFactory):
     def create_asset(self, **params) -> bpy.types.Object:
         obj = self.make_base(params.get("path", None), params.get("i", "unknown"))
         self.make_screen(obj)
+        save_obj_parts_add(obj, params.get("path", None), params.get("i", "unknown"), "screen", use_bpy=True, first=True, parent_obj_id=1, joint_info=
+                           {
+                               "name": get_joint_name("revolute_prismatic"),
+                                "type": "revolute_prismatic",
+                                "axis" : (1, 0, 0),
+                                "axis_1": (0, 0, 1),
+                                "origin_shift": (0, 0, (self.h_max + self.h_min) / 2 - self.leg_length),
+                                "limit": {
+                                    "lower": -np.pi / 16,
+                                    "upper": 0,
+                                    "lower_1": (-self.h_min / 2) if self.h_min else -0.05,
+                                    "upper_1": 0
+                                }
+                           })
         parts = [obj]
         name = ["screen"]
         match self.leg_type:
@@ -145,21 +161,24 @@ class TVFactory(AssetFactory):
                 legs = self.add_single_leg()
         for leg_obj in legs:
             write_attribute(leg_obj, 1, "leg", "FACE", "INT")
-        parts.extend(legs)
-        name.extend(["legs"] * len(legs))
-        save_objects_obj(
-            parts,
-            params.get("path", None),
-            params.get("i", "unknown"),
-            name=name,
-            obj_name="TV",
-            first=True,
-        )
+        legs = join_objects(legs)
+        parts.append(legs)
+        save_obj_parts_add(legs, params.get("path", None), params.get("i", "unknown"), "leg", use_bpy=True, first=False)
+        #name.extend(["legs"] * len(legs))
+        # save_objects_obj(
+        #     parts,
+        #     params.get("path", None),
+        #     params.get("i", "unknown"),
+        #     name=name,
+        #     obj_name="TV",
+        #     first=True,
+        # )
         obj = join_objects(parts)
         join_objects_save_whole(
             obj,
             params.get("path", None),
             params.get("i", "unknown"),
+            use_bpy=True
         )
         obj.rotation_euler[2] = np.pi / 2
         butil.apply_transform(obj)
@@ -192,6 +211,8 @@ class TVFactory(AssetFactory):
         butil.apply_transform(obj)
         butil.modify_mesh(obj, "BEVEL", width=self.screen_bevel_width, segments=8)
         if not self.has_depth_extrude:
+            self.h_max = self.total_height
+            self.h_min = 0
             return obj
         with butil.ViewportMode(obj, "EDIT"):
             bm = bmesh.from_edit_mesh(obj.data)
@@ -205,6 +226,8 @@ class TVFactory(AssetFactory):
             self.total_height * uniform(0.1, 0.3),
             self.total_height * uniform(0.5, 0.7),
         )
+        self.h_min = height_min
+        self.h_max = height_max
         width = self.total_width * uniform(0.3, 0.6)
         extra = new_plane()
         extra.scale = width / 2, (height_max - height_min) / 2, 1

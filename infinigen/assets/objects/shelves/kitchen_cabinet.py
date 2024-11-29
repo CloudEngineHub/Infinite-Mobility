@@ -30,6 +30,8 @@ from infinigen.core.nodes.node_utils import save_geometry_new, save_geometry
 
 import urdfpy
 
+from infinigen.assets.objects.elements.doors.lite import LiteDoorFactory
+
 
 def geometry_nodes(nw: NodeWrangler, **kwargs):
     # Code generated using version 2.6.4 of the node_transpiler
@@ -121,6 +123,7 @@ class KitchenCabinetBaseFactory(AssetFactory):
         self.frame_fac = LargeShelfBaseFactory(factory_seed)
         self.door_fac = CabinetDoorBaseFactory(factory_seed)
         self.drawer_fac = CabinetDrawerBaseFactory(factory_seed)
+        #self.door_fac = LiteDoorFactory(factory_seed)
         self.drawer_only = False
         with FixedSeed(factory_seed):
             self.params = self.sample_params()
@@ -192,7 +195,7 @@ class KitchenCabinetBaseFactory(AssetFactory):
                 else:
                     params["board_material"] = shader_shelves_wood
 
-            params["panel_meterial"] = params["frame_material"]
+            params["panel_material"] = params["frame_material"]
             params["knob_material"] = params["frame_material"]
             return params
 
@@ -443,7 +446,6 @@ class KitchenCabinetBaseFactory(AssetFactory):
                     self.drawer_fac.save(geo, ps[i][j + 1], first, parent_id=f_id)
                     first = False
                 butil.delete([x[0] for x in c[2]])
-            print("frame", c[0].location)
             first = False
 
             # butil.delete(c[:1])

@@ -22,6 +22,8 @@ from infinigen.core.nodes import node_utils
 from infinigen.core.nodes.node_wrangler import Nodes, NodeWrangler
 from infinigen.core.placement.factory import AssetFactory
 
+from infinigen.core.util import blender as butil
+
 import random
 
 first = True
@@ -1180,6 +1182,12 @@ class LargeShelfBaseFactory(AssetFactory):
         names = ["back_board", "bottomboard", "divisionboard", "side_board"]
         parts = [1, len(params["shelf_cell_width"]), len(params["shelf_cell_width"])*len(params["division_board_z_translation"]), len(params["side_board_x_translation"])]
         object_id = -1
+        butil.select_none()
+        obj.select_set(True)
+        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.mesh.bevel(offset_type="PERCENT", offset=random.randint(0, 50) / 100, offset_pct=random.randint(0, 50), segments=10, affect='VERTICES', profile_type="SUPERELLIPSE", profile=0.5)
+        bpy.ops.mesh.bevel(offset_type="PERCENT", offset=random.randint(0, 50) / 100, offset_pct=random.randint(0, 50), segments=10, affect='EDGES', profile_type="SUPERELLIPSE", profile=0.5)
+        bpy.ops.object.mode_set(mode='OBJECT')
         for j, name in enumerate(names):
             if name != "divisionboard":
                 material = params["board_material"]

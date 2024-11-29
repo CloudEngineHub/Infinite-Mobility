@@ -1648,7 +1648,7 @@ class CabinetDoorBaseFactory(AssetFactory):
                             "lower": (- math.pi / 2) if left else 0,
                             "upper": 0 if left else math.pi / 2
                         },
-                        "origin_shift": (0, 0, params["door_width"] / 2) if left else (0, 0, - params["door_width"] / 2)
+                        "origin_shift": (0, -params["door_width"] / 2, 0) if left else (0,  params["door_width"] / 2, 0)
                     }, material=material)
                     object_idx = res[0]
                 else:

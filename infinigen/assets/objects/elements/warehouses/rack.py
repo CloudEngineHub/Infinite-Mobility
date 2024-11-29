@@ -39,7 +39,10 @@ from infinigen.assets.utils.object import (
     join_objects_save_whole,
     save_file_path_obj,
     save_obj_parts_add,
+    get_joint_name
 )
+
+import math
 
 
 def get_seperate_objects(obj):
@@ -64,7 +67,7 @@ def get_seperate_objects(obj):
     butil.select_none()
 
 first = True
-
+last_idx = -1
 
 class RackFactory(AssetFactory):
     def __init__(self, factory_seed, coarse=False):
@@ -116,12 +119,41 @@ class RackFactory(AssetFactory):
         self.params = params
         stands = self.make_stands(save)
         supports = self.make_supports(save)
-        frames = self.make_frames(save)
+        frames, ids = self.make_frames(save)
         obj = join_objects(stands + supports + frames)
         co = read_co(obj)
         co[:, -1] = np.clip(co[:, -1], 0, self.height * self.steps)
         write_co(obj, co)
         # obj = join_objects([obj] + pallets)
+        pallets = [self.pallet_factory.create_asset(i=i, save=False, save_whole=False) for i in range(self.steps * 2)]
+        for i, p in enumerate(pallets):
+            p.parent = obj
+            margin = uniform(*self.margin_range)
+            p.location = (
+                margin if i % 2 else self.width - margin - p.dimensions[0],
+                (self.depth - p.dimensions[1]) / 2,
+                i // 2 * self.height,
+            )
+            butil.apply_transform(p, True)
+        self.pallet_factory.finalize_assets(pallets)
+        for i, p in enumerate(pallets):
+            p.parent = obj
+            if save:
+                # p_id = ids[(i // 2) - 1] if i >= 2 else "world"
+                p_id = "world" if i < 2 else ids[(i // 2) - 1]
+                save_obj_parts_add([p], self.params.get("path", None), self.params.get("i", None), "pallet", first=False, use_bpy=True, parent_obj_id= p_id, joint_info={
+                    "type": "limited_planar",
+                    "name": get_joint_name("limited_planar"),
+                    "axis": (0, 0, 1),
+                    "limit": {
+                        "lower": -math.inf,
+                        "upper": math.inf,
+                        "lower_1": -self.depth / 2,
+                        "upper_1": self.depth / 2,
+                        'lower_2': -self.width / 4,
+                        'upper_2': self.width / 4
+                    },
+                })
         obj.rotation_euler[-1] = np.pi / 2
         butil.apply_transform(obj)
         if not save:
@@ -161,15 +193,19 @@ class RackFactory(AssetFactory):
         )
         write_attribute(obj, 1, "stand", "FACE")
         stands = [obj]
+        first = True
         for locs in [(0, 1), (1, 1), (1, 0)]:
             o = deep_clone_obj(obj)
             o.location = locs[0] * self.width, locs[1] * self.depth, 0
             butil.apply_transform(o, True)
             stands.append(o)
         if save:
-            global first
             for stand in stands:
-                save_obj_parts_add([stand], self.params.get("path", None), self.params.get("i", None), "stand", first=first, use_bpy=True) 
+                save_obj_parts_add([stand], self.params.get("path", None), self.params.get("i", None), "stand", first=first, use_bpy=True, parent_obj_id=
+                                   "world", joint_info={
+                                       "type": "fixed",
+                                       "name": get_joint_name("fixed")
+                                      }, material=self.stand_surface) 
                 first = False
         return stands
 
@@ -179,10 +215,8 @@ class RackFactory(AssetFactory):
             np.floor(self.height * self.steps / self.depth / np.tan(self.support_angle))
         )
         obj = new_line(n, self.height * self.steps)
-        print(self.steps, n, self.height)
         obj.rotation_euler[1] = -np.pi / 2
         butil.apply_transform(obj, True)
-        global first
         #save_obj_parts_add([obj], self.params.get("path", None), self.params.get("i", None), "support", first=first) 
         co = read_co(obj)
         co[1::2, 1] = self.depth
@@ -196,49 +230,57 @@ class RackFactory(AssetFactory):
         else:
             solidify(obj, 1, self.thickness)
         
-        if save:
-            for i in range(n):
-                obj_ = new_line(1, self.height)
-                obj_.rotation_euler[1] = -np.pi / 2
-                butil.apply_transform(obj_, True)
-                co = read_co(obj_)
-                if i % 2:
-                    co[1, 2] = -self.depth
-                    co[0, 2] = 0
-                else:
-                    co[0, 2] = -self.depth
-                    co[1, 2] = 0
-                co[0, 1] = i * self.depth * np.tan(self.support_angle)
-                co[1, 1] = (i + 1) * self.depth * np.tan(self.support_angle)
-                write_co(obj_, co)
-                if self.is_support_round:
-                    surface.add_geomod(
-                        obj_, geo_radius, apply=True, input_args=[self.thickness / 2, 16]
-                    )
-                else:
-                    solidify(obj_, 1, self.thickness)
-                save_obj_parts_add([obj_], self.params.get("path", None), self.params.get("i", None), "support", first=first)
-                obj_ = new_line(1, self.height)
-                obj_.rotation_euler[1] = -np.pi / 2
-                butil.apply_transform(obj_, True)
-                co = read_co(obj_)
-                if i % 2:
-                    co[1, 2] = -self.depth
-                    co[0, 2] = 0
-                else:
-                    co[0, 2] = -self.depth
-                    co[1, 2] = 0
-                co[0, 1] = i * self.depth * np.tan(self.support_angle)
-                co[1, 1] = (i + 1) * self.depth * np.tan(self.support_angle)
-                co[0, 0] = co[1, 0] = self.width
-                write_co(obj_, co)
-                if self.is_support_round:
-                    surface.add_geomod(
-                    obj_, geo_radius, apply=True, input_args=[self.thickness / 2, 16]
-                )
-                else:
-                    solidify(obj_, 1, self.thickness)
-                save_obj_parts_add([obj_], self.params.get("path", None), self.params.get("i", None), "support", first=first)
+        # if save:
+        #     for i in range(n):
+        #         obj_ = new_line(1, self.height)
+        #         #obj_.rotation_euler[1] = -np.pi / 2
+        #         butil.apply_transform(obj_, True)
+        #         co = read_co(obj_)
+        #         if i % 2:
+        #             co[1, 2] = -self.depth
+        #             co[0, 2] = 0
+        #         else:
+        #             co[0, 2] = -self.depth
+        #             co[1, 2] = 0
+        #         co[0, 1] = i * self.depth * np.tan(self.support_angle)
+        #         co[1, 1] = (i + 1) * self.depth * np.tan(self.support_angle)
+        #         write_co(obj_, co)
+        #         if self.is_support_round:
+        #             surface.add_geomod(
+        #                 obj_, geo_radius, apply=True, input_args=[self.thickness / 2, 16]
+        #             )
+        #         else:
+        #             solidify(obj_, 1, self.thickness)
+        #         save_obj_parts_add([obj_], self.params.get("path", None), self.params.get("i", None), "support", first=False, use_bpy=True, parent_obj_id="world", joint_info={
+        #             "type": "fixed",
+        #             "name": get_joint_name("fixed")
+        #                 },
+        #         material=self.support_surface)
+        #         obj_ = new_line(1, self.height)
+        #         obj_.rotation_euler[1] = -np.pi / 2
+        #         butil.apply_transform(obj_, True)
+        #         co = read_co(obj_)
+        #         if i % 2:
+        #             co[1, 2] = -self.depth
+        #             co[0, 2] = 0
+        #         else:
+        #             co[0, 2] = -self.depth
+        #             co[1, 2] = 0
+        #         co[0, 1] = i * self.depth * np.tan(self.support_angle)
+        #         co[1, 1] = (i + 1) * self.depth * np.tan(self.support_angle)
+        #         co[0, 0] = co[1, 0] = self.width
+        #         write_co(obj_, co)
+        #         if self.is_support_round:
+        #             surface.add_geomod(
+        #             obj_, geo_radius, apply=True, input_args=[self.thickness / 2, 16]
+        #         )
+        #         else:
+        #             solidify(obj_, 1, self.thickness)
+        #         save_obj_parts_add([obj_], self.params.get("path", None), self.params.get("i", None), "support", first=False, use_bpy=True, parent_obj_id="world", joint_info={
+        #             "type": "fixed",
+        #             "name": get_joint_name("fixed")
+        #                 },
+        #         material=self.support_surface)
 
 
         write_attribute(obj, 1, "support", "FACE")
@@ -247,6 +289,18 @@ class RackFactory(AssetFactory):
         o = deep_clone_obj(obj)
         o.location[0] = self.width
         butil.apply_transform(o, True)
+
+        if save:
+            res = save_obj_parts_add([o], self.params.get("path", None), self.params.get("i", None), "support", first=False, use_bpy=True, parent_obj_id="world", joint_info={
+                "name": get_joint_name("fixed"),
+                "type": "fixed",
+            }, material=self.support_surface)
+            if res:
+                last_idx = res[0]
+            res = save_obj_parts_add([obj], self.params.get("path", None), self.params.get("i", None), "support", first=False, use_bpy=True, parent_obj_id="world", joint_info={
+                "name": get_joint_name("fixed"),
+                "type": "fixed",
+            }, material=self.support_surface)
         #save_obj_parts_add([o], self.params.get("path", None), self.params.get("i", None), "support", first=first) 
         return [obj, o]
     
@@ -267,6 +321,7 @@ class RackFactory(AssetFactory):
         return new_obj
 
     def make_frames(self, save= False):
+        global last_idx
         x_bar = new_cube()
         x_bar.scale = self.width / 2, self.thickness / 2, self.frame_height / 2
         x_bar.location = self.width / 2, 0, self.height - self.frame_height / 2
@@ -290,31 +345,61 @@ class RackFactory(AssetFactory):
             count=self.frame_count - 1,
             constant_offset_displace=(margin, 0, 0),
         )
-        frames = [x_bar, x_bar_, y_bar]
+        frame = [x_bar, x_bar_, y_bar]
+        frame = join_objects(frame)
+        frames = [frame]
+        ids = []
         if save:
-            objs = self.save_part(y_bar, "bar", "frame")
-            x_bar.location[1] = 0
+            frame.location[-1] = 0
+            butil.apply_transform(frame, True)
+            res = save_obj_parts_add([frame], self.params.get("path", None), self.params.get("i", None), "frame", first=False, use_bpy=True, parent_obj_id="world", joint_info={
+                "name": get_joint_name("prismatic"),
+                "type": "prismatic",
+                "axis": (0, 0, 1),
+                "limit": {
+                    "lower": 0,
+                    "upper": self.height / 2,
+                }
+            }, material=self.frame_surface)
+            if res:
+                last_idx = res[0]
+                ids.append(last_idx)
         #bpy.context.collection.objects.link(x_bar)
-            butil.apply_transform(x_bar, True)
-            self.save_part(x_bar, "bar", "frame")
         # x_bar_.location[1] = self.depth
         # bpy.context.collection.objects.link(x_bar_)
         # butil.apply_transform(x_bar_, True)
-            self.save_part(x_bar_, "bar", "frame")
+            # self.save_part(x_bar_, "bar", "frame")
         for i in range(1, self.steps - 1):
+            frame_ = deep_clone_obj(frame)
+            frame_.location[-1] = self.height * i
+            butil.apply_transform(frame_, True)
+            frames.append(frame_)
             if save:
-                for ob in objs:
-                    ob_ = deep_clone_obj(ob)
-                    ob_.location[-1] += self.height * i
-                    butil.apply_transform(ob_, True)
-                    self.save_part(ob_, "bar", "frame")
-            for obj in [x_bar, x_bar_, y_bar]:
-                o = deep_clone_obj(obj)
-                o.location[-1] += self.height * i
-                butil.apply_transform(o, True)
-                frames.append(o)
-                if (obj.name == 'bar__' or obj.name == 'bar_') and save:
-                    self.save_part(o, "bar", "frame")
+                res = save_obj_parts_add([frame_], self.params.get("path", None), self.params.get("i", None), "frame", first=False, use_bpy=True, parent_obj_id="world", joint_info={
+                    "name": get_joint_name("prismatic"),
+                    "type": "prismatic",
+                    "axis": (0, 0, 1),
+                    "limit": {
+                        "lower":  - self.height / 2,
+                        "upper":   self.height / 2 if i != self.steps - 2 else 0,
+                    }
+                }, material=self.frame_surface)
+                if res:
+                    last_idx = res[0]
+                    ids.append(last_idx)
+            # if save:
+            #     for ob in objs:
+            #         ob_ = deep_clone_obj(ob)
+            #         ob_.location[-1] += self.height * i
+            #         butil.apply_transform(ob_, True)
+            #         self.save_part(ob_, "bar", "frame")
+            # for obj in [x_bar, x_bar_, y_bar]:
+            #     o = deep_clone_obj(obj)
+            #     o.location[-1] += self.height * i
+            #     butil.apply_transform(o, True)
+            #     frames.append(o)
+            #     if (obj.name == 'bar__' or obj.name == 'bar_') and save:
+            #         self.save_part(o, "bar", "frame")
         # global first
         # for frame in frames:
         #     save_obj_parts_add([frame], self.params.get("path", None), self.params.get("i", None), "frame", first=first) 
@@ -324,7 +409,7 @@ class RackFactory(AssetFactory):
 
         # for o in frames:
         #     write_attribute(o, 1, "frame", "FACE")
-        return frames
+        return frames, ids
 
     def finalize_assets(self, assets):
         self.stand_surface.apply(assets, "stand", metal_color="bw")
