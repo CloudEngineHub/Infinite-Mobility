@@ -895,12 +895,12 @@ def save_whole_object_normalized(object, path=None, idx="unknown", name=None, us
             #usdutils.add_joint(joint_info.get("name", "temp"), f"l_{parent}", f"l_{link}", axis, limit_info.get("lower", -math.inf), limit_info.get("upper", math.inf), type="revolute", shift_from_body0=shift_axis)
         elif type == "revolute_prismatic" or type == "continuous_prismatic":
             shift_axis = joint_info.get("origin_shift", (0, 0, 0))
-            l_abstract = urdfpy.Link(f'abstract_{parent}_{link}', visuals=None, collisions=None, inertial=None)
-            links[f'abstract_{parent}_{link}'] = l_abstract
-            j_real = urdfpy.Joint(joint_info.get("name"), joint_info.get("type").split('_')[0], f"abstract_{parent}_{link}", f"l_{link}", axis=joint_info.get("axis"), limit=limit, origin=get_translation_matrix(origin_shift[0] + shift_axis[0], origin_shift[1] + shift_axis[1], origin_shift[2] + shift_axis[2]))
+            l_abstract = urdfpy.Link(get_link_name("abstract"), visuals=None, collisions=None, inertial=None)
+            links[l_abstract.name] = l_abstract
+            j_real = urdfpy.Joint(joint_info.get("name"), joint_info.get("type").split('_')[0], l_abstract.name, f"l_{link}", axis=joint_info.get("axis"), limit=limit, origin=get_translation_matrix(origin_shift[0] + shift_axis[0], origin_shift[1] + shift_axis[1], origin_shift[2] + shift_axis[2]))
             joints.append(j_real)
             joint_prismatic = urdfpy.Joint(get_joint_name("prismatic"),
-                                           "prismatic", f"l_{parent}", f"abstract_{parent}_{link}", axis=joint_info.get("axis_1", None), limit=limit_1)
+                                           "prismatic", f"l_{parent}", l_abstract.name, axis=joint_info.get("axis_1", None), limit=limit_1)
             joints.append(joint_prismatic)
         elif type == "limited_planar":
             all_axis = [(0, 0, 1), (0, 1, 0), (1, 0, 0)]
@@ -924,6 +924,23 @@ def save_whole_object_normalized(object, path=None, idx="unknown", name=None, us
             links[abstract_link_1.name] = abstract_link_1
             #links[abstract_link_2.name] = abstract_link_2
             links[abstract_link_3.name] = abstract_link_3
+        elif type == 'flip_revolute':
+            limit_flip = urdfpy.JointLimit(2000, 2, limit_info.get("lower", -1), limit_info.get("upper", 1))
+            limit_revolute = urdfpy.JointLimit(2000, 2, limit_info.get("lower_1", -1), limit_info.get("upper_1", 1))
+            shift_axis_flip = joint_info.get("origin_shift", (0, 0, 0))
+            shift_axis_revolute = joint_info.get("origin_shift_1", (0, 0, 0))
+            l_abstract_flip = urdfpy.Link(get_link_name("abstract_flip"), visuals=None, collisions=None, inertial=None)
+            l_abstract_revolute = urdfpy.Link(get_link_name("abstract_revolute"), visuals=None, collisions=None, inertial=None)
+            links[l_abstract_flip.name] = l_abstract_flip
+            links[l_abstract_revolute.name] = l_abstract_revolute
+            j_flip = urdfpy.Joint(get_joint_name("flip"), "revolute", f"l_{parent}", l_abstract_flip.name, axis=joint_info.get("axis", None), limit=limit_flip, origin=get_translation_matrix(origin_shift[0] + shift_axis_flip[0], origin_shift[1] + shift_axis_flip[1], origin_shift[2] + shift_axis_flip[2]))
+            j_revolute = urdfpy.Joint(get_joint_name("revolute"), "revolute", l_abstract_flip.name, l_abstract_revolute.name, axis=joint_info.get("axis_1", None), limit=limit_revolute, origin=get_translation_matrix(shift_axis_revolute[0] - shift_axis_flip[0], shift_axis_revolute[1] - shift_axis_flip[1], shift_axis_revolute[2] - shift_axis_flip[2])) 
+            j_fixed = urdfpy.Joint(get_joint_name("fixed"), "fixed", l_abstract_revolute.name, f"l_{link}", axis=None, limit=None, origin=get_translation_matrix(-shift_axis_revolute[0], -shift_axis_revolute[1], -shift_axis_revolute[2]))
+            joints.append(j_flip)
+            joints.append(j_revolute)
+            joints.append(j_fixed)    
+            
+
 
     robot = urdfpy.URDF("scene", list(links.values()), joints=joints)
     robot.save(os.path.join(path, idx, "scene.urdf"))
