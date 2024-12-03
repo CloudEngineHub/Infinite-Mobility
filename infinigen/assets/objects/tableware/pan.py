@@ -18,8 +18,6 @@ from infinigen.assets.utils.object import (
     new_base_circle,
     new_base_cylinder,
     origin2lowest,
-    save_objects,
-    save_parts_join_objects,
 )
 from infinigen.core.util import blender as butil
 from infinigen.core.util.math import FixedSeed
@@ -64,13 +62,13 @@ class PanFactory(TablewareFactory):
             self.scratch = self.edge_wear = None
 
     def create_asset(self, **params) -> bpy.types.Object:
-        obj = self.make_base(params.get("path", "base"), params.get("i", "unknown"))
+        obj = self.make_base()
         origin2lowest(obj, vertical=True)
         obj.scale = [self.scale] * 3
         butil.apply_transform(obj)
         return obj
 
-    def make_base(self, path="base", i="unknown"):
+    def make_base(self):
         n = 4 * int(log_uniform(4, 8))
         base = new_base_circle(vertices=n)
         middle = new_base_circle(
@@ -83,7 +81,6 @@ class PanFactory(TablewareFactory):
         upper.scale = [self.r_expand] * 3
         butil.apply_transform(upper, loc=True)
         obj = join_objects([base, middle, upper])
-        # obj = save_parts_join_objects([base, middle, upper], path, i, name=["pan_base", "pan_middle", "pan_upper"])
         with butil.ViewportMode(obj, "EDIT"):
             bpy.ops.mesh.bridge_edge_loops()
             bm = bmesh.from_edit_mesh(obj.data)

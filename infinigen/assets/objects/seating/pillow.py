@@ -75,12 +75,13 @@ class PillowFactory(AssetFactory):
                 obj = new_base_circle(vertices=128)
                 inner = new_base_circle(vertices=128, radius=uniform(0.2, 0.4))
                 # obj = join_objects([obj, inner])
-                obj = save_parts_join_objects(
-                    [obj, inner],
-                    params.get("path", None),
-                    params.get("i", "unknown"),
-                    name=["obj", "inner"],
-                )
+                # obj = save_parts_join_objects(
+                #     [obj, inner],
+                #     params.get("path", None),
+                #     params.get("i", "unknown"),
+                #     name=["obj", "inner"],
+                # )
+                obj = join_objects([obj, inner])
                 with butil.ViewportMode(obj, "EDIT"):
                     bpy.ops.mesh.select_all(action="SELECT")
                     bpy.ops.mesh.bridge_edge_loops(

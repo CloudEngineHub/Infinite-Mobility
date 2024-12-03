@@ -22,6 +22,8 @@ from infinigen.core.nodes.node_wrangler import Nodes, NodeWrangler
 from infinigen.core.placement.factory import AssetFactory
 from infinigen.core.util import blender as butil
 from infinigen.core.util.math import FixedSeed
+from infinigen.assets.utils.object import get_joint_name
+import math
 
 
 class SinkFactory(AssetFactory):
@@ -158,6 +160,11 @@ class TapFactory(AssetFactory):
             "one_side": True if U() > 0.5 else False,
             "different_type": True if U() > 0.8 else False,
         }
+        params['hand_type'] = False
+        params['one_side'] = False
+        params['different_type'] = False
+        params['length_one_side'] = False
+        params['Switch'] = True
         return params
 
     def get_material_params(self):
@@ -180,8 +187,11 @@ class TapFactory(AssetFactory):
         return wrapped_params, scratch, edge_wear
 
     def create_asset(self, **params):
+        #self.params.update(self.tap_parameters())
         obj = butil.spawn_cube()
         params.update({"obj": obj, "inputs": self.params})
+        params.update(self.params)
+        params.update(self.tap_parameters())
         ng = nodegroup_water_tap(**params)
         butil.modify_mesh(
             obj, "NODES", node_group=ng, ng_inputs=self.params, apply=True, mod=True
@@ -303,14 +313,14 @@ def nodegroup_water_tap(nw: NodeWrangler, **kwargs):
             ("NodeSocketFloat", "roation_z", U(5.5, 7.0)),
             ("NodeSocketFloat", "tap_height", U(0.5, 1)),
             ("NodeSocketFloatDistance", "base_radius", U(0.0, 0.1)),
-            ("NodeSocketBool", "Switch", True if U() > 0.5 else False),
+            ("NodeSocketBool", "Switch", kwargs['Switch']),
             ("NodeSocketFloat", "Y", U(-0.5, -0.06)),
-            ("NodeSocketBool", "hand_type", True if U() > 0.2 else False),
+            ("NodeSocketBool", "hand_type", kwargs['hand_type']),
             ("NodeSocketFloat", "hands_length_x", U(0.750, 1.25)),
             ("NodeSocketFloat", "hands_length_Y", U(0.950, 1.550)),
-            ("NodeSocketBool", "one_side", True if U() > 0.5 else False),
-            ("NodeSocketBool", "different_type", True if U() > 0.8 else False),
-            ("NodeSocketBool", "length_one_side", True if U() > 0.8 else False),
+            ("NodeSocketBool", "one_side", kwargs['one_side']),
+            ("NodeSocketBool", "different_type", kwargs['different_type']),
+            ("NodeSocketBool", "length_one_side", kwargs['length_one_side']),
         ],
     )
     group_input = nw.new_node(
@@ -1093,6 +1103,16 @@ def nodegroup_water_tap(nw: NodeWrangler, **kwargs):
                 },
             )
             output_geometry = separate_geometry
+            joint_info = None
+            parent_id = "world"
+            if kwargs['Switch'] == False and j == 2:
+                pass
+                
+            if j == 10:
+                joint_info = {
+                    "name": get_joint_name("fixed"),
+                    "type": "fixed",
+                }
             a = save_geometry(
                 nw,
                 output_geometry,
@@ -1100,17 +1120,21 @@ def nodegroup_water_tap(nw: NodeWrangler, **kwargs):
                 name,
                 kwargs.get("i", "unknown"),
                 first=first,
+                material=kwargs.get("Tap", None),
+                parent_obj_id=parent_id,
+                joint_info=joint_info,
             )
+            print(a, j)
             if a:
                 first = False
 
-    save_geometry(
-        nw,
-        join_geometry_6,
-        kwargs.get("path", None),
-        "whole",
-        kwargs.get("i", "unknown"),
-    )
+    # save_geometry(
+    #     nw,
+    #     join_geometry_6,
+    #     kwargs.get("path", None),
+    #     "whole",
+    #     kwargs.get("i", "unknown"),
+    # )
 
     group_output = nw.new_node(
         Nodes.GroupOutput,

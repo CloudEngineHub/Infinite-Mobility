@@ -171,7 +171,7 @@ class LampFactory(AssetFactory):
 
     def create_asset(self, i, **params):
         obj = butil.spawn_cube()
-        params.update({"i": i, "obj": obj, "inputs": self.params})
+        params.update({"i": i, "obj": obj, "inputs": self.params, "path": params.get("path", None)})
         butil.modify_mesh(
             obj,
             "NODES",

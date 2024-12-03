@@ -95,10 +95,10 @@ class BookFactory(AssetFactory):
 
         self.make_cover(obj)
         write_attribute(obj, 1, "cover", "FACE")
-        # obj = join_objects([paper, obj])
-        obj = save_obj_parts_join_objects(
-            [paper, obj], path, i, name=["paper", "object"], obj_name="paperback"
-        )
+        obj = join_objects([paper, obj])
+        # obj = save_obj_parts_join_objects(
+        #     [paper, obj], path, i, name=["paper", "object"], obj_name="paperback"
+        # )
         return obj
 
     def make_paper(self, depth, height, width):
@@ -146,9 +146,10 @@ class BookFactory(AssetFactory):
         butil.modify_mesh(obj, "SOLIDIFY", thickness=self.thickness)
         write_attribute(obj, 1, "cover", "FACE")
         # obj = join_objects([paper, obj])
-        obj = save_obj_parts_join_objects(
-            [paper, obj], path, i, name=["paper", "object"]
-        )
+        # obj = save_obj_parts_join_objects(
+        #     [paper, obj], path, i, name=["paper", "object"]
+        # )
+        obj = join_objects([paper, obj])
         return obj
 
     def make_cover(self, obj):
@@ -219,13 +220,14 @@ class BookColumnFactory(AssetFactory):
                 butil.apply_transform(obj, True)
             books.append(obj)
         # obj = join_objects(books)
-        obj = save_obj_parts_join_objects(
-            books,
-            params.get("path", None),
-            params.get("i", "unknown"),
-            name=["books"] * len(books),
-            obj_name="Books"
-        )
+        # obj = save_obj_parts_join_objects(
+        #     books,
+        #     params.get("path", None),
+        #     params.get("i", "unknown"),
+        #     name=["books"] * len(books),
+        #     obj_name="Books"
+        # )
+        obj = join_objects(books)
         obj.location[0] = -np.min(read_co(obj)[:, 0])
         butil.apply_transform(obj, True)
         return obj

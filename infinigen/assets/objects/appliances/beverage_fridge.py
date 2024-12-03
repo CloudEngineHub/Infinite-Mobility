@@ -24,6 +24,15 @@ from infinigen.core.util.bevelling import (
 from infinigen.core.util.blender import delete
 from infinigen.core.util.math import FixedSeed
 
+from infinigen.assets.utils.object import (
+    join_objects_save_whole,
+    save_file_path_obj,
+    save_obj_parts_add,
+    add_joint,
+    get_joint_name
+)
+import math
+
 
 class BeverageFridgeFactory(AssetFactory):
     def __init__(self, factory_seed, coarse=False, dimensions=[1.0, 1.0, 1.0]):
@@ -64,9 +73,10 @@ class BeverageFridgeFactory(AssetFactory):
 
     @staticmethod
     def sample_parameters(dimensions):
-        depth = 1 + N(0, 0.1)
-        width = 1 + N(0, 0.1)
-        height = 1 + N(0, 0.1)
+        depth = max(1 + N(0.3, 0.3), 0.4)
+        width = max(1 + N(0.5, 0.6), 0.3)
+        height = max(1 + N(0.95, 0.95), 0.9)
+        width = max(height / 1.8 + N(0, 0.3), 0.8)
         # depth, width, height = dimensions
         door_thickness = U(0.05, 0.1) * depth
         door_rotation = 0  # Set to 0 for now
@@ -81,7 +91,7 @@ class BeverageFridgeFactory(AssetFactory):
             "Width": width,
             "Height": height,
             "DoorThickness": door_thickness,
-            "DoorRotation": door_rotation,
+            "DoorRotation": 0,
             "RackRadius": rack_radius,
             "RackHAmount": rack_h_amount,
             "RackDAmount": rack_d_amount,
@@ -92,6 +102,8 @@ class BeverageFridgeFactory(AssetFactory):
     def create_asset(self, **params):
         obj = butil.spawn_cube()
         params.update({"obj": obj, "inputs": self.params})
+        params['scratch'] = self.scratch
+        params['edge_wear'] = self.edge_wear
         # params.update({"obj": obj})
         ng = nodegroup_beverage_fridge_geometry(preprocess=True, **params)
         butil.modify_mesh(
@@ -106,6 +118,8 @@ class BeverageFridgeFactory(AssetFactory):
             obj, "NODES", node_group=ng, ng_inputs=self.params, apply=True, mod=True
         )
         obj = add_bevel(obj, bevel_edges, offset=0.01)
+        butil.save_blend(f"test.blend", autopack=True)
+        print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 
         return obj
 
@@ -1752,8 +1766,10 @@ def nodegroup_beverage_fridge_geometry(
     )
 
     join_geometry = nw.new_node(
-        Nodes.JoinGeometry, input_kwargs={"Geometry": [body, door, racks, heater]}
+        Nodes.JoinGeometry, input_kwargs={"Geometry": [body, door, racks, store_heater]}
     )
+    geometry = nw.new_node(Nodes.RealizeInstances, [join_geometry])
+    join_geometry = geometry
 
     names = [
         "body",
@@ -1764,7 +1780,9 @@ def nodegroup_beverage_fridge_geometry(
         "text",
     ]
     rack_split = "rack_up_down"
-    parts = [6, 1, 3, nw.modifier["Input_8"] * 2, 1, 1]
+    parts = [6, 1, 3, kwargs['inputs']['RackDAmount'] * kwargs['inputs']['RackHAmount'], 1, 1]
+    first_r = True
+    ids = []
     if not preprocess:
         first = True
         for i, name in enumerate(names):
@@ -1800,7 +1818,7 @@ def nodegroup_beverage_fridge_geometry(
                     },
                 )
                 if name == "rack":
-                    for k in range(1, nw.modifier["Input_9"] + 1):
+                    for k in range(1, kwargs['inputs']['RackHAmount'] + 1):
                         compare_1 = nw.new_node(
                             node_type=Nodes.Compare,
                             input_kwargs={"A": named_attribute_1, "B": k},
@@ -1814,6 +1832,23 @@ def nodegroup_beverage_fridge_geometry(
                             },
                         )
                         output_geometry = separate_geometry_1
+                        if first_r:
+                            joint_info = {
+                                "name": get_joint_name("prismatic"),
+                                "type": "prismatic",
+                                "axis": (1, 0, 0),
+                                "limit": {
+                                    "lower": 0,
+                                    "upper": kwargs['inputs']['Depth'] / 2
+                                }
+                            }
+                            parent_id = "world"
+                        else:
+                            joint_info = {
+                                "name": get_joint_name("fixed"),
+                                "type": "fixed",
+                            }
+                            parent_id = ids[k - 1]
                         a = save_geometry(
                             nw,
                             output_geometry,
@@ -1821,10 +1856,57 @@ def nodegroup_beverage_fridge_geometry(
                             name,
                             kwargs.get("i", "unknown"),
                             first=first,
+                            joint_info=joint_info,
+                            parent_obj_id=parent_id,
+                            material=[kwargs['inputs']['Handle'], kwargs['scratch'], kwargs['edge_wear']],
                         )
                         if a:
                             first = False
+                            ids.append(a[0])
+                        if len(ids) == kwargs['inputs']['RackHAmount']:
+                            first_r = False
                 else:
+                    if name == 'heater':
+                        joint_info = {
+                            "name": get_joint_name("fixed"),
+                            "type": "fixed",
+                        }
+                        parent_id = "world"
+                        material = [kwargs['inputs']['Back'], kwargs['scratch'], kwargs['edge_wear']]
+                    elif name == 'body':
+                        joint_info = {
+                            "name": get_joint_name("fixed"),
+                            "type": "fixed",
+                        }
+                        parent_id = "world"
+                        material = [kwargs['inputs']['Surface'], kwargs['scratch'], kwargs['edge_wear']]
+                    elif name == 'door':
+                        joint_info = {
+                            "name": get_joint_name("revolute"),
+                            "type": "revolute",
+                            "axis": (0, 0, 1),
+                            "limit": {
+                                "lower": 0,
+                                "upper": math.pi / 2
+                            },
+                            'origin_shift': (0, kwargs['inputs']['Width'] / 2, 0)
+                        }
+                        parent_id = "world"
+                        material = [kwargs['inputs']['Front'], kwargs['scratch'], kwargs['edge_wear']]
+                    elif name == 'text':
+                        joint_info = {
+                            "name": get_joint_name("fixed"),
+                            "type": "fixed",
+                        }
+                        parent_id = d_p_id
+                        material = [kwargs['inputs']['Handle'], kwargs['scratch'], kwargs['edge_wear']]
+                    elif name == 'handle':
+                        joint_info = {
+                            "name": get_joint_name("fixed"),
+                            "type": "fixed",
+                        }
+                        parent_id = d_p_id
+                        material = [kwargs['inputs']['Handle'], kwargs['scratch'], kwargs['edge_wear']]
                     output_geometry = separate_geometry
                     a = save_geometry(
                         nw,
@@ -1833,9 +1915,14 @@ def nodegroup_beverage_fridge_geometry(
                         name,
                         kwargs.get("i", "unknown"),
                         first=first,
+                        material=material,
+                        joint_info=joint_info,
+                        parent_obj_id=parent_id,
                     )
                     if a:
                         first = False
+                        if name == 'door':
+                            d_p_id = a[0]
         save_geometry(
             nw,
             join_geometry,
@@ -1844,7 +1931,6 @@ def nodegroup_beverage_fridge_geometry(
             kwargs.get("i", "unknown"),
         )
 
-    geometry = nw.new_node(Nodes.RealizeInstances, [join_geometry])
 
     group_output = nw.new_node(
         Nodes.GroupOutput,
