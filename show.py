@@ -27,7 +27,7 @@ def main():
     viewer.window.set_camera_parameters(near=0.05, far=100, fovy=1)
 
     loader = scene.create_urdf_loader()
-    robot = loader.load("/home/pjlab/projects/infinigen_sep_part_urdf/outputs/OfficeChairFactory/9/scene.urdf")
+    robot = loader.load("/home/qihong/infinigen_sep_part_urdf/outputs/bottles/BottleFactory/0/scene.urdf")
     robot.set_root_pose(sapien.Pose([0, 0, 0], [1, 0, 0, 0]))
     poses = []
     steps = []

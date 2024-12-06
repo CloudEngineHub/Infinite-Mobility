@@ -110,7 +110,9 @@ def to_modifier(name=None, singleton=False, type="GeometryNodeTree"):
                 #     set_geomod_inputs(mod, kwargs.get("inputs"))
                 nw = NodeWrangler(mod)
                 fn(nw, *args, **kwargs)
-                ng = mod.node_group
+                mod = obj.modifiers.new(name, "NODES")
+                ng = nw.node_group
+                mod.node_group = ng
                 ng.name = name
                 return mod
 
