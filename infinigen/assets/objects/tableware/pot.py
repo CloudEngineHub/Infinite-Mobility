@@ -11,6 +11,7 @@ from infinigen.assets.utils.object import (
     # join_objects,
     new_bbox,
     save_obj_parts_join_objects,
+    join_objects
 )
 
 # save_objects,
@@ -134,7 +135,4 @@ class PotFactory(PanFactory):
             subsurf(bar, 1)
             write_attribute(bar, lambda nw: 1, "guard", "FACE")
             bars.append(bar)
-        # return join_objects([obj, *bars])
-        return save_obj_parts_join_objects(
-            [obj, *bars], path, i, name=["obj"] + ["bars"] * len(bars), obj_name="Pot"
-        )
+        return join_objects([obj, *bars])

@@ -14,6 +14,8 @@ from infinigen.assets.utils.object import (
     new_plane,
     save_objects,
     save_parts_join_objects,
+    save_obj_parts_add,
+    join_objects_save_whole
 )
 from infinigen.assets.utils.uv import wrap_sides
 from infinigen.core.placement.factory import AssetFactory
@@ -83,13 +85,8 @@ class WallArtFactory(AssetFactory):
                 segments=self.frame_bevel_segments,
             )
         self.frame_surface.apply(frame)
-        # obj = join_objects([obj, frame])
-        obj = save_parts_join_objects(
-            [obj, frame],
-            params.get("path", None),
-            params.get("i", "unknown"),
-            name=["obj", "frame"],
-        )
+        obj = join_objects([obj, frame])
+    
         return obj
 
     def finalize_assets(self, assets):

@@ -3,6 +3,7 @@
 # of this source tree.
 
 # Authors: Lingjie Mei
+from collections.abc import Callable, Iterable
 import glob
 import importlib
 import json
@@ -27,8 +28,10 @@ from tqdm import tqdm
 # from pytorch3d.ops import sample_points_from_meshes
 # from bpy_lib import *
 # from pytorch3d.io import load_ply, save_ply
+#from infinigen.assets.materials import common
+from infinigen.core import surface, tagging
 import infinigen.core.util.blender as butil
-from infinigen.assets.utils.decorate import read_co, write_co
+from infinigen.assets.utils.decorate import read_co, read_material_index, write_co, write_material_index
 from infinigen.core.util.blender import select_none
 
 import urdfpy
@@ -800,6 +803,7 @@ def save_whole_object_normalized(object, path=None, idx="unknown", name=None, us
     links = {}
     joints= []
     origins["world"] = (0, 0, 0)
+    print(robot_tree)
 
     root = urdfpy.Link("l_world", visuals=None, collisions=None, inertial=None)
     links["l_world"] = root
@@ -818,7 +822,8 @@ def save_whole_object_normalized(object, path=None, idx="unknown", name=None, us
             if os.path.isfile(os.path.join(path, idx, "objs", f"{mesh_idx}.png")):
                 texture = urdfpy.Texture(filename=os.path.join(path, idx, "objs", f"{mesh_idx}.png"))
                 material = urdfpy.Material(name=get_link_name("material"), texture=texture)
-            l = urdfpy.Link(f'l_{link}', visuals=[urdfpy.Visual(material=material, geometry=urdfpy.Geometry(mesh=urdfpy.Mesh(filename=os.path.join(path, idx, "objs",f"{mesh_idx}", f"{mesh_idx}.obj"))))], collisions=[urdfpy.Collision(name="temp", origin=None, geometry=urdfpy.Geometry(mesh=urdfpy.Mesh(filename=os.path.join(path, idx, "objs", f"{mesh_idx}",f"{mesh_idx}.obj"))))], inertial=None)
+            collision = None #urdfpy.Collision(name="temp", origin=None, geometry=urdfpy.Geometry(mesh=urdfpy.Mesh(filename=os.path.join(path, idx, "objs", f"{mesh_idx}",f"{mesh_idx}.obj"))))
+            l = urdfpy.Link(f'l_{link}', visuals=[urdfpy.Visual(material=material, geometry=urdfpy.Geometry(mesh=urdfpy.Mesh(filename=os.path.join(path, idx, "objs",f"{mesh_idx}", f"{mesh_idx}.obj"))))], collisions=collision, inertial=None)
             links[f"l_{link}"] = l
             #usdutils.add_mesh(os.path.join(path, idx, "objs", f"{link}", f"{link}.usd"), f"l_{link}", origins[link])
         else:
@@ -1287,6 +1292,35 @@ def export_curr_scene(
         #wait = input("Press Enter to continue.")
         #shutil.rmtree(export_folder / "textures")
         return export_file
+from infinigen.core import tags as t
+def apply(obj, shader_func, selection=None, *args, **kwargs):
+    if not isinstance(obj, Iterable):
+        obj = [obj]
+    if isinstance(shader_func, Callable):
+        material = surface.shaderfunc_to_material(shader_func, *args, **kwargs)
+    else:
+        material = shader_func
+    for o in obj:
+        index = len(o.data.materials)
+        o.data.materials.append(material)
+        material_index = read_material_index(o)
+        full_like = np.full_like(material_index, index)
+        if selection is None:
+            material_index = full_like
+        elif isinstance(selection, t.Tag):
+            sel = tagging.tagged_face_mask(o, selection)
+            material_index = np.where(sel, index, material_index)
+        elif isinstance(selection, str):
+            try:
+                sel = surface.read_attr_data(o, selection.lstrip("!"), "FACE")
+                material_index = np.where(
+                    1 - sel if selection.startswith("!") else sel, index, material_index
+                )
+            except KeyError:
+                material_index = np.zeros(len(material_index), dtype=int)
+        else:
+            material_index = np.where(selection, index, material_index)
+        write_material_index(o, material_index)
 
 def save_part_export_obj_normalized_add_json(
     parts, path=None, idx="unknown", name=None, use_bpy=False, first=True, parent_obj_id=None, joint_info=None, material=None
@@ -1294,6 +1328,8 @@ def save_part_export_obj_normalized_add_json(
     #render_object_texture_and_save(material, 'res.png')
     global robot_tree, root
     assert len(parts) == len(name)
+    if not isinstance(material, list):
+        material = [material]
     if idx == "unknown":
         idx = f"random_{np.random.randint(0, 10000)}"
     else:
@@ -1341,11 +1377,22 @@ def save_part_export_obj_normalized_add_json(
         #     part.data.materials.remove(m)
         # Select the current object
         part.select_set(True)
-        if material is not None:
-            if isinstance(material, bpy.types.Material):
-                part.data.materials.append(material)
-            else:
-                material.apply(part)
+        for m in material:
+            if m is not None:
+                if isinstance(m, bpy.types.Material):
+                    part.data.materials.append(m)
+                elif isinstance(m, list):
+                    if hasattr(m[0],'__call__'):
+                        apply(part, m[0], m[1])
+                        #common.apply(part, m[0], m[1])
+                    else:
+                        pass
+                elif hasattr(m,'__call__'):
+                    print(m)
+                    surface.add_material(part, m, None)
+                    #common.apply(part, m, None)
+                else:
+                    m.apply(part)
         # Create a new scene
         # new_scene = bpy.data.scenes.new(f"Scene_for_{part.name}")
         # Link the object to the new scene

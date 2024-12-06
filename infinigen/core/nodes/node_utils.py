@@ -110,8 +110,14 @@ def to_modifier(name=None, singleton=False, type="GeometryNodeTree"):
                 #     set_geomod_inputs(mod, kwargs.get("inputs"))
                 nw = NodeWrangler(mod)
                 fn(nw, *args, **kwargs)
+<<<<<<< HEAD
                 mod = obj.modifiers.new(name, "NODES")
                 ng = nw.node_group
+=======
+                ng = nw.node_group
+                #ng = mod.node_group
+                mod = obj.modifiers.new(name, "NODES")
+>>>>>>> 0e9251e2835af8d600f6051bbc1d45fdbcd6065e
                 mod.node_group = ng
                 ng.name = name
                 return mod
@@ -301,7 +307,7 @@ def save_geometry_new(obj, name, part_idx, idx, path, first, use_bpy=False, sepa
     bpy.context.view_layer.objects.active = obj
     bpy.ops.object.mode_set(mode='EDIT')
     bm = bmesh.from_edit_mesh(obj.data)
-    #print(bm.verts.layers.float.keys(), bm.verts.layers.int.keys(), bm.faces.layers.int.keys(), bm.edges.layers.float.keys())
+    print(bm.verts.layers.float.keys(), bm.verts.layers.int.keys(), bm.faces.layers.int.keys(), bm.edges.layers.float.keys())
     # if name not in bm.verts.layers.float.keys() and name not in bm.verts.layers.int.keys() and name != "whole":
     #     # 切换回对象模式
     #     bpy.ops.object.mode_set(mode='OBJECT')

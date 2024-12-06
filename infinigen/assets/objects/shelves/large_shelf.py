@@ -1144,7 +1144,7 @@ class LargeShelfBaseFactory(AssetFactory):
 
         return params
 
-    def create_asset(self, idx=0, first_=True, save=True, **params):
+    def create_asset(self, idx=0, first_=True, save=False, **params):
         global first
         first = first_
         bpy.ops.mesh.primitive_plane_add(

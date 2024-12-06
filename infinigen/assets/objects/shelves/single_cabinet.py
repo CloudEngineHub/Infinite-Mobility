@@ -247,7 +247,7 @@ class SingleCabinetBaseFactory(AssetFactory):
         # create shelf
         shelf_params = self.get_shelf_params(i=i)
         self.shelf_fac.params = shelf_params
-        shelf, shelf_params = self.shelf_fac.create_asset(i=i, ret_params=True)
+        shelf, shelf_params = self.shelf_fac.create_asset(i=i, ret_params=True, save=False)
         shelf.name = "cabinet_frame"
         self.shelf_params = shelf_params
 
@@ -255,11 +255,11 @@ class SingleCabinetBaseFactory(AssetFactory):
         door_params = self.get_door_params(i=i)
         self.door_fac.params = door_params
         self.door_fac.params["door_left_hinge"] = False
-        right_door, door_obj_params = self.door_fac.create_asset(i=i, ret_params=True)
+        right_door, door_obj_params = self.door_fac.create_asset(i=i, ret_params=True, save=False)
         right_door.name = "cabinet_right_door"
         self.door_fac.params = door_obj_params
         self.door_fac.params["door_left_hinge"] = True
-        left_door, _ = self.door_fac.create_asset(i=i, ret_params=True)
+        left_door, _ = self.door_fac.create_asset(i=i, ret_params=True, save=False)
         left_door.name = "cabinet_left_door"
         self.door_params = door_obj_params
 

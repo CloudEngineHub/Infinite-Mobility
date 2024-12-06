@@ -63,13 +63,13 @@ class NatureShelfTrinketsFactory(AssetFactory):
         )
 
         if list(asset.children):
-            # asset = join_objects(list(asset.children))
-            asset = save_parts_join_objects(
-                list(asset.children),
-                params.get("path", None),
-                params.get("i", "unknown"),
-                name=["children"] * len(list(asset.children)),
-            )
+            asset = join_objects(list(asset.children))
+            # asset = save_parts_join_objects(
+            #     list(asset.children),
+            #     params.get("path", None),
+            #     params.get("i", "unknown"),
+            #     name=["children"] * len(list(asset.children)),
+            # )
 
         # butil.modify_mesh(asset, 'DECIMATE')
         butil.apply_transform(asset, loc=True)

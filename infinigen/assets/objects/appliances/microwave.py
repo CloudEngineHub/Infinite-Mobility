@@ -9,6 +9,7 @@ from numpy.random import uniform as U
 
 from infinigen.assets.material_assignments import AssetList
 from infinigen.assets.utils.misc import generate_text
+from infinigen.assets.utils.object import get_joint_name
 from infinigen.core import surface
 from infinigen.core.nodes import node_utils
 from infinigen.core.nodes.node_wrangler import Nodes, NodeWrangler
@@ -26,7 +27,7 @@ class MicrowaveFactory(AssetFactory):
         self.dimensions = dimensions
         with FixedSeed(factory_seed):
             self.params = self.sample_parameters(dimensions)
-            self.material_params, self.scratch, self.edge_wear = (
+            self.shaders, self.material_params, self.scratch, self.edge_wear = (
                 self.get_material_params()
             )
         self.params.update(self.material_params)
@@ -43,6 +44,8 @@ class MicrowaveFactory(AssetFactory):
             k: surface.shaderfunc_to_material(v) for k, v in params.items()
         }
 
+        params = {f"{k}_": v for k, v in params.items()}
+
         scratch_prob, edge_wear_prob = material_assignments["wear_tear_prob"]
         scratch, edge_wear = material_assignments["wear_tear"]
 
@@ -54,7 +57,7 @@ class MicrowaveFactory(AssetFactory):
         if not is_edge_wear:
             edge_wear = None
 
-        return wrapped_params, scratch, edge_wear
+        return params, wrapped_params, scratch, edge_wear
 
     @staticmethod
     def sample_parameters(dimensions):
@@ -82,28 +85,83 @@ class MicrowaveFactory(AssetFactory):
 
     def create_asset(self, **params):
         obj = butil.spawn_cube()
-        params.update({"obj": obj, "inputs": self.params})
-        ng = nodegroup_microwave_geometry(preprocess=True, **params)
         butil.modify_mesh(
-            obj, "NODES", node_group=ng, ng_inputs=self.params, apply=True, mod=True
+            obj,
+            "NODES",
+            node_group=nodegroup_microwave_geometry(preprocess=True),
+            ng_inputs=self.params,
+            apply=True,
         )
         bevel_edges = get_bevel_edges(obj)
         delete(obj)
         obj = butil.spawn_cube()
-        params.update({"obj": obj})
-        ng = nodegroup_microwave_geometry(**params)
         butil.modify_mesh(
-            obj, "NODES", node_group=ng, ng_inputs=self.params, apply=True, mod=True
+            obj,
+            "NODES",
+            node_group=nodegroup_microwave_geometry(),
+            ng_inputs=self.params,
+            apply=True,
         )
         obj = add_bevel(obj, bevel_edges)
+        self.params.update(params)
 
         return obj
 
     def finalize_assets(self, assets):
-        if self.scratch:
-            self.scratch.apply(assets)
-        if self.edge_wear:
-            self.edge_wear.apply(assets)
+        # if self.scratch:
+        #     self.scratch.apply(assets)
+        # if self.edge_wear:
+        #     self.edge_wear.apply(assets)
+        first = True
+        for i in range(1, 6):
+            if i == 1:
+                material = [ self.scratch, self.edge_wear]
+                parent_id = "world"
+                joint_info = {
+                    "name": get_joint_name("fixed"),
+                    "type": "fixed",
+                }
+            elif i == 2:
+                material = [self.shaders['Back_'], self.scratch, self.edge_wear]
+                parent_id = "world"
+                joint_info = {
+                    "name": get_joint_name("fixed"),
+                    "type": "fixed",
+                }
+            elif i == 3:
+                material = [[self.shaders['Surface_'], "Out"], [self.shaders['BlackGlass_'], "In"], self.scratch, self.edge_wear]
+                parent_id = "world"
+                joint_info = {
+                    "name": get_joint_name("revolute"),
+                    "type": "revolute",
+                    "axis": (0, 0, 1),
+                    "limit": {
+                        "lower": -1.5708,
+                        "upper": 0,
+                    },
+                    "origin_shift": (0, -(self.params['Width'] - self.params['PanelWidth']) / 2, 0),
+                }
+            elif i == 4:
+                material = [self.shaders['Glass_'], self.scratch, self.edge_wear]
+                parent_id = "world"
+                joint_info = {
+                    "name": get_joint_name("continuous"),
+                    "type": "continuous",
+                    "axis": (0, 0, 1)
+                }
+            else:
+                material = [[self.shaders['Surface_'], "Out"], [self.shaders['BlackGlass_'], "In"], self.scratch, self.edge_wear]
+                parent_id = "world"
+                joint_info = {
+                    "name": get_joint_name("fixed"),
+                    "type": "fixed",
+                }
+            res = node_utils.save_geometry_new(assets, "part", i, self.params['i'], self.params['path'], first, True, material=material, parent_obj_id=parent_id, joint_info=joint_info)
+            if res:
+                first = False
+        node_utils.save_geometry_new(assets, "whole", 0, self.params['i'], self.params['path'], first, True)
+        return assets
+            
 
 
 @node_utils.to_nodegroup("nodegroup_plate", singleton=False, type="GeometryNodeTree")
@@ -133,17 +191,6 @@ def nodegroup_plate(nw: NodeWrangler):
         },
     )
 
-    # Store unique 'Text_id' for Text 1
-    store_plate = nw.new_node(
-        Nodes.StoreNamedAttribute,
-        input_kwargs={
-            "Geometry": curve_to_mesh,
-            "Name": "plate",
-            "Value": 1,  # Assign an ID of 1
-        },
-        attrs={"domain": "POINT", "data_type": "INT"},
-    )
-
     group_input = nw.new_node(
         Nodes.GroupInput,
         expose_input=[("NodeSocketVectorXYZ", "Scale", (1.0000, 1.0000, 1.0000))],
@@ -151,7 +198,7 @@ def nodegroup_plate(nw: NodeWrangler):
 
     transform_1 = nw.new_node(
         Nodes.Transform,
-        input_kwargs={"Geometry": store_plate, "Scale": group_input.outputs["Scale"]},
+        input_kwargs={"Geometry": curve_to_mesh, "Scale": group_input.outputs["Scale"]},
     )
 
     group_output = nw.new_node(
@@ -206,20 +253,9 @@ def nodegroup_text(nw: NodeWrangler):
         },
     )
 
-    # Store unique 'Text_id' for Text 1
-    store_text_id = nw.new_node(
-        Nodes.StoreNamedAttribute,
-        input_kwargs={
-            "Geometry": transform_1,
-            "Name": "text",
-            "Value": 1,  # Assign an ID of 1
-        },
-        attrs={"domain": "POINT", "data_type": "INT"},
-    )
-
     group_output = nw.new_node(
         Nodes.GroupOutput,
-        input_kwargs={"Geometry": store_text_id},
+        input_kwargs={"Geometry": transform_1},
         attrs={"is_active_output": True},
     )
 
@@ -399,10 +435,10 @@ def nodegroup_cube(nw: NodeWrangler):
     )
 
 
-@node_utils.to_modifier(
+@node_utils.to_nodegroup(
     "nodegroup_microwave_geometry", singleton=False, type="GeometryNodeTree"
 )
-def nodegroup_microwave_geometry(nw: NodeWrangler, preprocess: bool = False, **kwargs):
+def nodegroup_microwave_geometry(nw: NodeWrangler, preprocess: bool = False):
     # Code generated using version 2.6.5 of the node_transpiler
 
     group_input = nw.new_node(
@@ -847,15 +883,40 @@ def nodegroup_microwave_geometry(nw: NodeWrangler, preprocess: bool = False, **k
 
     text_1 = complete_no_bevel(nw, text_1, preprocess)
 
+    store_1 = nw.new_node(
+        Nodes.StoreNamedAttribute,
+        input_kwargs={"Geometry": text_1, "Name": "part", "Value": 1},
+    )
+
+    store_2 = nw.new_node(
+        Nodes.StoreNamedAttribute,
+        input_kwargs={"Geometry": set_material_1, "Name": "part", "Value": 2},
+    )
+
+    store_3 = nw.new_node(
+        Nodes.StoreNamedAttribute,
+        input_kwargs={"Geometry": rotate_instances, "Name": "part", "Value": 3},
+    )
+
+    store_4 = nw.new_node(
+        Nodes.StoreNamedAttribute,
+        input_kwargs={"Geometry": set_material, "Name": "part", "Value": 4},
+    )
+
+    store_5 = nw.new_node(
+        Nodes.StoreNamedAttribute,
+        input_kwargs={"Geometry": set_material_5, "Name": "part", "Value": 5},
+    )
+
     join_geometry = nw.new_node(
         Nodes.JoinGeometry,
         input_kwargs={
             "Geometry": [
-                set_material_1,
-                rotate_instances,
-                set_material,
-                set_material_5,
-                text_1,
+store_1, 
+store_2,
+store_3,
+store_4,
+store_5,
             ]
         },
     )

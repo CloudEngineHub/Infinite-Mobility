@@ -127,12 +127,13 @@ class PlantContainerFactory(AssetFactory):
         plant.location[-1] = dirt_z
 
         # obj = join_objects([obj, plant, dirt_])
-        obj = save_parts_join_objects(
-            [obj, plant, dirt_],
-            params.get("path", None),
-            params.get("i", "unknown"),
-            name=["obj", "plant", "dirt_"],
-        )
+        # obj = save_parts_join_objects(
+        #     [obj, plant, dirt_],
+        #     params.get("path", None),
+        #     params.get("i", "unknown"),
+        #     name=["obj", "plant", "dirt_"],
+        # )
+        obj = join_objects([obj, plant, dirt_])
         return obj
 
 

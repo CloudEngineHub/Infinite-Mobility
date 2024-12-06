@@ -534,7 +534,7 @@ class CeilingClassicLampFactory(AssetFactory):
 
     def create_placeholder(self, i, **params):
         obj = butil.spawn_cube()
-        params.update({"i": i, "obj": obj, "input": self.params})
+        params.update({"i": i, "obj": obj, "input": self.params, "path": params.get("path", None)})
         butil.modify_mesh(
             obj,
             "NODES",

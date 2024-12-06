@@ -110,7 +110,7 @@ class CeilingLightFactory(AssetFactory):
 
     def create_placeholder(self, i, **params):
         obj = butil.spawn_cube()
-        params.update({"i": i, "obj": obj, "input": self.params})
+        params.update({"i": i, "obj": obj, "input": self.params, "path": params.get("path", None)})
         butil.modify_mesh(
             obj,
             "NODES",
@@ -378,6 +378,15 @@ def nodegroup_ceiling_light_geometry(
 
     vector = nw.new_node(Nodes.Vector)
     vector.vector = (0.0000, 0.0000, 0.0000)
+    group_output = nw.new_node(
+        Nodes.GroupOutput,
+        input_kwargs={
+            "Geometry": join_geometry_3,
+            "Bounding Box": bounding_box.outputs["Bounding Box"],
+            "LightPosition": vector,
+        },
+        attrs={"is_active_output": True},
+    )
 
     names = ["ceiling_light"]
     parts = [4]
@@ -421,12 +430,3 @@ def nodegroup_ceiling_light_geometry(
             "whole",
             kwargs.get("i", "unknown"),
         )
-    group_output = nw.new_node(
-        Nodes.GroupOutput,
-        input_kwargs={
-            "Geometry": join_geometry_3,
-            "Bounding Box": bounding_box.outputs["Bounding Box"],
-            "LightPosition": vector,
-        },
-        attrs={"is_active_output": True},
-    )

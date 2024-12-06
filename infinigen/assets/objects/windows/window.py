@@ -256,7 +256,7 @@ class WindowFactory(AssetFactory):
         # portal.scale = (w, h, 1)
         # portal.data.cycles.is_portal = True
         # portal.rotation_euler = (-np.pi / 2, 0, 0)
-        # butil.parent_to(portal, obj, no_inverse=True)
+        #butil.parent_to(portal, obj, no_inverse=True)
         # portal.hide_viewport = True
 
         names = ["curtain_hold", "curtain", "curtain_", "panel", "shutter", "shutter_frame"]

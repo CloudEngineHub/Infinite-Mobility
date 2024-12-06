@@ -191,18 +191,18 @@ class ChairFactory(AssetFactory):
             self.solidify(obj, 2, self.back_thickness)
 
         # obj = join_objects(parts)
-        obj = save_obj_parts_join_objects(
-            parts,
-            params.get("path", None),
-            params.get("i", "unknown"),
-            name=["seat"] * len([seat])
-            + ["legs"] * len(legs)
-            + ["backs"] * len(backs)
-            + ["leg_decors"] * len(leg_decors)
-            + ["arms"] * len(arms)
-            + ["back_decors"] * len(back_decors),
-            obj_name = "Chair",
-        )
+        # obj = save_obj_parts_join_objects(
+        #     parts,
+        #     params.get("path", None),
+        #     params.get("i", "unknown"),
+        #     name=["seat"] * len([seat])
+        #     + ["legs"] * len(legs)
+        #     + ["backs"] * len(backs)
+        #     + ["leg_decors"] * len(leg_decors)
+        #     + ["arms"] * len(arms)
+        #     + ["back_decors"] * len(back_decors),
+        #     obj_name = "Chair",
+        # )
         obj.rotation_euler.z += np.pi / 2
         butil.apply_transform(obj)
 
