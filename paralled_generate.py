@@ -23,7 +23,7 @@ for i in range(ceil(number / max_process)):
             pass
         elif os.path.exists(f"outputs/{fac_name}/{i*max_process+j}"):
             shutil.rmtree(f"outputs/{fac_name}/{i*max_process+j}")
-        cmd += f"python -m infinigen_examples.generate_individual_assets --output_folder outputs/ -f {fac_name} -n 1 --start_seed {i*max_process+j}"
+        cmd += f"python -m infinigen_examples.generate_individual_assets --output_folder outputs/{fac_name} -f {fac_name} -n 1 --seed {i*max_process+j}"
     cmd += " & wait"
     #print(cmd)
     subprocess.call(cmd, shell=True)

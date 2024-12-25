@@ -23,6 +23,9 @@ from infinigen.assets.utils.object import (
     new_plane,
     save_objects,
     save_parts_join_objects,
+    save_obj_parts_add,
+    get_joint_name,
+    join_objects_save_whole
 )
 from infinigen.core.placement.factory import AssetFactory
 from infinigen.core.util import blender as butil
@@ -88,31 +91,38 @@ class AquariumTankFactory(AssetFactory):
         butil.apply_transform(tank)
         butil.modify_mesh(tank, "SOLIDIFY", thickness=self.thickness)
         write_attribute(tank, 1, "glass", "FACE")
+        self.finalize_assets(tank)
         parts = [tank]
         belts = self.make_belts()
         parts.extend(belts)
-        base_obj = self.base_factory.create_asset(**params)
-        co = read_co(base_obj)
-        x_min, x_max = np.amin(co, 0), np.amax(co, 0)
-        scale = uniform(0.7, 0.9) / np.max(
-            (x_max - x_min) / np.array([self.width, self.depth, self.height])
-        )
-        base_obj.location = -(x_min + x_max) * np.array(base_obj.scale) / 2
-        base_obj.location[-1] = -(x_min * base_obj.scale)[-1]
-        butil.apply_transform(base_obj, True)
-        base_obj.location = self.width / 2, self.depth / 2, self.thickness
-        base_obj.scale = [scale] * 3
-        butil.apply_transform(base_obj)
-        parts.append(base_obj)
-        # obj = join_objects(parts)
-        obj = save_parts_join_objects(
-            parts,
-            params.get("path", None),
-            params.get("i", "unknown"),
-            name=["tank"] + ["belts"] * len(belts) + ["base_object"],
-        )
-        obj.rotation_euler[-1] = np.pi / 2
-        butil.apply_transform(obj)
+        #base_obj = self.base_factory.create_asset(**params)
+        # co = read_co(base_obj)
+        # x_min, x_max = np.amin(co, 0), np.amax(co, 0)
+        # scale = uniform(0.7, 0.9) / np.max(
+        #     (x_max - x_min) / np.array([self.width, self.depth, self.height])
+        # )
+        # base_obj.location = -(x_min + x_max) * np.array(base_obj.scale) / 2
+        # base_obj.location[-1] = -(x_min * base_obj.scale)[-1]
+        # butil.apply_transform(base_obj, True)
+        # base_obj.location = self.width / 2, self.depth / 2, self.thickness
+        # base_obj.scale = [scale] * 3
+        # butil.apply_transform(base_obj)
+        # parts.append(base_obj)
+        first = True
+        for p in parts:
+            save_obj_parts_add(p, params.get("path", None), params.get("i", "unknown"), first=first, use_bpy=True)
+            first = False
+        obj = join_objects(parts)
+        join_objects_save_whole(obj, params.get("path", None), params.get("i", "unknown"), use_bpy=True)
+    
+        # obj = save_parts_join_objects(
+        #     parts,
+        #     params.get("path", None),
+        #     params.get("i", "unknown"),
+        #     name=["tank"] + ["belts"] * len(belts) + ["base_object"],
+        # )
+        #obj.rotation_euler[-1] = np.pi / 2
+        #butil.apply_transform(obj)
         return obj
 
     def make_belts(self):
@@ -135,6 +145,8 @@ class AquariumTankFactory(AssetFactory):
         belt_ = deep_clone_obj(belt)
         belt_.location[-1] = self.height - self.belt_thickness
         butil.apply_transform(belt_, True)
+        self.finalize_assets(belt)
+        self.finalize_assets(belt_)
         return [belt, belt_]
 
     def finalize_assets(self, assets):

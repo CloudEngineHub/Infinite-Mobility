@@ -19,6 +19,7 @@ from infinigen.assets.utils.object import (
     new_bbox,
     new_cube,
     save_obj_parts_join_objects,
+    save_obj_parts_add
 )
 
 # save_objects,
@@ -39,6 +40,8 @@ class BookFactory(AssetFactory):
         self.margin = uniform(0.005, 0.01)
         self.offset = 0 if uniform() < 0.5 else log_uniform(0.002, 0.008)
         self.thickness = uniform(0.002, 0.003)
+        self.paper_number = np.random.randint(1, 50) * 2 # too many objects, set to 100 for now
+        self.paper_thickness = uniform(0.0005, 0.001)
 
         materials = AssetList["BookFactory"]()
         self.surface = materials["surface"].assign_material()
@@ -76,7 +79,7 @@ class BookFactory(AssetFactory):
             self.edge_wear.apply(assets)
 
     def make_paperback(
-        self, width, height, depth, path="outputs/paper_back", i="unknown"
+        self, width, height, depth, path, i
     ):
         paper = self.make_paper(depth, height, width)
         obj = new_cube()
@@ -101,7 +104,10 @@ class BookFactory(AssetFactory):
         # )
         return obj
 
-    def make_paper(self, depth, height, width):
+    def make_paper(self, depth, height, width, paper_thickness=0, paper_number=0):
+        # for i in range(paper_number):
+        #     paper = new_cube()
+        #     paper.location = width / 2, height / 2, depth / 2 - 
         paper = new_cube()
         paper.location = width / 2, height / 2, depth / 2
         paper.scale = width / 2 - 1e-4, height / 2, depth / 2 - 1e-4
@@ -110,7 +116,7 @@ class BookFactory(AssetFactory):
         return paper
 
     def make_hardcover(
-        self, width, height, depth, path="outputs/paper_back", i="unknown"
+        self, width, height, depth, path, i
     ):
         paper = self.make_paper(depth, height, width)
         obj = new_cube()
@@ -149,6 +155,7 @@ class BookFactory(AssetFactory):
         # obj = save_obj_parts_join_objects(
         #     [paper, obj], path, i, name=["paper", "object"]
         # )
+        save_obj_parts_add(obj, path, i, "cover", None, True, True)
         obj = join_objects([paper, obj])
         return obj
 

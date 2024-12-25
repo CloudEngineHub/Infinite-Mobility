@@ -21,7 +21,8 @@ from infinigen.assets.objects.tables.table_utils import (
     nodegroup_create_anchors,
     nodegroup_create_legs_and_strechers,
 )
-from infinigen.assets.utils.object import save_file_path
+from infinigen.assets.utils.decorate import read_co, write_co
+from infinigen.assets.utils.object import get_joint_name, save_file_path, save_obj_parts_add
 from infinigen.core.nodes.node_utils import save_geometry
 from infinigen.core import surface, tagging
 from infinigen.core import tags as t
@@ -33,12 +34,13 @@ from infinigen.core.nodes.node_wrangler import Nodes, NodeWrangler
 from infinigen.core.placement.factory import AssetFactory
 from infinigen.core.surface import NoApply
 from infinigen.core.util.math import FixedSeed
+from infinigen.core.util import blender as butil
 
 
 @node_utils.to_nodegroup(
     "geometry_create_legs", singleton=False, type="GeometryNodeTree"
 )
-def geometry_create_legs(nw: NodeWrangler, **kwargs):
+def geometry_create_legs(nw: NodeWrangler, store_strecher=True, **kwargs):
     createanchors = nw.new_node(
         nodegroup_create_anchors(**{"Profile N-gon": kwargs["Leg Number"]}).name,
         input_kwargs={
@@ -84,11 +86,13 @@ def geometry_create_legs(nw: NodeWrangler, **kwargs):
                 "Fillet Ratio": 0.1,
             },
         )
-
-        strecher = nw.new_node(
-            nodegroup_strecher().name,
-            input_kwargs={"Profile Width": kwargs["Leg Diameter"] * 0.5},
-        )
+        if store_strecher:
+            strecher = nw.new_node(
+                nodegroup_strecher().name,
+                input_kwargs={"Profile Width": kwargs["Leg Diameter"] * 0.5},
+            )
+        else:
+            strecher = None
 
         leg = nw.new_node(
             nodegroup_create_legs_and_strechers(**{"Profile N-gon": kwargs["Leg Number"]}).name,
@@ -149,8 +153,10 @@ def geometry_create_legs(nw: NodeWrangler, **kwargs):
         attrs={"is_active_output": True},
     )
 
-
-def geometry_assemble_table(nw: NodeWrangler, **kwargs):
+@node_utils.to_nodegroup(
+    "geometry_assemble_table", singleton=False, type="GeometryNodeTree"
+)
+def geometry_assemble_table(nw: NodeWrangler, return_name="", store_strecher=True, **kwargs):
     # Code generated using version 2.6.4 of the node_transpiler
 
     generatetabletop = nw.new_node(
@@ -188,11 +194,35 @@ def geometry_assemble_table(nw: NodeWrangler, **kwargs):
         input_kwargs={"Geometry": tabletop_instance, "Material": kwargs["TopMaterial"]},
     )
 
-    legs = nw.new_node(geometry_create_legs(**kwargs).name)
+    legs = nw.new_node(geometry_create_legs(store_strecher=store_strecher, **kwargs).name)
+
+    if return_name == "leg":
+        legs = nw.new_node(
+            Nodes.RealizeInstances,
+            [legs]
+        )
+        group_output = nw.new_node(
+            Nodes.GroupOutput,
+            input_kwargs={"Geometry": legs},
+            attrs={"is_active_output": True},
+        )
+        return
+    if return_name == "table_top":
+        tabletop_instance = nw.new_node(
+            Nodes.RealizeInstances,
+            [tabletop_instance]
+        )
+        group_output = nw.new_node(
+            Nodes.GroupOutput,
+            input_kwargs={"Geometry": tabletop_instance},
+            attrs={"is_active_output": True},
+        )
+        return
 
     join_geometry = nw.new_node(
         Nodes.JoinGeometry, input_kwargs={"Geometry": [tabletop_instance, legs]}
     )
+    assert True == False
 
     names = ["table_top", "legs"]
     parts = [1, 2 * kwargs["Leg Number"]]
@@ -218,23 +248,23 @@ def geometry_assemble_table(nw: NodeWrangler, **kwargs):
                 },
             )
             output_geometry = separate_geometry
-            a = save_geometry(
-                nw,
-                output_geometry,
-                kwargs.get("path", None),
-                name,
-                kwargs.get("i", "unknown"),
-                first=first,
-            )
-            if a:
-                first = False
-    save_geometry(
-        nw,
-        join_geometry,
-        kwargs.get("path", None),
-        "whole",
-        kwargs.get("i", "unknown"),
-    )
+    #         a = save_geometry(
+    #             nw,
+    #             output_geometry,
+    #             kwargs.get("path", None),
+    #             name,
+    #             kwargs.get("i", "unknown"),
+    #             first=first,
+    #         )
+    #         if a:
+    #             first = False
+    # save_geometry(
+    #     nw,
+    #     join_geometry,
+    #     kwargs.get("path", None),
+    #     "whole",
+    #     kwargs.get("i", "unknown"),
+    # )
 
     group_output = nw.new_node(
         Nodes.GroupOutput,
@@ -304,7 +334,7 @@ class TableDiningFactory(AssetFactory):
         NGon = 4
 
         leg_style = choice(["straight", "single_stand", "square"], p=[0.5, 0.1, 0.4])
-        # leg_style = choice(['straight'])
+        leg_style = choice(['straight', 'square'])
 
         if leg_style == "single_stand":
             leg_number = 2
@@ -336,12 +366,13 @@ class TableDiningFactory(AssetFactory):
 
             leg_curve_ctrl_pts = [
                 (0.0, 1.0),
-                (0.4, uniform(0.85, 0.95)),
-                (1.0, uniform(0.4, 0.6)),
+                (0.4, 1), #uniform(0.85, 0.95)),
+                (1.0,1)# uniform(0.4, 0.6)),
             ]
 
             top_scale = 0.8
             bottom_scale = uniform(1.0, 1.2)
+            bottom_scale = 1
 
         else:
             raise NotImplementedError
@@ -388,12 +419,18 @@ class TableDiningFactory(AssetFactory):
             "i": params.get("i", "unknown"),
         }
         obj_params = self.params
-        obj_params.update(path_dict)
+        #obj_params.update(path_dict)
         
-        surface.add_geomod(
-            obj, geometry_assemble_table, apply=True, input_kwargs=obj_params
-        )
-        tagging.tag_system.relabel_obj(obj)
+        # butil.modify_mesh(
+        #     obj,
+        #     "NODES",
+        #     node_group=geometry_assemble_table(**obj_params),
+        #     ng_inputs={},
+        #     apply=True,
+        # )
+        obj_params.update(path_dict)
+        self.ps = obj_params
+        #tagging.tag_system.relabel_obj(obj)
         assert tagging.tagged_face_mask(obj, {t.Subpart.SupportSurface}).sum() != 0
 
         return obj
@@ -403,6 +440,130 @@ class TableDiningFactory(AssetFactory):
             self.scratch.apply(assets)
         if self.edge_wear:
             self.edge_wear.apply(assets)
+
+        bpy.ops.mesh.primitive_plane_add(
+            size=2,
+            enter_editmode=False,
+            align="WORLD",
+            location=(0, 0, 0),
+            scale=(1, 1, 1),
+        )
+        legs = bpy.context.active_object
+        butil.modify_mesh(
+            legs,
+            "NODES",
+            node_group=geometry_assemble_table(return_name="leg",**self.ps),
+            ng_inputs={},
+            apply=True,
+        )
+        if self.params['Leg Style'] == 'straight':
+            co = read_co(legs)
+            co[:, 2] *= 0.7
+            h = max(co[:, 2])
+            write_co(legs, co)
+            bpy.ops.mesh.primitive_plane_add(
+            size=2,
+            enter_editmode=False,
+            align="WORLD",
+            location=(0, 0, 0),
+            scale=(1, 1, 1),
+            )
+            legs_ = bpy.context.active_object
+            self.params['Leg Diameter'] *= 0.8
+            butil.modify_mesh(
+                legs_,
+                "NODES",
+                node_group=geometry_assemble_table(return_name="leg",store_strecher=False,**self.ps),
+                ng_inputs={},
+                apply=True,
+            )
+            co = read_co(legs_)
+            co[:, 2] *= 0.3
+            h_ = max(co[:, 2])
+            co[:, 2] += h
+            write_co(legs_, co)
+            save_obj_parts_add([legs_], self.ps.get("path", None), self.ps.get("i", "unknown"), "leg", first=True, use_bpy=True, parent_obj_id="world", joint_info={
+                "name": get_joint_name("prismatic"),
+                "type": "prismatic",
+                "axis": (0, 0, 1),
+                "limit":{
+                    "lower": -h_,
+                    "upper": 0
+                }
+            }, material=[self.scratch, self.edge_wear])
+        elif self.params['Leg Style'] == 'single_stand':
+            co = read_co(legs)
+            co[:, 2] *= 0.7
+            h = max(co[:, 2]) 
+            write_co(legs, co)
+            bpy.ops.mesh.primitive_plane_add(
+            size=2,
+            enter_editmode=False,
+            align="WORLD",
+            location=(0, 0, 0),
+            scale=(1, 1, 1),
+            )
+            legs_ = bpy.context.active_object
+            self.ps['Leg Diameter'] *= 0.12
+            self.ps['Leg Number'] = 2
+            self.ps['Leg Curve Control Points'] = [
+                (0.0, 1.0),
+                (0.4, 1), #uniform(0.85, 0.95)),
+                (1.0,1)# uniform(0.4, 0.6)),
+            ]
+            self.ps['Leg Style'] = 'straight'
+            butil.modify_mesh(
+                legs_,
+                "NODES",
+                node_group=geometry_assemble_table(return_name="leg",store_strecher=False,**self.ps),
+                ng_inputs={},
+                apply=True,
+            )
+            co = read_co(legs_)
+            print(h)
+            co[:, 2] *= 0.3
+            h_ = max(co[:, 2])
+            co[:, 2] += h
+            write_co(legs_, co)
+            save_obj_parts_add([legs_], self.ps.get("path", None), self.ps.get("i", "unknown"), "leg", first=True, use_bpy=True, parent_obj_id="world", joint_info={
+                "name": get_joint_name("prismatic"),
+                "type": "prismatic",
+                "axis": (0, 0, 1),
+                "limit":{
+                    "lower": -h_,
+                    "upper": 0
+                }
+            }, material=[self.scratch, self.edge_wear])
+
+        save_obj_parts_add([legs], self.ps.get("path", None), self.ps.get("i", "unknown"), "leg", first=True, use_bpy=True, material=[self.scratch, self.edge_wear])
+        bpy.ops.mesh.primitive_plane_add(
+            size=2,
+            enter_editmode=False,
+            align="WORLD",
+            location=(0, 0, 0),
+            scale=(1, 1, 1),
+        )
+        top = bpy.context.active_object
+        butil.modify_mesh(
+            top,
+            "NODES",
+            node_group=geometry_assemble_table(return_name="table_top",**self.ps),
+            ng_inputs={},
+            apply=True,
+        )
+        parent_id = "world"
+        joint_info = {
+            "name": get_joint_name("fixed"),
+            "type": "fixed",
+        }
+        if self.params['Leg Style'] == 'straight':
+            parent_id = 0
+            joint_info = {
+                "name": get_joint_name("fixed"),
+                "type": "fixed",
+            }
+        save_obj_parts_add([top], self.ps.get("path", None), self.ps.get("i", "unknown"), "table_top", first=False, use_bpy=True, parent_obj_id=parent_id, joint_info=joint_info, material=[self.scratch, self.edge_wear])
+        node_utils.save_geometry_new(assets, "whole", 0, self.ps['i'], self.ps['path'], False, True)
 
     # def finalize_assets(self, assets):
     #    self.clothes_scatter.apply(assets)

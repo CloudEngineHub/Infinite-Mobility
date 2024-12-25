@@ -15,6 +15,8 @@ from infinigen.assets.utils.object import (
     new_circle,
     new_cylinder,
     save_obj_parts_join_objects,
+    save_obj_parts_add,
+    join_objects_save_whole
 )
 
 # save_objects,
@@ -89,14 +91,10 @@ class JarFactory(AssetFactory):
         butil.apply_transform(cap, True)
         subsurf(obj, 1, self.cap_subsurf)
         write_attribute(cap, 1, "cap", "FACE")
-        # obj = join_objects([obj, cap])
-        obj = save_obj_parts_join_objects(
-            [obj, cap],
-            params.get("path", None),
-            params.get("i", "unknown"),
-            name=["obj", "cap"],
-            obj_name="Jar"
-        )
+        save_obj_parts_add(cap, params.get("path", None), params.get("i", "unknown"), name="cap", first=True, use_bpy=True)
+        save_obj_parts_add(obj, params.get("path", None), params.get("i", "unknown"), name="bottle", first=False, use_bpy=True)
+        obj = join_objects([obj, cap])
+        join_objects_save_whole(obj, params.get("path", None), params.get("i", "unknown"), name="jar", use_bpy=True, join=False)
         return obj
 
     def finalize_assets(self, assets):

@@ -10,11 +10,13 @@ from infinigen.assets.material_assignments import AssetList
 from infinigen.assets.utils.decorate import read_center, subsurf, write_co
 from infinigen.assets.utils.draw import spin
 from infinigen.assets.utils.object import (
+    get_joint_name,
     join_objects,
     new_cylinder,
     new_line,
     save_obj_parts_join_objects,
     save_obj_parts_add,
+    join_objects_save_whole
 )
 from infinigen.core.placement.factory import AssetFactory
 from infinigen.core.util import blender as butil
@@ -32,6 +34,7 @@ class LidFactory(AssetFactory):
             self.hardware_type = None
             self.rim_height = uniform(1, 2) * self.thickness
             self.handle_type = np.random.choice(["handle", "knob"])
+            self.handle_type = "knob"
             if self.handle_type == "knob":
                 self.handle_height = self.x_length * uniform(0.1, 0.15)
             else:
@@ -56,6 +59,7 @@ class LidFactory(AssetFactory):
             self.edge_wear = None if uniform() > edge_wear_prob else self.edge_wear
 
     def create_asset(self, **params) -> bpy.types.Object:
+        self.ps = params
         x_anchors = 0, 0.01, self.x_length / 2, self.x_length
         z_anchors = self.z_height, self.z_height, self.z_height * uniform(0.7, 0.8), 0
         obj = spin((x_anchors, 0, z_anchors))
@@ -78,13 +82,19 @@ class LidFactory(AssetFactory):
                     self.add_knob(params.get("path", None), params.get("i", "unknown"))
                 )
                 name.append("knob")
-        save_obj_parts_add(
-            parts[:-1],
-            params.get("path", None),
-            params.get("i", "unknown"),
-            name=name[:-1],
-        )
+        first = True
+        for p in parts[:-1]:
+            save_obj_parts_add(
+                [p],
+                params.get("path", None),
+                params.get("i", "unknown"),
+                name="part",
+                use_bpy=True,
+                first=False,
+            )
+            first = False
         obj = join_objects(parts)
+        join_objects_save_whole(obj, params.get("path", None), params.get("i", "unknown"), name="part", use_bpy=True, join=False)
         return obj
 
     def add_rim(self):
@@ -133,6 +143,7 @@ class LidFactory(AssetFactory):
         obj.location = 0, -self.thickness, z_offset
         butil.apply_transform(obj, True)
         self.handle_surface.apply(obj)
+        save_obj_parts_add([obj], self.ps.get("path", None), self.ps.get("i", "unknown"), "part", first=True, use_bpy=True)
         return obj
 
     def add_knob(self, path="outputs/knob", i="unknown"):
@@ -151,9 +162,18 @@ class LidFactory(AssetFactory):
         butil.apply_transform(top, True)
         butil.modify_mesh(top, "BEVEL", width=self.thickness / 2, segments=4)
         # obj = join_objects([obj, top])
-        obj = save_obj_parts_join_objects(
-            [obj, top], path, i, name=["knob_down", "knob_top"], obj_name="Lid"
-        )
+        self.handle_surface.apply(obj)
+        self.handle_surface.apply(top)
+        save_obj_parts_add([obj], self.ps.get("path", None), self.ps.get("i", "unknown"), "part", first=True, use_bpy=True, parent_obj_id=1, joint_info={
+            "name": get_joint_name("fixed"),
+            "type": "fixed",
+        })
+        save_obj_parts_add([top], self.ps.get("path", None), self.ps.get("i", "unknown"), "part", first=False, use_bpy=True, parent_obj_id="world", joint_info={
+            "name": get_joint_name("continuous"),
+            "type": "continuous",
+            "axis": [0, 0, 1],
+        })
+        obj = join_objects([obj, top])
         self.handle_surface.apply(obj)
         return obj
 

@@ -8,6 +8,7 @@ import numpy as np
 from numpy.random import uniform
 
 from infinigen.assets.materials.plastics.plastic_rough import shader_rough_plastic
+from infinigen.assets.utils.object import save_obj_parts_add
 from infinigen.core import surface, tagging
 from infinigen.core.nodes import node_utils
 from infinigen.core.nodes.node_wrangler import Nodes, NodeWrangler
@@ -467,6 +468,7 @@ class BasketBaseFactory(AssetFactory):
 
         if params.get("has_handle", None) is None:
             params["has_handle"] = np.random.choice([True, False], p=[0.8, 0.2])
+            params["has_handle"] = True
         if params.get("handle_sub_level", None) is None:
             params["handle_sub_level"] = np.random.choice([0, 1, 2], p=[0.2, 0.4, 0.4])
         if params.get("handle_depth", None) is None:
@@ -507,5 +509,6 @@ class BasketBaseFactory(AssetFactory):
             obj, geometry_nodes, attributes=[], apply=True, input_kwargs=obj_params
         )
         tagging.tag_system.relabel_obj(obj)
+        save_obj_parts_add([obj], params.get("path"), i, "part", first=True, use_bpy=True)
 
         return obj

@@ -17,6 +17,7 @@ from infinigen.assets.materials import (
     glass_shader_list,
 )
 from infinigen.assets.utils.autobevel import BevelSharp
+from infinigen.assets.utils.object import get_joint_name
 from infinigen.core import surface
 from infinigen.core.nodes import node_utils
 from infinigen.core.nodes.node_wrangler import Nodes, NodeWrangler
@@ -26,6 +27,7 @@ from infinigen.core.util.blender import deep_clone_obj
 from infinigen.core.util.math import FixedSeed, clip_gaussian
 
 from infinigen.core.nodes.node_utils import save_geometry_new, save_geometry
+import copy
 
 
 def shader_window_glass(nw: NodeWrangler):
@@ -79,7 +81,7 @@ class WindowFactory(AssetFactory):
             # self.params = self.sample_parameters(dimensions, open, curtain, shutter)
 
             self.params = {}
-            self.material_params, self.scratch, self.edge_wear = (
+            self.m_ps, self.material_params, self.scratch, self.edge_wear = (
                 self.get_material_params()
             )
             self.beveler = BevelSharp()
@@ -97,7 +99,6 @@ class WindowFactory(AssetFactory):
         else:
             width, height, frame_thickness = dimensions
         frame_width = U(0.02, 0.05) * min(min(width, height), 2)
-
         panel_width = min(U(0.8, 1.5), width)
         panel_height = min(U(panel_width, 3), height)
         panel_v_amount = max(width // panel_width, 1)
@@ -106,6 +107,7 @@ class WindowFactory(AssetFactory):
         glass_thickness = U(0.01, 0.03)
         sub_frame_width = U(glass_thickness, frame_width)
         sub_frame_thickness = U(glass_thickness, frame_thickness)
+        sub_frame_thickness = 0.02
 
         sub_panel_width = U(0.4, min(panel_width, 1))
         sub_panel_height = U(0.4, min(panel_height, 1))
@@ -114,11 +116,12 @@ class WindowFactory(AssetFactory):
         )
         sub_frame_v_amount = max(panel_width // sub_panel_width, 1)
         sub_frame_h_amount = max(panel_height // sub_panel_height, 1)
+        sub_frame_h_amount = sub_frame_v_amount = 1
 
         if open is None:
             open = U(0, 1) < 0.5
         if shutter is None:
-            shutter = U(0, 1) < 0.2
+            shutter = False#U(0, 1) < 0.2
         if curtain is None:
             curtain = U(0, 1) < 0.3
         if curtain:
@@ -128,22 +131,30 @@ class WindowFactory(AssetFactory):
         open_type = RI(0, 3)
         if panel_v_amount % 2 == 1:
             open_type = RI(1, 3)
+        open_type = 2
         open_h_angle = 0
         open_v_angle = 0
         open_offset = 0
         oe_offset = 0
+        # if open_type == 0:
+        #     if frame_thickness < sub_frame_thickness * 2:
+        #         open_type = RI(1, 2)
+        #     else:
+        #         oe_offset = U(
+        #             sub_frame_thickness / 2,
+        #             (frame_thickness - 2 * sub_frame_thickness) / 2,
+        #         )
+        #         if open:
+        #             open_offset = U(0, width / panel_h_amount)
+        #         else:
+        #             open_offset = 0
         if open_type == 0:
-            if frame_thickness < sub_frame_thickness * 2:
-                open_type = RI(1, 2)
-            else:
-                oe_offset = U(
-                    sub_frame_thickness / 2,
-                    (frame_thickness - 2 * sub_frame_thickness) / 2,
-                )
-                if open:
-                    open_offset = U(0, width / panel_h_amount)
-                else:
-                    open_offset = 0
+            oe_offset = U(
+                        sub_frame_thickness / 2,
+                        (frame_thickness - 2 * sub_frame_thickness) / 2,
+                    )
+        else :
+            oe_offset = 0
         if open_type == 1 and open:
             open_h_angle = U(0.5, 1.2)
         if open_type == 2 and open:
@@ -153,7 +164,7 @@ class WindowFactory(AssetFactory):
         shutter_width = U(0.03, 0.05)
         shutter_thickness = U(0.003, 0.007)
         shutter_rotation = U(0, 1)
-        shutter_inverval = shutter_width + U(0.001, 0.003)
+        shutter_inverval = shutter_width + U(0.005, 0.01)
 
         curtain_frame_depth = U(0.05, 0.1)
         curtain_depth = U(0.03, curtain_frame_depth)
@@ -161,6 +172,8 @@ class WindowFactory(AssetFactory):
         curtain_frame_radius = U(0.01, 0.02)
         curtain_mid_l = -U(0, width / 2)
         curtain_mid_r = U(0, width / 2)
+
+        curtain = True
 
         params = {
             "Width": width,
@@ -220,7 +233,7 @@ class WindowFactory(AssetFactory):
         if not is_edge_wear:
             edge_wear = None
 
-        return wrapped_params, scratch, edge_wear
+        return params, wrapped_params, scratch, edge_wear
 
     def create_asset(self, dimensions=None, open=None, realized=True, **params):
         obj_params = self.sample_parameters(
@@ -256,7 +269,7 @@ class WindowFactory(AssetFactory):
         # portal.scale = (w, h, 1)
         # portal.data.cycles.is_portal = True
         # portal.rotation_euler = (-np.pi / 2, 0, 0)
-        #butil.parent_to(portal, obj, no_inverse=True)
+        # butil.parent_to(portal, obj, no_inverse=True)
         # portal.hide_viewport = True
 
         names = ["curtain_hold", "curtain", "curtain_", "panel", "shutter", "shutter_frame"]
@@ -264,18 +277,136 @@ class WindowFactory(AssetFactory):
         #names = ["shutter", "panel"]
         #parts = [1, 1]
         first = True
+        last_id = [-1]
         for j, name in enumerate(names):
             for k in range(1, parts[j] + 1):
-                if name == "panel" or "shutter" in name:
-                    res = save_geometry_new(obj, name, k, params.get("i", None), params.get("path", None), first, use_bpy=True, separate=True)
+                # id = k
+                # k = [0] * 6
+                # k[j] = id
+                # name = names
+                parent_id = "world"
+                joint_info = {
+                    "name": get_joint_name("fixed"),
+                    "type": "fixed"
+                }
+                if name == "panel" or name == "shutter":
+                    material = self.m_ps["FrameMaterial"]
+                    if name == "shutter":
+                        joint_info = {
+                            "name": get_joint_name("revolute"),
+                            "type": "revolute",
+                            "axis": [1, 0, 0],
+                            "limit":{
+                                "lower": -np.pi / 2,
+                                "upper": np.pi / 2,
+                            }
+                        }
+                    if name == "panel" and k == 1:
+                        parent_id = int(self.params["PanelHAmount"] * self.params["PanelVAmount"] + self.params["PanelHAmount"]) if not self.params['Curtain'] else last_id + int(self.params["PanelHAmount"] * self.params["PanelVAmount"] + self.params["PanelHAmount"]) + 1
+                        p_id = []
+                        j_info = []
+                        for i in range(int(self.params["PanelHAmount"] * self.params["PanelVAmount"])):
+                            p_id.append(parent_id + i)
+                            j_info.append({
+                                "name": get_joint_name("fixed"),
+                                "type": "fixed"
+                            })
+                        parent_id = p_id
+                        joint_info = j_info
+                        material = self.m_ps["Material"]
+                    if name == "panel" and k == 4 and self.params['OEOffset'] != 0:
+                        continue
+                    if name == "panel" and k == 3 and self.params["OEOffset"] == 0:
+                        parent_id = "world"
+                        width = (self.params['Width'] - self.params['FrameWidth'] * self.params['PanelVAmount']) / self.params['PanelVAmount'] - self.params['SubFrameWidth']
+                        joint_info = {
+                            "name": get_joint_name("revolute"),
+                            "type": "revolute",
+                            "axis": random.choice(([0, 1, 0], [1, 0, 0])),
+                            "limit":{
+                                "lower": -np.pi / 2,
+                                "upper": np.pi / 2,
+                            },   
+                        }
+                        parent_id = [parent_id] * int(self.params["PanelHAmount"] * self.params["PanelVAmount"] + 1)
+                        joint_info = [joint_info] * int(self.params["PanelHAmount"] * self.params["PanelVAmount"] + 1)
+                        joint_info[0] = {
+                            "name": get_joint_name("fixed"),
+                            "type": "fixed",
+                        }
+                        for i in range(1, len(joint_info)):
+                            joint_info[i] = joint_info[i].copy()
+                            joint_info[i]["axis"] = random.choice(([0, 1, 0], [1, 0, 0]))
+                            joint_info[i]["origin_shift"] = random.choice(([0, 0, 0], [-width / 2, 0, 0], [width / 2, 0, 0])) if joint_info[i]["axis"] == [0, 1, 0] else random.choice(([0, 0, 0], [0, -width / 2, 0], [0, width / 2, 0]))
+                    if name == "panel" and k == 3 and self.params["OEOffset"] != 0:
+                        parent_id = "world"
+                        width = (self.params['Width'] - self.params['FrameWidth'] * self.params['PanelVAmount']) / self.params['PanelVAmount'] - self.params['SubFrameWidth']
+                        joint_info = {
+                            "name": get_joint_name("primastic"),
+                            "type": "prismatic",
+                            "axis": [1, 0, 0],
+                            "limit":{
+                                "lower": -width / 2,
+                                "upper": width / 2,
+                            },   
+                        }
+                        parent_id = [parent_id] * int(self.params["PanelHAmount"] * self.params["PanelVAmount"] + 1)
+                        joint_info = [joint_info] * int(self.params["PanelHAmount"] * self.params["PanelVAmount"] + 1)
+                        joint_info[0] = {
+                            "name": get_joint_name("fixed"),
+                            "type": "fixed",
+                        }
+                        for i in range(1, len(joint_info)):
+                            #joint_info[i] = joint_info[i]
+                            joint_info[i] = copy.deepcopy(joint_info[i])
+                            joint_info[i]["axis"] = [1, 0, 0]
+                            # if i % int(self.params["PanelVAmount"]) == 1:
+                            #     joint_info[i]['limit']['lower'] = 0
+                            # if i % int(self.params["PanelVAmount"]) == 0:
+                            #     joint_info[i]['limit']['upper'] = 0
+                            if i <= int(self.params["PanelHAmount"]):
+                                joint_info[i]['limit']['lower'] = 0
+                            if i > int(self.params["PanelHAmount"]) * (int(self.params["PanelVAmount"]) - 1):
+                                joint_info[i]['limit']['upper'] = 0
+                            print(i, self.params["PanelVAmount"], joint_info[i])
+                        #print(joint_info)
+                            #joint_info[i]["origin_shift"] = random.choice(([0, 0, 0], [-width / 2, 0, 0], [width / 2, 0, 0])) if joint_info[i]["axis"] == [0, 1, 0] else random.choice(([0, 0, 0], [0, -width / 2, 0], [0, width / 2, 0]))
+
+                    res = save_geometry_new(obj, name, k, params.get("i", None), params.get("path", None), first, use_bpy=True, separate=True, parent_obj_id=parent_id, joint_info=joint_info, material=material)
+                    print(k, res)
                 else:
-                    res = save_geometry_new(obj, name, k, params.get("i", None), params.get("path", None), first, use_bpy=True)
+                    if name == "curtain" and k == 1:
+                        parent_id = "world"
+                        joint_info = {
+                            "name": get_joint_name("prismatic"),
+                            "type": "prismatic",
+                            "axis": [1, 0, 0],
+                            "limit":{
+                                "lower": 0,
+                                "upper": (self.params['Width'] + self.params['CurtainMidL']) / 2,
+                            }
+                        }
+                    elif name == "curtain" and k == 2:
+                        parent_id = "world"
+                        joint_info = {
+                            "name": get_joint_name("prismatic"),
+                            "type": "prismatic",
+                            "axis": [1, 0, 0],
+                            "limit":{
+                                "lower": -(self.params['Width'] - self.params['CurtainMidR']) / 2,
+                                "upper": 0,
+                            }
+                        }
+                    res = save_geometry_new(obj, name, k, params.get("i", None), params.get("path", None), first, use_bpy=True, parent_obj_id=parent_id, joint_info=joint_info)
+                    if res:
+                        last_id = res[0]
                 if res:
                     first = False
+                    
 
 
-        save_geometry_new(obj, 'whole', 0, params.get("i", None), params.get("path", None), True)
         #butil.save_blend(f"blend.blend", autopack=True)
+        save_geometry_new(obj, 'whole', 0, params.get("i", None), params.get("path", None), True)
 
         return obj
 
@@ -394,11 +525,22 @@ def nodegroup_window_geometry(nw: NodeWrangler, **kwargs):
         attrs={"operation": "SUBTRACT"},
     )
 
+    subtract_100 = nw.new_node(
+        Nodes.Math,
+        input_kwargs={0: subtract_1, 1: 0.1},
+        attrs={"operation": "SUBTRACT"},
+    )
+    subtract_300 = nw.new_node(
+        Nodes.Math,
+        input_kwargs={0: subtract_3, 1: 0.1},
+        attrs={"operation": "SUBTRACT"},
+    )
+
     windowpanel_1 = nw.new_node(
         nodegroup_window_panel().name,
         input_kwargs={
-            "Width": subtract_1,
-            "Height": subtract_3,
+            "Width": subtract_100,
+            "Height": subtract_300,
             "FrameWidth": group_input_1.outputs["SubFrameWidth"],
             "FrameThickness": group_input_1.outputs["SubFrameThickness"],
             "PanelWidth": group_input_1.outputs["SubFrameWidth"],
@@ -1536,11 +1678,29 @@ def nodegroup_window_panel(nw: NodeWrangler):
         ],
     )
 
+    w_ = nw.new_node(
+        Nodes.Math,
+        input_kwargs={0: group_input.outputs["Width"], 1: -0.200},
+    )
+
+    h_ = nw.new_node(
+        Nodes.Math,
+        input_kwargs={0: group_input.outputs["Height"], 1: -0.200},
+    )
+
     quadrilateral = nw.new_node(
         "GeometryNodeCurvePrimitiveQuadrilateral",
         input_kwargs={
             "Width": group_input.outputs["Width"],
             "Height": group_input.outputs["Height"],
+        },
+    )
+
+    quadrilateral_100 = nw.new_node(
+        "GeometryNodeCurvePrimitiveQuadrilateral",
+        input_kwargs={
+            "Width": w_,
+            "Height": h_,
         },
     )
 
@@ -1620,7 +1780,7 @@ def nodegroup_window_panel(nw: NodeWrangler):
 
     subtract_1 = nw.new_node(
         Nodes.Math,
-        input_kwargs={0: subtract, 1: 0.0010},
+        input_kwargs={0: subtract, 1: 0.010},
         attrs={"operation": "SUBTRACT"},
     )
 
@@ -1680,6 +1840,16 @@ def nodegroup_window_panel(nw: NodeWrangler):
             "Geometry": join_geometry_2,
             "Material": group_input.outputs["FrameMaterial"],
         },
+    )
+
+    w__ = nw.new_node(
+        Nodes.Math,
+        input_kwargs={0: group_input.outputs["Width"], 1: -0.400},
+    )
+
+    h__ = nw.new_node(
+        Nodes.Math,
+        input_kwargs={0: group_input.outputs["Height"], 1: -0.400},
     )
 
     combine_xyz = nw.new_node(

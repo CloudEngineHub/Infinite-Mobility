@@ -47,6 +47,7 @@ from infinigen.core.util import blender as butil
 from infinigen.core.util.blender import deep_clone_obj
 from infinigen.core.util.math import FixedSeed
 from infinigen.core.util.random import log_uniform
+import random
 
 
 class TVFactory(AssetFactory):
@@ -77,10 +78,12 @@ class TVFactory(AssetFactory):
             self.edge_wear = materials["edge_wear"]
             self.screen_surface = materials["screen_surface"]
             self.support_surface = materials["support"]
+            self.button_surface = materials["button_surface"]
 
     def get_material_params(self):
         material_assignments = AssetList["TVFactory"]()
         surface = material_assignments["surface"].assign_material()
+        button_surface = material_assignments["button_surface"].assign_material()
         scratch_prob, edge_wear_prob = material_assignments["wear_tear_prob"]
         scratch, edge_wear = material_assignments["wear_tear"]
 
@@ -104,6 +107,7 @@ class TVFactory(AssetFactory):
             "edge_wear": edge_wear,
             "screen_surface": screen_surface,
             "support": support,
+            "button_surface": button_surface,
         }
 
     @property
@@ -138,7 +142,13 @@ class TVFactory(AssetFactory):
     def create_asset(self, **params) -> bpy.types.Object:
         obj = self.make_base(params.get("path", None), params.get("i", "unknown"))
         self.make_screen(obj)
-        save_obj_parts_add(obj, params.get("path", None), params.get("i", "unknown"), "screen", use_bpy=True, first=True, parent_obj_id=1, joint_info=
+        self.surface.apply(obj, selection="!screen", rough=True, metal_color="bw")
+        self.support_surface.apply(
+            obj, selection="leg", rough=True, metal_color="bw"
+        )
+        butil.apply_transform(obj, True)
+        co = read_co(obj).copy()
+        res = save_obj_parts_add(obj, params.get("path", None), params.get("i", "unknown"), "screen", use_bpy=True, first=True, parent_obj_id="world", joint_info=
                            {
                                "name": get_joint_name("revolute_prismatic"),
                                 "type": "revolute_prismatic",
@@ -146,12 +156,45 @@ class TVFactory(AssetFactory):
                                 "axis_1": (0, 0, 1),
                                 "origin_shift": (0, 0, (self.h_max + self.h_min) / 2 - self.leg_length),
                                 "limit": {
-                                    "lower": -np.pi / 16,
-                                    "upper": 0,
-                                    "lower_1": (-self.h_min / 2) if self.h_min else -0.05,
+                                    "lower": -np.pi / 8,
+                                    "upper": -np.pi / 48,
+                                    "lower_1": (-self.h_min / 2) if self.h_min else -0.1,
                                     "upper_1": 0
                                 }
                            })
+        z_min = co[:, 2].min()
+        button_type = np.random.choice(['circle', 'square'])
+        button_type = "square"
+        button_scale = self.bottom_margin * 0.5 * uniform(0.9, 1.0)
+        print("button_scale", button_scale)
+        location = (co[:, 0].max() * 0.9, -button_scale / 10, self.bottom_margin / 2)
+
+        button_num = np.random.randint(0, 5)
+        gap = button_scale * random.uniform(0.5, 1.2)
+        for i in range(button_num):
+            if button_type == "square":
+                button = butil.spawn_cube()
+            else:
+                button = butil.spawn_cylinder(radius=button_scale / 2, depth=button_scale / 5)
+                button.rotation_euler[0] = np.pi / 2
+                butil.apply_transform(button, True)
+            button.scale = button_scale, button_scale / 5, button_scale
+            #butil.apply_transform(button, True)
+            button.location = location
+            butil.apply_transform(button, True)
+            location = (location[0] - gap - button_scale, location[1], location[2])
+            self.button_surface.apply(button, rough=True)
+            save_obj_parts_add(button, params.get("path", None), params.get("i", "unknown"), "screen", use_bpy=True, first=False, parent_obj_id=res[0], joint_info=
+                               {
+                                   "name": get_joint_name("prismatic"),
+                                   "type": "prismatic",
+                                   "axis": (0, 1, 0),
+                                   "limit": {
+                                        "lower": -button_scale / 8,
+                                        "upper": 0
+                                   }
+                               })
+
         parts = [obj]
         name = ["screen"]
         match self.leg_type:
@@ -162,8 +205,13 @@ class TVFactory(AssetFactory):
         for leg_obj in legs:
             write_attribute(leg_obj, 1, "leg", "FACE", "INT")
         legs = join_objects(legs)
+        co = read_co(legs)
         parts.append(legs)
-        save_obj_parts_add(legs, params.get("path", None), params.get("i", "unknown"), "leg", use_bpy=True, first=False)
+        self.surface.apply(legs, selection="!screen", rough=True, metal_color="bw")
+        self.support_surface.apply(
+            legs , rough=True, metal_color="bw"
+        )
+        save_obj_parts_add(legs, params.get("path", None), params.get("i", "unknown"), "leg", use_bpy=True, first=False, material=[self.support_surface])
         #name.extend(["legs"] * len(legs))
         # save_objects_obj(
         #     parts,
@@ -243,6 +291,12 @@ class TVFactory(AssetFactory):
                 number_cuts=32, profile_shape_factor=-uniform(0.0, 0.4)
             )
         x, y, z = read_co(obj).T
+        self.add_h = (
+            (height_max + height_min - self.total_height)
+            / 2
+            * np.clip(y - self.depth, 0, None)
+            / self.depth_extrude
+        )
         z += (
             (height_max + height_min - self.total_height)
             / 2

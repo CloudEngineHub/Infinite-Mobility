@@ -14,9 +14,11 @@ from numpy.random import uniform as U
 
 from infinigen.assets.lighting.indoor_lights import PointLampFactory
 from infinigen.assets.material_assignments import AssetList
+from infinigen.assets.utils.decorate import read_co, write_co
+from infinigen.assets.utils.object import get_joint_name, join_objects_save_whole, save_obj_parts_add
 from infinigen.core import surface
 from infinigen.core.nodes import node_utils
-from infinigen.core.nodes.node_utils import save_geometry
+from infinigen.core.nodes.node_utils import save_geometry, save_geometry_new
 from infinigen.core.nodes.node_wrangler import Nodes, NodeWrangler
 from infinigen.core.placement.factory import AssetFactory
 from infinigen.core.util import blender as butil
@@ -172,13 +174,13 @@ class LampFactory(AssetFactory):
     def create_asset(self, i, **params):
         obj = butil.spawn_cube()
         params.update({"i": i, "obj": obj, "inputs": self.params, "path": params.get("path", None)})
+        self.ps = params
         butil.modify_mesh(
             obj,
             "NODES",
             node_group=nodegroup_lamp_geometry(**params),
             ng_inputs=self.params,
             apply=True,
-            mod=True,
         )
 
         if np.random.uniform() < 0.6:
@@ -189,6 +191,106 @@ class LampFactory(AssetFactory):
         with butil.SelectObjects(obj):
             bpy.ops.object.shade_flat()
 
+        names = ["bulb", "bulb_rack", "lamp_head", "lamp"]
+        parts = [1, 5, 1, 3, 3]
+        first = True
+        for k, name in enumerate(names):
+            for j in range(1, parts[k] + 1):
+                params = self.ps
+                params['return_name'] = name
+                params['return_idx'] = j
+                part = butil.spawn_cube()
+                butil.modify_mesh(
+                    part,
+                    "NODES",
+                    node_group=nodegroup_lamp_geometry(**params),
+                    ng_inputs=self.params,
+                    apply=True,
+                )
+                parent_id = "world"
+                joint_info = {
+                    "name": get_joint_name("fixed"),
+                    "type": "fixed"
+                }
+                if name == "bulb":
+                    parent_id = 1
+                    joint_info = {
+                        "name": get_joint_name("revolute_prismatic"),
+                        "type": "revolute_prismatic",
+                        "axis": [0, 0, 1],
+                        "axis_1": [0, 0, 1],
+                        "limit": {
+                            "lower": -np.pi,
+                            "upper": np.pi,
+                            "lower_1": 0,
+                            "upper_1": 0.3
+                        }
+                    }   
+                if name == "bulb_rack" and j == 1:
+                    parent_id = 8
+                    joint_info = {
+                        "name": get_joint_name("continuous"),
+                        "type": "continuous",
+                        "axis": [0, 0, 1]
+                    }
+                elif name == "bulb_rack":
+                    parent_id = 1
+                    joint_info = {
+                        "name": get_joint_name("fixed"),
+                        "type": "fixed"
+                    }
+                if name == "lamp_head":
+                    parent_id = 1
+                    joint_info = {
+                        "name": get_joint_name("continuous"),
+                        "type": "continuous",
+                        "axis": [0, 0, 1]
+                    }
+                # for leg, seperate it into 2 parts, upper one is slim, lower one is thick
+                if name == "lamp" and j == 2:
+                    co = read_co(part)
+                    low = min(co[:, 2])
+                    high = max(co[:, 2])
+                    co[:, 2] -= low
+                    co[:, 2] *= 0.3
+                    co[:, 2] += low
+                    co[:, 2] += (high - low) * 0.7
+                    write_co(part, co)
+                    joint_info = {
+                        "name": get_joint_name("revolute_prismatic"),
+                        "type": "revolute_prismatic",
+                        "axis": [0, 0, 1],
+                        "axis_1": [0, 0, 1],
+                        "limit": {
+                            "lower": -np.pi,
+                            "upper": np.pi,
+                            "lower_1": -(high - low) * 0.25,
+                            "upper_1": 0
+                        }
+                    }
+                    save_obj_parts_add([part], params.get("path", None), i, name, first=first, use_bpy=True, material=[self.scratch, self.edge_wear], parent_obj_id=parent_id, joint_info=joint_info)
+                    self.params['StandRadius'] *= 1.2
+                    part = butil.spawn_cube()
+                    butil.modify_mesh(
+                        part,
+                        "NODES",
+                        node_group=nodegroup_lamp_geometry(**params),
+                        ng_inputs=self.params,
+                        apply=True,
+                    )
+                    co = read_co(part)
+                    co[:, 2] -= low
+                    co[:, 2] *= 0.7
+                    co[:, 2] += low
+                    write_co(part, co)
+                    joint_info = {
+                        "name": get_joint_name("continuous"),
+                        "type": "continuous",
+                        "axis": [0, 0, 1]
+                    }
+                a = save_obj_parts_add([part], params.get("path", None), i, name, first=first, use_bpy=True, material=[self.scratch, self.edge_wear], parent_obj_id=parent_id, joint_info=joint_info)
+                first = False
+        join_objects_save_whole([obj], params.get("path", None), i, join=False, use_bpy=True)
         return obj
 
     def finalize_assets(self, assets):
@@ -886,10 +988,10 @@ def nodegroup_lamp_head(nw: NodeWrangler, **kwargs):
     )
 
 
-@node_utils.to_modifier(
+@node_utils.to_nodegroup(
     "nodegroup_lamp_geometry", singleton=False, type="GeometryNodeTree"
 )
-def nodegroup_lamp_geometry(nw: NodeWrangler, preprocess: bool = False, **kwargs):
+def nodegroup_lamp_geometry(nw: NodeWrangler, preprocess: bool = False, return_name="", return_idx=-1,**kwargs):
     # Code generated using version 2.6.5 of the node_transpiler
 
     if "inputs" in kwargs.keys():
@@ -1151,46 +1253,53 @@ def nodegroup_lamp_geometry(nw: NodeWrangler, preprocess: bool = False, **kwargs
 
     names = ["bulb", "bulb_rack", "lamp_head", "lamp"]
     parts = [1, 5, 1, 3, 3]
+    parent_id = "world"
+    joint_info = {
+        "name": get_joint_name("")
+    }
 
-    if not preprocess:
-        first = True
-        for i, name in enumerate(names):
-            named_attribute = nw.new_node(
-                node_type=Nodes.NamedAttribute,
-                input_args=[name],
-                attrs={"data_type": "INT"},
-            )
-            for j in range(1, parts[i] + 1):
-                compare = nw.new_node(
-                    node_type=Nodes.Compare,
-                    input_kwargs={"A": named_attribute, "B": j},
-                    attrs={"data_type": "INT", "operation": "EQUAL"},
-                )
-                separate_geometry = nw.new_node(
-                    node_type=Nodes.SeparateGeometry,
-                    input_kwargs={
-                        "Geometry": join_geometry_1.outputs["Geometry"],
-                        "Selection": compare.outputs["Result"],
-                    },
-                )
-                output_geometry = separate_geometry
-                a = save_geometry(
-                    nw,
-                    output_geometry,
-                    kwargs.get("path", None),
-                    name,
-                    kwargs.get("i", "unknown"),
-                    first=first,
-                )
-                if a:
-                    first = False
-        save_geometry(
-            nw,
-            join_geometry_1,
-            kwargs.get("path", None),
-            "whole",
-            kwargs.get("i", "unknown"),
+    if not preprocess and return_name != "":
+        named_attribute = nw.new_node(
+            node_type=Nodes.NamedAttribute,
+            input_args=[return_name],
+            attrs={"data_type": "INT"},
         )
+        compare = nw.new_node(
+            node_type=Nodes.Compare,
+            input_kwargs={"A": named_attribute, "B": return_idx},
+            attrs={"data_type": "INT", "operation": "EQUAL"},
+        )
+        separate_geometry = nw.new_node(
+            node_type=Nodes.SeparateGeometry,
+            input_kwargs={
+                "Geometry": join_geometry_1.outputs["Geometry"],
+                "Selection": compare.outputs["Result"],
+            },
+        )
+        output_geometry = separate_geometry
+        group_output = nw.new_node(
+            Nodes.GroupOutput,
+            input_kwargs={"Geometry": output_geometry},
+            attrs={"is_active_output": True},
+        )
+        return  
+                # a = save_geometry(
+                #     nw,
+                #     output_geometry,
+                #     kwargs.get("path", None),
+                #     name,
+                #     kwargs.get("i", "unknown"),
+                #     first=first,
+                # )
+                # if a:
+                #     first = False
+        # save_geometry(
+        #     nw,
+        #     join_geometry_1,
+        #     kwargs.get("path", None),
+        #     "whole",
+        #     kwargs.get("i", "unknown"),
+        # )
 
     group_output = nw.new_node(
         Nodes.GroupOutput,

@@ -12,7 +12,6 @@ from numpy.random import uniform as U
 from infinigen.assets.material_assignments import AssetList
 from infinigen.core import surface
 from infinigen.core.nodes import node_utils
-from infinigen.core.nodes.node_utils import save_geometry
 from infinigen.core.nodes.node_wrangler import Nodes, NodeWrangler
 from infinigen.core.placement.factory import AssetFactory
 from infinigen.core.util import blender as butil
@@ -25,6 +24,21 @@ from infinigen.core.util.bevelling import (
 from infinigen.core.util.blender import delete
 from infinigen.core.util.math import FixedSeed
 
+from infinigen.assets.utils.object import (
+    data2mesh,
+    join_objects,
+    join_objects_save_whole,
+    mesh2obj,
+    new_bbox,
+    new_cube,
+    new_plane,
+    save_obj_parts_join_objects,
+    save_objects_obj,
+    save_obj_parts_add,
+    get_joint_name
+)
+
+
 
 class DishwasherFactory(AssetFactory):
     def __init__(self, factory_seed, coarse=False, dimensions=[1.0, 1.0, 1.0]):
@@ -33,7 +47,7 @@ class DishwasherFactory(AssetFactory):
         self.dimensions = dimensions
         with FixedSeed(factory_seed):
             self.params = self.sample_parameters(dimensions)
-            self.material_params, self.scratch, self.edge_wear = (
+            self.ps, self.material_params, self.scratch, self.edge_wear = (
                 self.get_material_params()
             )
         self.params.update(self.material_params)
@@ -62,7 +76,7 @@ class DishwasherFactory(AssetFactory):
         if not is_edge_wear:
             edge_wear = None
 
-        return wrapped_params, scratch, edge_wear
+        return params, wrapped_params, scratch, edge_wear
 
     @staticmethod
     def sample_parameters(dimensions):
@@ -91,21 +105,27 @@ class DishwasherFactory(AssetFactory):
 
     def create_asset(self, **params):
         obj = butil.spawn_cube()
-        params.update({"obj": obj, "inputs": self.params})
-        ng = nodegroup_dishwasher_geometry(preprocess=True, **params)
         butil.modify_mesh(
-            obj, "NODES", node_group=ng, ng_inputs=self.params, apply=True, mod=True
+            obj,
+            "NODES",
+            node_group=nodegroup_dishwasher_geometry(preprocess=True),
+            ng_inputs=self.params,
+            apply=True,
         )
         bevel_edges = get_bevel_edges(obj)
         delete(obj)
         obj = butil.spawn_cube()
-        params.update({"obj": obj})
-        ng = nodegroup_dishwasher_geometry(**params)
         butil.modify_mesh(
-            obj, "NODES", node_group=ng, ng_inputs=self.params, apply=True, mod=True
+            obj,
+            "NODES",
+            node_group=nodegroup_dishwasher_geometry(),
+            ng_inputs=self.params,
+            apply=True,
         )
         obj = add_bevel(obj, bevel_edges, offset=0.01)
-
+        #self.params.update(params)
+        #self.params.update(self.ps)
+        self.ps.update(params)
         return obj
 
     def finalize_assets(self, assets):
@@ -113,6 +133,131 @@ class DishwasherFactory(AssetFactory):
             self.scratch.apply(assets)
         if self.edge_wear:
             self.edge_wear.apply(assets)
+        first = True
+        for i in range(4, 0, -1):
+            joint_info = None
+            parent_id = None
+            if i == 1:
+                body = butil.spawn_cube()
+                butil.modify_mesh(
+                    body,
+                    "NODES",
+                    node_group=nodegroup_dishwasher_geometry(preprocess=True, return_type_name="body"),
+                    ng_inputs=self.params,
+                    apply=True,
+                )
+                bevel_edges = get_bevel_edges(body)
+                delete(body)
+                body = butil.spawn_cube()
+                butil.modify_mesh(
+                    body,
+                    "NODES",
+                    node_group=nodegroup_dishwasher_geometry(return_type_name="body"),
+                    ng_inputs=self.params,
+                    apply=True,
+                )
+                body = add_bevel(body, bevel_edges, offset=0.01)
+                save_obj_parts_add(body, self.ps.get("path"), self.ps.get("i"), "body", first=False, use_bpy=True, parent_obj_id=parent_id, joint_info=joint_info)
+            elif i == 2:
+                parent_id = "world"
+                joint_info = {
+                    "name": get_joint_name("revolute"),
+                    "type": "revolute",
+                    "axis": (0, 1, 0),
+                    "limit": {
+                        "lower": 0,
+                        "upper": 3.14 * 0.5,
+                    },
+                    "origin_shift": (0, 0, -self.params.get("Height") / 2),
+                }
+                door = butil.spawn_cube()
+                butil.modify_mesh(
+                    door,
+                    "NODES",
+                    node_group=nodegroup_dishwasher_geometry(preprocess=True, return_type_name="door"),
+                    ng_inputs=self.params,
+                    apply=True,
+                )
+                bevel_edges = get_bevel_edges(door)
+                delete(door)
+                door = butil.spawn_cube()
+                butil.modify_mesh(
+                    door,
+                    "NODES",
+                    node_group=nodegroup_dishwasher_geometry(return_type_name="door"),
+                    ng_inputs=self.params,
+                    apply=True,
+                )
+                door = add_bevel(door, bevel_edges, offset=0.01)
+                save_obj_parts_add(door, self.ps.get("path"), self.ps.get("i"), "door", first=False, use_bpy=True, parent_obj_id=parent_id, joint_info=joint_info)
+            elif i == 3:
+                pass
+            else:
+                heater = butil.spawn_cube()
+                butil.modify_mesh(
+                    heater,
+                    "NODES",
+                    node_group=nodegroup_dishwasher_geometry(preprocess=True, return_type_name="heater"),
+                    ng_inputs=self.params,
+                    apply=True,
+                )
+                bevel_edges = get_bevel_edges(heater)
+                delete(heater)
+                heater = butil.spawn_cube()
+                butil.modify_mesh(
+                    heater,
+                    "NODES",
+                    node_group=nodegroup_dishwasher_geometry(return_type_name="heater"),
+                    ng_inputs=self.params,
+                    apply=True,
+                )
+                heater = add_bevel(heater, bevel_edges, offset=0.01)
+                save_obj_parts_add(heater, self.ps.get("path"), self.ps.get("i"), "heater", first=True, use_bpy=True, parent_obj_id=parent_id, joint_info=joint_info)
+                
+            # a = node_utils.save_geometry_new(
+            #     assets,
+            #     "part",
+            #     i,
+            #     self.params.get("i"),
+            #     self.params.get("path"),
+            #     first,
+            #     True,
+            #     False,
+            #     material=material,
+            #     parent_obj_id=parent_id,
+            #     joint_info=joint_info
+            # )
+            # if a:
+            #     first = False
+        for i in range(1, self.params['RackAmount'] + 1):
+            material = [self.ps.get("Surface"), self.scratch, self.edge_wear]
+            parent_id = "world"
+            joint_info = {
+                "name": get_joint_name("prismatic"),
+                "type": "prismatic",
+                "axis": (1, 0, 0),
+                "limit": {
+                    "lower": 0,
+                    "upper": self.params['Depth'] * 0.75,
+                }
+            }
+            a = node_utils.save_geometry_new(
+                assets,
+                "rack",
+                i,
+                self.ps.get("i"),
+                self.ps.get("path"),
+                False,
+                True,
+                False,
+                parent_obj_id=parent_id,
+                joint_info=joint_info,
+                material=material
+            )
+            if a:
+                first = False
+
+        node_utils.save_geometry_new(assets, 'whole', 0, self.ps.get('i'), self.ps.get('path'), first, True, False, material=self.params.get('Surface'))
 
 
 @node_utils.to_nodegroup(
@@ -142,20 +287,6 @@ def nodegroup_dish_rack(nw: NodeWrangler):
         ],
     )
 
-    geometry_to_instance_quad = nw.new_node(
-        Nodes.GeometryToInstance, input_kwargs={"Geometry": quadrilateral}
-    )
-
-    store_named_attribute_quad = nw.new_node(
-        Nodes.StoreNamedAttribute,
-        input_kwargs={
-            "Geometry": geometry_to_instance_quad,
-            "Name": "rack_quad",
-            "Value": nw.new_value(1),
-        },
-        attrs={"domain": "INSTANCE", "data_type": "INT"},
-    )
-
     combine_xyz_4 = nw.new_node(
         Nodes.CombineXYZ,
         input_kwargs={"Y": -1.0000, "Z": group_input.outputs["Height"]},
@@ -182,24 +313,6 @@ def nodegroup_dish_rack(nw: NodeWrangler):
         attrs={"domain": "INSTANCE"},
     )
 
-    # Add store named attribute here
-    store_named_attribute_rack_2 = nw.new_node(
-        Nodes.StoreNamedAttribute,
-        input_kwargs={
-            "Geometry": duplicate_elements_2.outputs["Geometry"],
-            "Name": "rack",
-            "Value": nw.new_node(
-                node_type=Nodes.Math,
-                input_kwargs={
-                    0: duplicate_elements_2.outputs["Duplicate Index"],
-                    1: nw.new_value(1),
-                },
-                attrs={"operation": "ADD"},
-            ),
-        },
-        attrs={"domain": "INSTANCE", "data_type": "INT"},
-    )
-
     divide = nw.new_node(
         Nodes.Math,
         input_kwargs={0: 1.0000, 1: group_input.outputs["Amount"]},
@@ -217,38 +330,13 @@ def nodegroup_dish_rack(nw: NodeWrangler):
     set_position_2 = nw.new_node(
         Nodes.SetPosition,
         input_kwargs={
-            "Geometry": store_named_attribute_rack_2.outputs["Geometry"],
+            "Geometry": duplicate_elements_2.outputs["Geometry"],
             "Offset": combine_xyz_3,
         },
     )
 
-    geometry_to_instance_curve_line = nw.new_node(
-        "GeometryNodeGeometryToInstance", input_kwargs={"Geometry": curve_line}
-    )
-
-    # Add store named attribute here
-    store_named_attribute_line = nw.new_node(
-        Nodes.StoreNamedAttribute,
-        input_kwargs={
-            "Geometry": geometry_to_instance_curve_line,
-            "Name": "rack",
-            "Value": nw.new_node(
-                node_type=Nodes.Math,
-                input_kwargs={
-                    0: multiply,
-                    1: nw.new_value(1),
-                },
-                attrs={"operation": "ADD"},
-            ),
-        },
-        attrs={"domain": "INSTANCE", "data_type": "INT"},
-    )
-
     join_geometry_1 = nw.new_node(
-        Nodes.JoinGeometry,
-        input_kwargs={
-            "Geometry": [store_named_attribute_line.outputs["Geometry"], set_position_2]
-        },
+        Nodes.JoinGeometry, input_kwargs={"Geometry": [curve_line, set_position_2]}
     )
 
     geometry_to_instance = nw.new_node(
@@ -259,24 +347,6 @@ def nodegroup_dish_rack(nw: NodeWrangler):
         Nodes.DuplicateElements,
         input_kwargs={"Geometry": geometry_to_instance, "Amount": multiply},
         attrs={"domain": "INSTANCE"},
-    )
-
-    # Add store named attribute here
-    store_named_attribute_rack = nw.new_node(
-        Nodes.StoreNamedAttribute,
-        input_kwargs={
-            "Geometry": duplicate_elements.outputs["Geometry"],
-            "Name": "rack_dup",
-            "Value": nw.new_node(
-                node_type=Nodes.Math,
-                input_kwargs={
-                    0: duplicate_elements.outputs["Duplicate Index"],
-                    1: nw.new_value(1),
-                },
-                attrs={"operation": "ADD"},
-            ),
-        },
-        attrs={"domain": "INSTANCE", "data_type": "INT"},
     )
 
     subtract = nw.new_node(
@@ -299,7 +369,7 @@ def nodegroup_dish_rack(nw: NodeWrangler):
     set_position = nw.new_node(
         Nodes.SetPosition,
         input_kwargs={
-            "Geometry": store_named_attribute_rack.outputs["Geometry"],
+            "Geometry": duplicate_elements.outputs["Geometry"],
             "Offset": combine_xyz,
         },
     )
@@ -313,28 +383,6 @@ def nodegroup_dish_rack(nw: NodeWrangler):
         Nodes.DuplicateElements,
         input_kwargs={"Geometry": geometry_to_instance, "Amount": multiply},
         attrs={"domain": "INSTANCE"},
-    )
-
-    # Add store named attribute here
-    store_named_attribute_rack_1 = nw.new_node(
-        Nodes.StoreNamedAttribute,
-        input_kwargs={
-            "Geometry": duplicate_elements_1.outputs["Geometry"],
-            "Name": "rack_dup",
-            "Value": nw.new_node(
-                node_type=Nodes.Math,
-                input_kwargs={
-                    0: duplicate_elements_1.outputs["Duplicate Index"],
-                    1: nw.new_node(
-                        node_type=Nodes.Math,
-                        input_kwargs={0: multiply, 1: nw.new_value(1)},
-                        attrs={"operation": "ADD"},
-                    ),
-                },
-                attrs={"operation": "ADD"},
-            ),
-        },
-        attrs={"domain": "INSTANCE", "data_type": "INT"},
     )
 
     subtract_1 = nw.new_node(
@@ -357,26 +405,12 @@ def nodegroup_dish_rack(nw: NodeWrangler):
     set_position_1 = nw.new_node(
         Nodes.SetPosition,
         input_kwargs={
-            "Geometry": store_named_attribute_rack_1.outputs["Geometry"],
+            "Geometry": duplicate_elements_1.outputs["Geometry"],
             "Offset": combine_xyz_1,
         },
     )
 
     quadrilateral_1 = nw.new_node("GeometryNodeCurvePrimitiveQuadrilateral")
-
-    geometry_to_instance_quad_1 = nw.new_node(
-        Nodes.GeometryToInstance, input_kwargs={"Geometry": quadrilateral_1}
-    )
-
-    store_named_attribute_quad_1 = nw.new_node(
-        Nodes.StoreNamedAttribute,
-        input_kwargs={
-            "Geometry": geometry_to_instance_quad_1,
-            "Name": "rack_quad",
-            "Value": nw.new_value(2),
-        },
-        attrs={"domain": "INSTANCE", "data_type": "INT"},
-    )
 
     multiply_4 = nw.new_node(
         Nodes.Math,
@@ -388,21 +422,13 @@ def nodegroup_dish_rack(nw: NodeWrangler):
 
     transform_2 = nw.new_node(
         Nodes.Transform,
-        input_kwargs={
-            "Geometry": store_named_attribute_quad_1,
-            "Translation": combine_xyz_5,
-        },
+        input_kwargs={"Geometry": quadrilateral_1, "Translation": combine_xyz_5},
     )
 
     join_geometry = nw.new_node(
         Nodes.JoinGeometry,
         input_kwargs={
-            "Geometry": [
-                store_named_attribute_quad,
-                transform_1,
-                set_position_1,
-                transform_2,
-            ]
+            "Geometry": [quadrilateral, transform_1, set_position_1, transform_2]
         },
     )
 
@@ -496,20 +522,9 @@ def nodegroup_text(nw: NodeWrangler):
         },
     )
 
-    # Store unique 'Text_id' for Text 1
-    store_text_id = nw.new_node(
-        Nodes.StoreNamedAttribute,
-        input_kwargs={
-            "Geometry": transform_1,
-            "Name": "text",
-            "Value": 1,  # Assign an ID of 1
-        },
-        attrs={"domain": "POINT", "data_type": "INT"},
-    )
-
     group_output = nw.new_node(
         Nodes.GroupOutput,
-        input_kwargs={"Geometry": store_text_id},
+        input_kwargs={"Geometry": transform_1},
         attrs={"is_active_output": True},
     )
 
@@ -541,17 +556,6 @@ def nodegroup_handle(nw: NodeWrangler):
         attrs={"domain": "CORNER", "data_type": "FLOAT_VECTOR"},
     )
 
-    # Store unique 'cube_id' for Cube 1
-    store_cube_id = nw.new_node(
-        Nodes.StoreNamedAttribute,
-        input_kwargs={
-            "Geometry": store_named_attribute,  # Geometry with UV map
-            "Name": "handle",
-            "Value": 3,  # Assign Cube 1 an ID of 1
-        },
-        attrs={"domain": "POINT", "data_type": "INT"},
-    )
-
     cube_1 = nw.new_node(
         Nodes.MeshCube, input_kwargs={"Size": group_input.outputs["width"]}
     )
@@ -566,29 +570,18 @@ def nodegroup_handle(nw: NodeWrangler):
         attrs={"domain": "CORNER", "data_type": "FLOAT_VECTOR"},
     )
 
-    # Store unique 'cube_id' for Cube 1
-    store_cube_id_1 = nw.new_node(
-        Nodes.StoreNamedAttribute,
-        input_kwargs={
-            "Geometry": store_named_attribute_1,  # Geometry with UV map
-            "Name": "handle",
-            "Value": 1,  # Assign Cube 1 an ID of 1
-        },
-        attrs={"domain": "POINT", "data_type": "INT"},
-    )
-
     combine_xyz = nw.new_node(
         Nodes.CombineXYZ, input_kwargs={"Y": group_input.outputs["length"]}
     )
 
     transform = nw.new_node(
         Nodes.Transform,
-        input_kwargs={"Geometry": store_cube_id_1, "Translation": combine_xyz},
+        input_kwargs={"Geometry": store_named_attribute_1, "Translation": combine_xyz},
     )
 
     join_geometry_1 = nw.new_node(
         Nodes.JoinGeometry,
-        input_kwargs={"Geometry": [store_cube_id, transform]},
+        input_kwargs={"Geometry": [store_named_attribute, transform]},
     )
 
     multiply = nw.new_node(
@@ -633,17 +626,6 @@ def nodegroup_handle(nw: NodeWrangler):
         attrs={"domain": "CORNER", "data_type": "FLOAT_VECTOR"},
     )
 
-    # Store unique 'cube_id' for Cube 2
-    store_cube_id_2 = nw.new_node(
-        Nodes.StoreNamedAttribute,
-        input_kwargs={
-            "Geometry": store_named_attribute_2,  # Geometry with UV map
-            "Name": "handle",
-            "Value": 2,  # Assign Cube 2 an ID of 2
-        },
-        attrs={"domain": "POINT", "data_type": "INT"},
-    )
-
     multiply_1 = nw.new_node(
         Nodes.Math,
         input_kwargs={0: group_input.outputs["length"]},
@@ -667,7 +649,7 @@ def nodegroup_handle(nw: NodeWrangler):
     transform_1 = nw.new_node(
         Nodes.Transform,
         input_kwargs={
-            "Geometry": store_cube_id_2,
+            "Geometry": store_named_attribute_2,
             "Translation": combine_xyz_2,
         },
     )
@@ -931,17 +913,6 @@ def nodegroup_hollow_cube(nw: NodeWrangler):
         attrs={"domain": "CORNER", "data_type": "FLOAT_VECTOR"},
     )
 
-    # Store unique 'cube_id' for Cube 1
-    store_cube_id_1 = nw.new_node(
-        Nodes.StoreNamedAttribute,
-        input_kwargs={
-            "Geometry": store_named_attribute_1,  # Geometry with UV map
-            "Name": "body",
-            "Value": 1,
-        },
-        attrs={"domain": "POINT", "data_type": "INT"},
-    )
-
     multiply_1 = nw.new_node(
         Nodes.Math,
         input_kwargs={0: group_input.outputs["Thickness"]},
@@ -984,7 +955,7 @@ def nodegroup_hollow_cube(nw: NodeWrangler):
     transform_2 = nw.new_node(
         Nodes.Transform,
         input_kwargs={
-            "Geometry": store_cube_id_1,
+            "Geometry": store_named_attribute_1,
             "Translation": combine_xyz_5,
         },
     )
@@ -1028,17 +999,6 @@ def nodegroup_hollow_cube(nw: NodeWrangler):
         attrs={"domain": "CORNER", "data_type": "FLOAT_VECTOR"},
     )
 
-    # Store unique 'cube_id' for Cube 4
-    store_cube_id_4 = nw.new_node(
-        Nodes.StoreNamedAttribute,
-        input_kwargs={
-            "Geometry": store_named_attribute_4,  # Geometry with UV map
-            "Name": "body",
-            "Value": 4,
-        },
-        attrs={"domain": "POINT", "data_type": "INT"},
-    )
-
     add_2 = nw.new_node(
         Nodes.Math,
         input_kwargs={0: separate_xyz_2.outputs["X"], 1: separate_xyz_1.outputs["X"]},
@@ -1062,7 +1022,7 @@ def nodegroup_hollow_cube(nw: NodeWrangler):
     transform_1 = nw.new_node(
         Nodes.Transform,
         input_kwargs={
-            "Geometry": store_cube_id_4,
+            "Geometry": store_named_attribute_4,
             "Translation": combine_xyz_3,
         },
     )
@@ -1106,17 +1066,6 @@ def nodegroup_hollow_cube(nw: NodeWrangler):
         attrs={"domain": "CORNER", "data_type": "FLOAT_VECTOR"},
     )
 
-    # Store unique 'cube_id' for Cube 0
-    store_cube_id = nw.new_node(
-        Nodes.StoreNamedAttribute,
-        input_kwargs={
-            "Geometry": store_named_attribute,  # Geometry with UV map
-            "Name": "body",
-            "Value": 6,
-        },
-        attrs={"domain": "POINT", "data_type": "INT"},
-    )
-
     add_4 = nw.new_node(
         Nodes.Math,
         input_kwargs={0: separate_xyz_2.outputs["X"], 1: separate_xyz_1.outputs["X"]},
@@ -1137,7 +1086,7 @@ def nodegroup_hollow_cube(nw: NodeWrangler):
 
     transform = nw.new_node(
         Nodes.Transform,
-        input_kwargs={"Geometry": store_cube_id, "Translation": combine_xyz_1},
+        input_kwargs={"Geometry": store_named_attribute, "Translation": combine_xyz_1},
     )
 
     switch = nw.new_node(
@@ -1185,17 +1134,6 @@ def nodegroup_hollow_cube(nw: NodeWrangler):
         attrs={"domain": "CORNER", "data_type": "FLOAT_VECTOR"},
     )
 
-    # Store unique 'cube_id' for Cube 5
-    store_cube_id_5 = nw.new_node(
-        Nodes.StoreNamedAttribute,
-        input_kwargs={
-            "Geometry": store_named_attribute_5,  # Geometry with UV map
-            "Name": "body",
-            "Value": 5,
-        },
-        attrs={"domain": "POINT", "data_type": "INT"},
-    )
-
     subtract_8 = nw.new_node(
         Nodes.Math,
         input_kwargs={0: separate_xyz.outputs["X"], 1: multiply_1},
@@ -1220,7 +1158,7 @@ def nodegroup_hollow_cube(nw: NodeWrangler):
     transform_3 = nw.new_node(
         Nodes.Transform,
         input_kwargs={
-            "Geometry": store_cube_id_5,
+            "Geometry": store_named_attribute_5,
             "Translation": combine_xyz_7,
         },
     )
@@ -1258,17 +1196,6 @@ def nodegroup_hollow_cube(nw: NodeWrangler):
         attrs={"domain": "CORNER", "data_type": "FLOAT_VECTOR"},
     )
 
-    # Store unique 'cube_id' for Cube 2
-    store_cube_id_2 = nw.new_node(
-        Nodes.StoreNamedAttribute,
-        input_kwargs={
-            "Geometry": store_named_attribute_2,  # Geometry with UV map
-            "Name": "body",
-            "Value": 2,
-        },
-        attrs={"domain": "POINT", "data_type": "INT"},
-    )
-
     add_8 = nw.new_node(
         Nodes.Math,
         input_kwargs={0: separate_xyz_1.outputs["X"], 1: separate_xyz_2.outputs["X"]},
@@ -1290,7 +1217,7 @@ def nodegroup_hollow_cube(nw: NodeWrangler):
     transform_4 = nw.new_node(
         Nodes.Transform,
         input_kwargs={
-            "Geometry": store_cube_id_2,
+            "Geometry": store_named_attribute_2,
             "Translation": combine_xyz_8,
         },
     )
@@ -1328,17 +1255,6 @@ def nodegroup_hollow_cube(nw: NodeWrangler):
         attrs={"domain": "CORNER", "data_type": "FLOAT_VECTOR"},
     )
 
-    # Store unique 'cube_id' for Cube 3
-    store_cube_id_3 = nw.new_node(
-        Nodes.StoreNamedAttribute,
-        input_kwargs={
-            "Geometry": store_named_attribute_3,  # Geometry with UV map
-            "Name": "body",
-            "Value": 3,
-        },
-        attrs={"domain": "POINT", "data_type": "INT"},
-    )
-
     add_11 = nw.new_node(
         Nodes.Math,
         input_kwargs={0: separate_xyz_2.outputs["X"], 1: separate_xyz_1.outputs["X"]},
@@ -1362,7 +1278,7 @@ def nodegroup_hollow_cube(nw: NodeWrangler):
     transform_5 = nw.new_node(
         Nodes.Transform,
         input_kwargs={
-            "Geometry": store_cube_id_3,
+            "Geometry": store_named_attribute_3,
             "Translation": combine_xyz_11,
         },
     )
@@ -1392,10 +1308,10 @@ def nodegroup_hollow_cube(nw: NodeWrangler):
     )
 
 
-@node_utils.to_modifier(
+@node_utils.to_nodegroup(
     "nodegroup_dishwasher_geometry", singleton=False, type="GeometryNodeTree"
 )
-def nodegroup_dishwasher_geometry(nw: NodeWrangler, preprocess: bool = False, **kwargs):
+def nodegroup_dishwasher_geometry(nw: NodeWrangler, preprocess: bool = False, return_type_name=""):
     # Code generated using version 2.6.5 of the node_transpiler
 
     group_input = nw.new_node(
@@ -1472,17 +1388,6 @@ def nodegroup_dishwasher_geometry(nw: NodeWrangler, preprocess: bool = False, **
         input_kwargs={"Size": combine_xyz_1, "Pos": combine_xyz_2},
     )
 
-    # Store unique 'cube_id' for Cube 1
-    store_door = nw.new_node(
-        Nodes.StoreNamedAttribute,
-        input_kwargs={
-            "Geometry": cube,  # Geometry with UV map
-            "Name": "door",
-            "Value": 1,
-        },
-        attrs={"domain": "POINT", "data_type": "INT"},
-    )
-
     position = nw.new_node(Nodes.InputPosition)
 
     center = nw.new_node(
@@ -1499,7 +1404,7 @@ def nodegroup_dishwasher_geometry(nw: NodeWrangler, preprocess: bool = False, **
     set_material_2 = nw.new_node(
         Nodes.SetMaterial,
         input_kwargs={
-            "Geometry": store_door,
+            "Geometry": cube,
             "Selection": center.outputs["In"],
             "Material": group_input.outputs["Front"],
         },
@@ -1513,6 +1418,23 @@ def nodegroup_dishwasher_geometry(nw: NodeWrangler, preprocess: bool = False, **
             "Material": group_input.outputs["Surface"],
         },
     )
+
+    store_part = nw.new_node(
+        Nodes.StoreNamedAttribute,
+        input_kwargs={"Geometry": center.outputs["In"], "Name": "In", "Value": 1},
+        attrs={"domain": "FACE", "data_type": "INT"},
+    )
+    store_part_1 = nw.new_node(
+        Nodes.StoreNamedAttribute,
+        input_kwargs={"Geometry": center.outputs["Out"], "Name": "Out", "Value": 1},
+        attrs={"domain": "FACE", "data_type": "INT"},
+    )
+
+    set_material_3 = nw.new_node(
+        Nodes.JoinGeometry,
+        input_kwargs={"Geometry": [store_part, store_part_1, set_material_3]},
+    )
+
 
     # set_shade_smooth = nw.new_node(Nodes.SetShadeSmooth, input_kwargs={'Geometry': set_material_3})
 
@@ -1622,6 +1544,16 @@ def nodegroup_dishwasher_geometry(nw: NodeWrangler, preprocess: bool = False, **
     )
 
     set_material_8 = complete_bevel(nw, set_material_8, preprocess)
+    set_material_8 = nw.new_node(
+        Nodes.StoreNamedAttribute,
+        input_kwargs={"Geometry": set_material_8, "Name": "handle", "Value": 1},
+        attrs={"domain": "FACE", "data_type": "INT"},
+    )
+    set_material_9 = nw.new_node(
+        Nodes.StoreNamedAttribute,
+        input_kwargs={"Geometry": set_material_9, "Name": "brand", "Value": 1},
+        attrs={"domain": "FACE", "data_type": "INT"},
+    )
 
     join_geometry_3 = nw.new_node(
         Nodes.JoinGeometry,
@@ -1705,6 +1637,22 @@ def nodegroup_dishwasher_geometry(nw: NodeWrangler, preprocess: bool = False, **
         attrs={"domain": "INSTANCE"},
     )
 
+    ids = nw.new_node(
+        Nodes.Math,
+        input_kwargs={0: duplicate_elements.outputs["Duplicate Index"], 1: 1.0000},
+    )
+
+
+    store = nw.new_node(
+        Nodes.StoreNamedAttribute,
+        input_kwargs={
+            "Geometry": duplicate_elements,
+            "Name": "rack",
+            "Value": ids,
+        },
+        attrs={"domain": "INSTANCE", "data_type": "INT"},
+    )
+
     multiply_9 = nw.new_node(
         Nodes.Math,
         input_kwargs={0: group_input.outputs["Depth"]},
@@ -1717,21 +1665,13 @@ def nodegroup_dishwasher_geometry(nw: NodeWrangler, preprocess: bool = False, **
         attrs={"operation": "MULTIPLY"},
     )
 
+    #print(duplicate_elements.outputs["Duplicate Index"])
+
     add_2 = nw.new_node(
         Nodes.Math,
         input_kwargs={0: duplicate_elements.outputs["Duplicate Index"], 1: 1.0000},
     )
 
-    # Store unique 'cube_id' for Cube 3
-    store_rack_up_down = nw.new_node(
-        Nodes.StoreNamedAttribute,
-        input_kwargs={
-            "Geometry": duplicate_elements,
-            "Name": "rack_up_down",
-            "Value": add_2,
-        },
-        attrs={"domain": "INSTANCE", "data_type": "INT"},
-    )
     multiply_11 = nw.new_node(
         Nodes.Math,
         input_kwargs={0: group_input.outputs["DoorThickness"], 1: 2.0000},
@@ -1766,7 +1706,7 @@ def nodegroup_dishwasher_geometry(nw: NodeWrangler, preprocess: bool = False, **
     set_position = nw.new_node(
         Nodes.SetPosition,
         input_kwargs={
-            "Geometry": store_rack_up_down.outputs["Geometry"],
+            "Geometry": store.outputs["Geometry"],
             "Offset": combine_xyz_5,
         },
     )
@@ -1819,20 +1759,9 @@ def nodegroup_dishwasher_geometry(nw: NodeWrangler, preprocess: bool = False, **
         input_kwargs={"Size": combine_xyz_6, "Pos": combine_xyz_7},
     )
 
-    # Store unique 'cube_id' for Cube 3
-    store_heater = nw.new_node(
-        Nodes.StoreNamedAttribute,
-        input_kwargs={
-            "Geometry": cube_1,  # Geometry with UV map
-            "Name": "heater",
-            "Value": 1,
-        },
-        attrs={"domain": "POINT", "data_type": "INT"},
-    )
-
     set_material_5 = nw.new_node(
         Nodes.SetMaterial,
-        input_kwargs={"Geometry": store_heater, "Material": group_input.outputs["Top"]},
+        input_kwargs={"Geometry": cube_1, "Material": group_input.outputs["Top"]},
     )
 
     # set_shade_smooth_1 = nw.new_node(Nodes.SetShadeSmooth, input_kwargs={'Geometry': set_material_5})
@@ -1845,157 +1774,61 @@ def nodegroup_dishwasher_geometry(nw: NodeWrangler, preprocess: bool = False, **
         Nodes.Reroute, input_kwargs={"Input": join_geometry_2}, label="heater"
     )
 
-    join_geometry = nw.new_node(
-        Nodes.JoinGeometry, input_kwargs={"Geometry": [body, door, racks, heater]}
+    store_1 = nw.new_node(
+        Nodes.StoreNamedAttribute,
+        input_kwargs={
+            "Geometry": body,
+            "Name": "part",
+            "Value": 1,
+        },
     )
-    names = [
-        "body",
-        "door",
-        "handle",
-        "rack",
-        "rack_quad",
-        "heater",
-        "text",
-    ]
-    rack_split = "rack_up_down"
-    parts = [6, 1, 3, (4 * 2 + 1), 2, 1, 1]
-    if not preprocess:
-        first = True
-        for i, name in enumerate(names):
-            named_attribute = nw.new_node(
-                node_type=Nodes.NamedAttribute,
-                input_args=[name],
-                attrs={"data_type": "INT"},
-            )
-            capture_kwargs = {"Geometry": join_geometry, 1: named_attribute}
-            if name == "rack":
-                named_attribute_1 = nw.new_node(
-                    node_type=Nodes.NamedAttribute,
-                    input_args=[rack_split],
-                    attrs={"data_type": "INT"},
-                )
-                named_attribute_2 = nw.new_node(
-                    node_type=Nodes.NamedAttribute,
-                    input_args=["rack_dup"],
-                    attrs={"data_type": "INT"},
-                )
-                named_attribute_3 = nw.new_node(
-                    node_type=Nodes.NamedAttribute,
-                    input_args=["rack_quad"],
-                    attrs={"data_type": "INT"},
-                )
 
-            capture_attribute = nw.new_node(
-                node_type=Nodes.CaptureAttribute,
-                input_kwargs=capture_kwargs,
-                attrs={"domain": "POINT"},
-            )
-            for j in range(1, parts[i] + 1):
-                compare = nw.new_node(
-                    node_type=Nodes.Compare,
-                    input_kwargs={"A": named_attribute, "B": j},
-                    attrs={"data_type": "INT", "operation": "EQUAL"},
-                )
-                separate_geometry = nw.new_node(
-                    node_type=Nodes.SeparateGeometry,
-                    input_kwargs={
-                        "Geometry": capture_attribute.outputs["Geometry"],
-                        "Selection": compare.outputs["Result"],
-                    },
-                )
-                if name == "rack" or name == "rack_quad":
-                    for k in range(1, nw.modifier["Input_8"] + 1):
-                        compare_1 = nw.new_node(
-                            node_type=Nodes.Compare,
-                            input_kwargs={"A": named_attribute_1, "B": k},
-                            attrs={"data_type": "INT", "operation": "EQUAL"},
-                        )
-                        separate_geometry_1 = nw.new_node(
-                            node_type=Nodes.SeparateGeometry,
-                            input_kwargs={
-                                "Geometry": separate_geometry.outputs["Selection"],
-                                "Selection": compare_1.outputs["Result"],
-                            },
-                        )
-                        if name == "rack":
-                            for m in range(1, 16 + 1):
-                                compare_2 = nw.new_node(
-                                    node_type=Nodes.Compare,
-                                    input_kwargs={"A": named_attribute_2, "B": m},
-                                    attrs={"data_type": "INT", "operation": "EQUAL"},
-                                )
-                                separate_geometry_2 = nw.new_node(
-                                    node_type=Nodes.SeparateGeometry,
-                                    input_kwargs={
-                                        "Geometry": separate_geometry_1.outputs[
-                                            "Selection"
-                                        ],
-                                        "Selection": compare_2.outputs["Result"],
-                                    },
-                                )
-                                output_geometry = separate_geometry_2
-                                if j == 9 or (j < 9 and m >= j and j + m < 18):
-                                    a = save_geometry(
-                                        nw,
-                                        output_geometry,
-                                        kwargs.get("path", None),
-                                        name,
-                                        kwargs.get("i", "unknown"),
-                                        first=first,
-                                    )
-                                    if a:
-                                        first = False
-                        else:
-                            for l in range(1, 3):
-                                compare_3 = nw.new_node(
-                                    node_type=Nodes.Compare,
-                                    input_kwargs={"A": named_attribute_3, "B": l},
-                                    attrs={"data_type": "INT", "operation": "EQUAL"},
-                                )
-                                separate_geometry_3 = nw.new_node(
-                                    node_type=Nodes.SeparateGeometry,
-                                    input_kwargs={
-                                        "Geometry": separate_geometry_1.outputs[
-                                            "Selection"
-                                        ],
-                                        "Selection": compare_3.outputs["Result"],
-                                    },
-                                )
-                                output_geometry = separate_geometry_3
-                                a = save_geometry(
-                                    nw,
-                                    output_geometry,
-                                    kwargs.get("path", None),
-                                    name,
-                                    kwargs.get("i", "unknown"),
-                                    first=first,
-                                )
-                                if a:
-                                    first = False
-                else:
-                    output_geometry = separate_geometry
-                    a = save_geometry(
-                        nw,
-                        output_geometry,
-                        kwargs.get("path", None),
-                        name,
-                        kwargs.get("i", "unknown"),
-                        first=first,
-                    )
-                    if a:
-                        first = False
-        save_geometry(
-            nw,
-            join_geometry,
-            kwargs.get("path", None),
-            "whole",
-            kwargs.get("i", "unknown"),
-        )
+    if return_type_name == "body":
+        body = nw.new_node(Nodes.RealizeInstances, [body])
+        group_output = nw.new_node(Nodes.GroupOutput, input_kwargs={"Geometry": body})
+        return 
+
+    store_2 = nw.new_node(
+        Nodes.StoreNamedAttribute,
+        input_kwargs={
+            "Geometry": door,
+            "Name": "part",
+            "Value": 2,
+        },
+    )
+
+    if return_type_name == "door":
+        door = nw.new_node(Nodes.RealizeInstances, [door])
+        group_output = nw.new_node(Nodes.GroupOutput, input_kwargs={"Geometry": door})
+        return
+
+    # store_3 = nw.new_node(
+    #     Nodes.StoreNamedAttribute,
+    #     input_kwargs={
+    #         "Geometry": racks,
+    #         "Name": "part",
+    #         "Value": 3,
+    #     },
+    # )
+
+    store_4 = nw.new_node(
+        Nodes.StoreNamedAttribute,
+        input_kwargs={
+            "Geometry": heater,
+            "Name": "part",
+            "Value": 4,
+        },
+    )
+
+    if return_type_name == "heater":
+        heater = nw.new_node(Nodes.RealizeInstances, [heater])
+        group_output = nw.new_node(Nodes.GroupOutput, input_kwargs={"Geometry": heater})
+        return
+
+    join_geometry = nw.new_node(
+        Nodes.JoinGeometry, input_kwargs={"Geometry": [store_1, store_2, racks, store_4]}
+    )
 
     geometry = nw.new_node(Nodes.RealizeInstances, [join_geometry])
 
-    group_output = nw.new_node(
-        Nodes.GroupOutput,
-        input_kwargs={"Geometry": geometry},
-        attrs={"is_active_output": True},  # active output must be here
-    )
+    group_output = nw.new_node(Nodes.GroupOutput, input_kwargs={"Geometry": geometry})

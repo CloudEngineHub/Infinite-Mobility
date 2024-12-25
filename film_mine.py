@@ -5,9 +5,10 @@ import numpy as np
 import math
 import os
 import json
+import random
 
 
-def main():
+def main(id, catagory):
     #engine.set_log_level('warning')
 
     if True:
@@ -38,18 +39,19 @@ def main():
 
     #viewer = scene.create_viewer()  # Create a viewer (window)
     #viewer = Viewer(resolutions=(640, 480))  # Create a viewer (window)
-    viewer = Viewer()  # Create a viewer (window)
+    viewer = Viewer(resolutions=[680, 680])  # Create a viewer (window)
+    viewer.window.hide()
     viewer.set_scene(scene)  # Set the viewer to observe the scene
     #viewer = scene.create_viewer()
     #viewer.set_scene(scene)  # Set the viewer to observe the scene
     # The coordinate frame in Sapien is: x(forward), y(left), z(upward)
     # The principle axis of the camera is the x-axis
     #viewer.set_camera_xyz(x=18, y=-20, z=19)
-    viewer.set_camera_xyz(x=5, y=0, z=1)
+    viewer.set_camera_xyz(x=2, y=0, z=1)
     # The rotation of the free camera is represented as [roll(x), pitch(-y), yaw(-z)]
     # The camera now looks at the origin
-    viewer.set_camera_rpy(r=0, p=-np.arctan2(2, 10), y= 1.1 * 3.14)
-    viewer.window.set_camera_parameters(near=0.05, far=200, fovy=1)
+    viewer.set_camera_rpy(r=0, p=-np.arctan2(2, 12), y= 3.14)
+    viewer.window.set_camera_parameters(near=0.05, far=100, fovy=1)
     near, far = 0.1, 100
     width, height = 640, 480
 
@@ -75,13 +77,25 @@ def main():
 
     loader = scene.create_urdf_loader()
     robots = []
-    # for i in range(100):
-    #     robot = loader.load(f"/home/pjlab/projects/infinigen_sep_part_urdf/outputs/TVFactory/{i}/scene.urdf")
+    # dir = "/home/pjlab/datasets/partnet_mobility"
+    # objs = os.listdir(dir)
+    # json_path = f'./partnet_catagory_json/{catagory}.json'
+    # res = json.load(open(json_path))
+    # objs = [o['id'] for o in res]
+    # print(objs)
+    # print(len(objs))
+    # for i, obj in enumerate(objs):
+    # #for i in range(100):
+    #     #robot = loader.load(f"/home/pjlab/projects/infinigen_sep_part_urdf/outputs/TVFactory/{i}/scene.urdf")
+    #     try:
+    #         robot = loader.load(f"{dir}/{obj}/mobility.urdf")
+    #     except:
+    #         continue
     #     r = i / 10
     #     c = i % 10
     #     robot.set_root_pose(sapien.Pose([-10 + 2* c, -10  + 2 * r, 0], [1, 0, 0, 0]))
     #     robots.append(robot)
-    robots.append(loader.load("/home/pjlab/projects/infinigen_sep_part_urdf/outputs/OfficeChairFactory/0/scene.urdf"))
+    robots.append(loader.load(f"./outputs/{catagory}/{id}/scene.urdf"))
     robots[0].set_root_pose(sapien.Pose([0, 0, 0], [1, 0, 0, 0]))
     #robot = loader.load("/home/pjlab/projects/infinigen_sep_part_urdf/outputs/OfficeChairFactory/0/scene.urdf")
     #robot.set_root_pose(sapien.Pose([0, 0, 0], [1, 0, 0, 0]))
@@ -209,7 +223,7 @@ def main():
                         #     pos -= steps[valid_idx]
                         #     poses[valid_idx] = pos
                         valid_idx += 1
-                    #robot.set_qpos(poses)
+                    robot.set_qpos(poses)
                     all_poses[i] = poses
                     all_steps[i] = steps
             else:
@@ -320,15 +334,29 @@ def main():
         scene.update_render()
         viewer.render()
         #scene.update_render()  # sync pose from SAPIEN to renderer
-        # rgba = viewer.window.get_picture("Color")
-        # rgba_img = (rgba * 255).clip(0, 255).astype("uint8")
-        # rgba_pil = Image.fromarray(rgba_img)
-        # rgba_pil.save(f"pics/screenshot{step}.png")
-        # step += 1
+        rgba = viewer.window.get_picture("Color")
+        rgba_img = (rgba * 255).clip(0, 255).astype("uint8")
+        rgba_pil = Image.fromarray(rgba_img)
+        rgba_pil.save(f"pics/screenshot{step}.png")
+        step += 1
+        print(step)
+        if step == 300:
+            break
         #print(scene.get_contacts())
         #print(step)
+    os.system(f"ffmpeg -r 30 -i pics/screenshot%d.png ./pics/gifs/{catagory}_{id}.gif")
+    os.system(f"gifsicle -O3 ./pics/gifs/{catagory}_{id}.gif -o ./pics/gifs/{catagory}_{id}.gif")
+    viewer.close()
 
 
 
 if __name__ == "__main__":
-    main()
+    number = 100
+    catagory = "OfficeChairFactory"
+    for i in range(number):
+        print(f"#########################################################################start {i} object##########################################################################")
+        try:
+            main(i, catagory)
+        except Exception as e:
+            print(e)
+        print(f"#########################################################################end {i} object##########################################################################")

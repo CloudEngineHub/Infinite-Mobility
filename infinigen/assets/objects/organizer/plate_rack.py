@@ -4,10 +4,12 @@
 # Authors: Beining Han
 
 import bpy
+import numpy as np
 from numpy.random import randint, uniform
 
 from infinigen.assets.materials import shader_wood
 from infinigen.assets.materials.plastics.plastic_rough import shader_rough_plastic
+from infinigen.assets.utils.object import join_objects, join_objects_save_whole, save_obj_parts_add, get_joint_name
 from infinigen.core import surface, tagging
 from infinigen.core.nodes import node_utils
 from infinigen.core.nodes.node_wrangler import Nodes, NodeWrangler
@@ -497,5 +499,23 @@ class PlateOnRackBaseFactory(AssetFactory):
 
         plate.location = place_points[0]
         butil.apply_transform(plate, loc=True)
+        save_obj_parts_add(rack, params.get("path"), i, "part", first=True, use_bpy=True)
+        parent_id="world"
+        joint_info = {
+            "name": get_joint_name("limited_planar"),
+            "type": "limited_planar",
+            "axis": (1, 0, 0),
+            "limit": {
+                "lower": -np.pi,
+                "upper": np.pi,
+                "lower_1": 0,
+                "upper_1": 0.1,
+                "lower_2": -0.1,
+                "upper_2": 0.1,
+            }
+        }
+        save_obj_parts_add(plate, params.get("path"), i, "part", first=False, use_bpy=True,parent_obj_id=parent_id, joint_info=joint_info)
+        whole = join_objects([rack, plate])
+        join_objects_save_whole(whole, params.get("path"), i, use_bpy=True, join=False)
 
         return plate

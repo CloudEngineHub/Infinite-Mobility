@@ -28,6 +28,7 @@ from infinigen.assets.utils.object import (
     new_line,
     save_obj_parts_join_objects,
     save_objects_obj,
+    save_obj_parts_add
 )
 from infinigen.core import surface
 from infinigen.core.placement.factory import AssetFactory
@@ -109,8 +110,9 @@ class BathtubFactory(AssetFactory):
             butil.modify_mesh(obj, "BOOLEAN", object=cutter, operation="DIFFERENCE")
             butil.delete(cutter)
             name.append("base")
-            save_objects_obj(
-                [obj], params.get("path", None), params.get("i", "unknown"), name=name, obj_name="Bathtub"
+            hole = self.add_hole(obj)
+            save_obj_parts_add(
+                [obj], params.get("path", None), params.get("i", "unknown"), name="part", obj_name="Bathtub", first=True, use_bpy=True
             )
         else:
             obj = self.make_freestanding()
@@ -126,15 +128,20 @@ class BathtubFactory(AssetFactory):
                 name.append("base")
             butil.modify_mesh(obj, "SOLIDIFY", thickness=self.thickness)
             subsurf(obj, self.side_levels)
-            save_objects_obj(
-                parts, params.get("path", None), params.get("i", "unknown"), name=name, obj_name="Bathtub"
-            )
+            first = True
             obj = join_objects(parts)
+            hole = self.add_hole(obj)
+            parts = [hole, obj]
+            for part in parts:
+                save_obj_parts_add(
+                    [part], params.get("path", None), params.get("i", "unknown"), name="part", use_bpy=True, first=first
+                )
+                first = False
+            
 
-        hole = self.add_hole(obj)
-        save_objects_obj(
-            [hole], params.get("path", None), params.get("i", "unknown"), name=["hole"], obj_name="Bathtub", first=False
-        )
+        # save_obj_parts_add(
+        #     [hole], params.get("path", None), params.get("i", "unknown"), name="part", first=False, use_bpy=True
+        # )
         obj = join_objects([obj, hole])
         join_objects_save_whole(obj, params.get("path", None), params.get("i", "unknown"))
         # obj.rotation_euler[-1] = np.pi / 2
@@ -349,6 +356,27 @@ class BathtubFactory(AssetFactory):
                 location = self.find_hole(obj, self.size / 2, self.size / 2)
         if self.is_hole_centered:
             location = self.find_hole(obj)
+        #hole = new_cylinder()
+        
+        # hole.scale = self.hole_radius, self.hole_radius, 100
+        # hole.location = location
+        # butil.apply_transform(hole, True)
+        # butil.select_none()
+        # obj.select_set(True)
+        bpy.context.view_layer.objects.active = obj
+        # bpy.ops.object.modifier_add(type='BOOLEAN')
+        # bpy.context.object.modifiers["Boolean"].object = hole
+        # bpy.ops.object.modifier_apply(modifier="Boolean")
+        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.mesh.select_all(action='DESELECT')
+        bpy.ops.object.mode_set(mode='OBJECT')
+        for v in bpy.context.object.data.vertices:
+            if (v.co[0] - location[0]) * (v.co[0] - location[0]) + (v.co[1] - location[1]) * (v.co[1] - location[1]) < self.hole_radius * self.hole_radius:
+                v.select = True
+        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.mesh.delete(type='VERT')
+        bpy.ops.object.mode_set(mode='OBJECT')
+
         obj = new_cylinder()
         obj.scale = self.hole_radius, self.hole_radius, 0.005
         obj.location = location

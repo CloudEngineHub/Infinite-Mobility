@@ -587,9 +587,12 @@ def render_object_texture_and_save(obj, material, path):
     # #add camera
     # bpy.ops.render.render(write_still=True)
     # bpy.context.window.scene = original_scene 
-
+saved_objs = []
 def save_whole_object_normalized(object, path=None, idx="unknown", name=None, use_bpy=False):
+    global saved_objs
     global robot_tree, root
+    big_obj = join_objects(saved_objs)
+    save_obj_parts_add([big_obj], path, idx, name, first=False, use_bpy=True, parent_obj_id="")
     if idx == "unknown":
         idx = f"random_{np.random.randint(0, 10000)}"
     else:
@@ -642,23 +645,23 @@ def save_whole_object_normalized(object, path=None, idx="unknown", name=None, us
     trimesh_object = obj2trimesh(object)
     # normalize trimesh
     # Get the current bounds of the mesh
-    bounds = trimesh_object.bounds.copy()
+    #bounds = trimesh_object.bounds.copy()
 
     # Calculate the range of the current bounds
-    x_range = bounds[1][0] - bounds[0][0]
-    y_range = bounds[1][1] - bounds[0][1]
-    z_range = bounds[1][2] - bounds[0][2]
+    #x_range = bounds[1][0] - bounds[0][0]
+    #y_range = bounds[1][1] - bounds[0][1]
+    #z_range = bounds[1][2] - bounds[0][2]
 
     # Calculate the scale factor to fit the mesh within [-1, 1]
-    scale_factor = 1.0 / max(x_range, y_range, z_range)
+    #scale_factor = 1.0 / max(x_range, y_range, z_range)
 
     # Translate the mesh to center it around the origin
-    trimesh_object.vertices -= [
-        (bounds[0][j] + bounds[1][j]) / 2 for j in range(3)
-    ]
+    # trimesh_object.vertices -= [
+    #     (bounds[0][j] + bounds[1][j]) / 2 for j in range(3)
+    # ]
 
     # Scale the mesh
-    trimesh_object.vertices *= scale_factor
+    #trimesh_object.vertices *= scale_factor
 
     angle_degrees = 90  # 45 degrees
     angle_radians = np.radians(angle_degrees)
@@ -694,7 +697,10 @@ def save_whole_object_normalized(object, path=None, idx="unknown", name=None, us
         if os.path.isdir(path_single_obj):
             if os.path.exists(os.path.join(path_single_obj, "textures")):
                  shutil.rmtree(os.path.join(path_single_obj, "textures"))
-            dir = os.listdir(path_single_obj)[0]
+            dir = os.listdir(path_single_obj)
+            # if "textures" in dir:
+            #     dir.remove("textures")
+            dir = dir[0]
             dir = os.path.join(path_single_obj, dir)
             all_files = os.listdir(dir)
             for file in all_files:
@@ -724,6 +730,17 @@ def save_whole_object_normalized(object, path=None, idx="unknown", name=None, us
                         f.writelines(lines)
                 else:
                     shutil.copyfile(os.path.join(dir, file), os.path.join(path_single_obj, obj_dir + '.mtl'))
+                    with open(os.path.join(path_single_obj, obj_dir + '.mtl'), 'r') as f:
+                        lines = f.readlines()
+                        for line in lines:
+                            if line.startswith('map_Kd') or line.startswith('map_Pr') or line.startswith('map_Bump'):
+                                items = line.split(' ')
+                                path_ = items[-1].strip()
+                                path_ = path_.split('/')[-1]
+                                items[-1] = path_
+                                line = ' '.join(items)
+                    with open(os.path.join(path_single_obj, obj_dir + '.mtl'), 'w') as f:
+                        f.writelines(lines)
             shutil.rmtree(dir)
 
     #path_list.remove(file_path)
@@ -774,6 +791,17 @@ def save_whole_object_normalized(object, path=None, idx="unknown", name=None, us
         #         embed_textures=True,
         #         use_selection=True,
         #     )
+        with open(str(obj_path).replace('.obj', '.mtl'), 'r') as f:
+                        lines = f.readlines()
+                        for line in lines:
+                            if line.startswith('map_Kd') or line.startswith('map_Pr') or line.startswith('map_Bump'):
+                                items = line.split(' ')
+                                path_ = items[-1].strip()
+                                path_ = path_.split('/')[-1]
+                                items[-1] = path_
+                                line = ' '.join(items)
+        with open(str(obj_path).replace('.obj', '.mtl'), 'w') as f:
+                        f.writelines(lines)
         if(len(obj.material_slots) > 1):
             obj.material_slots[0].material = obj.material_slots[1].material
         # bpy.ops.wm.usd_export(
@@ -822,7 +850,7 @@ def save_whole_object_normalized(object, path=None, idx="unknown", name=None, us
             if os.path.isfile(os.path.join(path, idx, "objs", f"{mesh_idx}.png")):
                 texture = urdfpy.Texture(filename=os.path.join(path, idx, "objs", f"{mesh_idx}.png"))
                 material = urdfpy.Material(name=get_link_name("material"), texture=texture)
-            collision = None #urdfpy.Collision(name="temp", origin=None, geometry=urdfpy.Geometry(mesh=urdfpy.Mesh(filename=os.path.join(path, idx, "objs", f"{mesh_idx}",f"{mesh_idx}.obj"))))
+            collision = [urdfpy.Collision(name="temp", origin=None, geometry=urdfpy.Geometry(mesh=urdfpy.Mesh(filename=os.path.join(path, idx, "objs", f"{mesh_idx}",f"{mesh_idx}.obj"))))]
             l = urdfpy.Link(f'l_{link}', visuals=[urdfpy.Visual(material=material, geometry=urdfpy.Geometry(mesh=urdfpy.Mesh(filename=os.path.join(path, idx, "objs",f"{mesh_idx}", f"{mesh_idx}.obj"))))], collisions=collision, inertial=None)
             links[f"l_{link}"] = l
             #usdutils.add_mesh(os.path.join(path, idx, "objs", f"{link}", f"{link}.usd"), f"l_{link}", origins[link])
@@ -854,7 +882,11 @@ def save_whole_object_normalized(object, path=None, idx="unknown", name=None, us
             if os.path.isfile(os.path.join(path, idx, "objs", f"{mesh_idx}.png")):
                 texture = urdfpy.Texture(filename=os.path.join(path, idx, "objs", f"{mesh_idx}.png"))
                 material = urdfpy.Material(name=get_link_name("material"), texture=texture)
-            p = urdfpy.Link(f'l_{parent}', visuals=[urdfpy.Visual(material=material, geometry=urdfpy.Geometry(mesh=urdfpy.Mesh(filename=os.path.join(path, idx, "objs",f"{mesh_idx}",  f"{mesh_idx}.obj"))))], collisions=None, inertial=None)
+            if parent != "world":
+                collision = [urdfpy.Collision(name="temp", origin=None, geometry=urdfpy.Geometry(mesh=urdfpy.Mesh(filename=os.path.join(path, idx, "objs", f"{mesh_idx}",f"{mesh_idx}.obj"))))]
+            else:
+                collision = None
+            p = urdfpy.Link(f'l_{parent}', visuals=[urdfpy.Visual(material=material, geometry=urdfpy.Geometry(mesh=urdfpy.Mesh(filename=os.path.join(path, idx, "objs",f"{mesh_idx}",  f"{mesh_idx}.obj"))))], collisions=collision, inertial=None)
             links[f"l_{parent}"] = p
             #usdutils.add_mesh(os.path.join(path, idx, "objs", f"{parent}", f"{parent}.usd"), f"l_{parent}", origins[parent])
         else:
@@ -876,7 +908,7 @@ def save_whole_object_normalized(object, path=None, idx="unknown", name=None, us
         type = joint_info.get("type", "fixed")
         if type == "fixed" or type == "prismatic":
             shift_axis = joint_info.get("origin_shift", (0, 0, 0))
-            j = urdfpy.Joint(joint_info.get("name", "temp"), joint_info.get("type", "fixed"), f"l_{parent}", f"l_{link}",
+            j = urdfpy.Joint(get_joint_name(type), joint_info.get("type", "fixed"), f"l_{parent}", f"l_{link}",
                              axis=joint_info.get("axis", None),
                              origin=get_translation_matrix(origin_shift[0] + shift_axis[0], origin_shift[1]+ shift_axis[1], origin_shift[2] + shift_axis[2]),
                              limit=limit)
@@ -886,7 +918,7 @@ def save_whole_object_normalized(object, path=None, idx="unknown", name=None, us
             shift_axis = joint_info.get("origin_shift", (0, 0, 0))
             l_abstract = urdfpy.Link(f'abstract_{parent}_{link}', visuals=None, collisions=None, inertial=None)
             links[f'abstract_{parent}_{link}'] = l_abstract
-            j_real = urdfpy.Joint(joint_info.get("name"), type, f"l_{parent}", f'abstract_{parent}_{link}', axis=joint_info.get("axis", None), limit=limit, origin=get_translation_matrix(origin_shift[0] + shift_axis[0], origin_shift[1] + shift_axis[1], origin_shift[2] + shift_axis[2]))
+            j_real = urdfpy.Joint(get_joint_name(type), type, f"l_{parent}", f'abstract_{parent}_{link}', axis=joint_info.get("axis", None), limit=limit, origin=get_translation_matrix(origin_shift[0] + shift_axis[0], origin_shift[1] + shift_axis[1], origin_shift[2] + shift_axis[2]))
             j_abstract = urdfpy.Joint(get_joint_name("fixed"), "fixed", f"abstract_{parent}_{link}", f"l_{link}", axis=None, limit=None, origin=get_translation_matrix(-shift_axis[0], -shift_axis[1], -shift_axis[2]))
             joints.append(j_real)
             joints.append(j_abstract)
@@ -944,6 +976,21 @@ def save_whole_object_normalized(object, path=None, idx="unknown", name=None, us
             joints.append(j_flip)
             joints.append(j_revolute)
             joints.append(j_fixed)    
+        elif type == "limited_floating":
+            limit_fb = urdfpy.JointLimit(2000, 2, limit_info.get("lower", -1), limit_info.get("upper", 1))
+            limit_lr = urdfpy.JointLimit(2000, 2, limit_info.get("lower_1", -1), limit_info.get("upper_1", 1))
+            limit_ud = urdfpy.JointLimit(2000, 2, limit_info.get("lower_2", -1), limit_info.get("upper_2", 1))
+            l_abstract_fb = urdfpy.Link(get_link_name("abstract_fb"), visuals=None, collisions=None, inertial=None)
+            l_abstract_lr = urdfpy.Link(get_link_name("abstract_lr"), visuals=None, collisions=None, inertial=None)
+            j_fb = urdfpy.Joint(get_joint_name("prismatic_fb"), "prismatic", f"l_{parent}", l_abstract_fb.name, axis=(0, 1, 0), limit=limit_fb, origin=None)
+            j_lr = urdfpy.Joint(get_joint_name("prismatic_lr"), "prismatic", l_abstract_fb.name, l_abstract_lr.name, axis=(1, 0, 0), limit=limit_lr, origin=None)
+            j_ud = urdfpy.Joint(get_joint_name("prismatic"), "prismatic", l_abstract_lr.name, f"l_{link}", axis=(0, 0, 1), limit=limit_ud, origin=get_translation_matrix(origin_shift[0], origin_shift[1], origin_shift[2]))
+            joints.append(j_fb)
+            joints.append(j_lr)
+            joints.append(j_ud)
+            links[l_abstract_fb.name] = l_abstract_fb
+            links[l_abstract_lr.name] = l_abstract_lr
+
             
 
 
@@ -952,11 +999,32 @@ def save_whole_object_normalized(object, path=None, idx="unknown", name=None, us
     shutil.rmtree(os.path.join(path, idx, path, idx, "objs"))
     shutil.copytree(os.path.join(path, idx, "objs"), os.path.join(path, idx, path, idx, "objs"))
     shutil.rmtree(os.path.join(path, idx, "objs"))
+    modify_mtl(os.path.join(path, idx))
+
     #usdutils.save()
 
     #robot.show()
     robot_tree = {}
     butil.select_none()
+
+def modify_mtl(path):
+    for dir in os.listdir(path):
+        if str(dir).endswith('.mtl'):
+            with open(os.path.join(path, dir), 'r') as f:
+                lines = f.readlines()
+                for i, line in enumerate(lines):
+                    if line.startswith('map_Kd') or line.startswith('map_Pr') or line.startswith('map_Bump'):
+                        items = line.split(' ')
+                        path_ = items[-1].strip()
+                        path_ = path_.split('/')[-1]
+                        items[-1] = path_
+                        line = ' '.join(items) + '\n'
+                        lines[i] = line
+            with open(os.path.join(path, dir), 'w+') as f:
+                f.writelines(lines)
+        elif os.path.isdir(os.path.join(path, dir)):
+            modify_mtl(os.path.join(path, dir))
+
 
 
 def save_obj_parts_join_objects(
@@ -999,8 +1067,9 @@ def save_obj_parts_join_objects(
 
 
 def save_obj_parts_add(
-    obj, path=None, idx="unknown", name=None, obj_name=None, first=True, use_bpy=False, parent_obj_id=None, joint_info=None, material=None
+    obj, path=None, idx="unknown", name=None, obj_name=None, first=True, use_bpy=False, parent_obj_id=None, joint_info=None, material=None, before_export=None
 ):
+    global saved_objs
     butil.select_none()
     if not isinstance(obj, list):
         obj = [obj]
@@ -1008,12 +1077,22 @@ def save_obj_parts_add(
         name = "unknown"
     if not isinstance(name, list):
         name = [name] * len(obj)
+    view_layer = bpy.context.view_layer
+    if isinstance(obj, list):
+        for o in obj:
+            o_ = o.copy()
+            view_layer.active_layer_collection.collection.objects.link(o_)
+            saved_objs.append(o_)
+    else:
+        obj_ = obj.copy()
+        view_layer.active_layer_collection.collection.objects.link(obj_)
+        saved_objs.append(obj_)
     # The original render engine and world node_tree should be memorized
     # original_render_engine = bpy.context.scene.render.engine
     # original_node_tree = bpy.context.scene.world.node_tree
     # Save a reference to the original scene
     original_scene = bpy.context.scene
-    saved = save_part_export_obj_normalized_add_json(obj, path, idx, name, first=first, use_bpy=use_bpy, parent_obj_id=parent_obj_id, joint_info=joint_info, material=material)
+    saved = save_part_export_obj_normalized_add_json(obj, path, idx, name, first=first, use_bpy=use_bpy, parent_obj_id=parent_obj_id, joint_info=joint_info, material=material, before_export=before_export)
     # We need to link all these objects into view_layer
     view_layer = bpy.context.view_layer
     for part in obj:
@@ -1190,7 +1269,7 @@ def save_parts_export_obj_normalized_json(
         json.dump(infos, f, indent=2)
 
     butil.select_none()
-
+saved_obj = 1
 def export_curr_scene(
     objs: bpy.types.Object,
     output_folder: Path,
@@ -1198,7 +1277,9 @@ def export_curr_scene(
     image_res=1024,
     vertex_colors=False,
     individual_export=True,
+    before_export=None
 ) -> Path:
+    global saved_obj, saved_objs
     #wait = input("Press Enter to continue.")
     export_usd = format in ["usda", "usdc"]
     #create a new scene
@@ -1207,9 +1288,9 @@ def export_curr_scene(
     export_file = export_folder / output_folder.with_suffix(f".{format}").name
 
     export.remove_obj_parents()
-    export.delete_objects()
+    #export.delete_objects()
     export.triangulate_meshes()
-    export.rename_all_meshes()
+    #export.rename_all_meshes()
 
     scatter_cols = []
     if export_usd:
@@ -1263,15 +1344,15 @@ def export_curr_scene(
     for obj, status in obj_views.items():
         obj.hide_render = status
 
-    export.clean_names()
+    #export.clean_names()
 
     for obj in bpy.data.objects:
         obj.hide_viewport = obj.hide_render
 
     if individual_export:
-        bpy.ops.object.select_all(action="SELECT")
-        bpy.ops.object.location_clear()  # send all objects to (0,0,0)
-        bpy.ops.object.select_all(action="DESELECT")
+        #bpy.ops.object.select_all(action="SELECT")
+        #bpy.ops.object.location_clear()  # send all objects to (0,0,0)
+        #bpy.ops.object.select_all(action="DESELECT")
         for obj in objs:
             # if (
             #     obj.type != "MESH"
@@ -1280,15 +1361,21 @@ def export_curr_scene(
             #     or obj not in list(bpy.context.view_layer.objects)
             # ):
             #     continue
-
+            butil.select_none()
             export_subfolder = export_folder / obj.name
             export_subfolder.mkdir(exist_ok=True)
             export_file = export_subfolder / f"{obj.name}.{format}"
 
             obj.hide_viewport = False
             obj.select_set(True)
+            if not before_export is None:
+                before_export(obj)
+                saved_objs.pop()
+                saved_objs.append(obj)
             export.run_blender_export(export_file, format, vertex_colors, individual_export)
-            obj.select_set(False)
+            saved_obj = obj.copy()
+            #bpy.context.scene.objects.active = obj
+            #obj.select_set(False)
         #wait = input("Press Enter to continue.")
         #shutil.rmtree(export_folder / "textures")
         return export_file
@@ -1323,7 +1410,7 @@ def apply(obj, shader_func, selection=None, *args, **kwargs):
         write_material_index(o, material_index)
 
 def save_part_export_obj_normalized_add_json(
-    parts, path=None, idx="unknown", name=None, use_bpy=False, first=True, parent_obj_id=None, joint_info=None, material=None
+    parts, path=None, idx="unknown", name=None, use_bpy=False, first=True, parent_obj_id=None, joint_info=None, material=None, before_export=None
 ):
     #render_object_texture_and_save(material, 'res.png')
     global robot_tree, root
@@ -1382,13 +1469,14 @@ def save_part_export_obj_normalized_add_json(
                 if isinstance(m, bpy.types.Material):
                     part.data.materials.append(m)
                 elif isinstance(m, list):
+                    print(m[0])
                     if hasattr(m[0],'__call__'):
                         apply(part, m[0], m[1])
                         #common.apply(part, m[0], m[1])
                     else:
-                        pass
+                        input(f"{m[0]} {m[1]}")
+                        m[0].apply(part, selection=m[1])
                 elif hasattr(m,'__call__'):
-                    print(m)
                     surface.add_material(part, m, None)
                     #common.apply(part, m, None)
                 else:
@@ -1403,15 +1491,16 @@ def save_part_export_obj_normalized_add_json(
         file_path = os.path.join(path, idx, f"objs/{i + length}.obj")
         #part.data.materials.append(material)
         #render_object_texture_and_save(part, material, os.path.join(path, idx, f"objs/{i + length}.png"))
-        robot_tree[i + length] = [parent_obj_id, joint_info]
-        if parent_obj_id is not None and root is None:
-            root = i + length
+        if parent_obj_id != "":
+            robot_tree[i + length] = [parent_obj_id, joint_info]
+            if parent_obj_id is not None and root is None:
+                root = i + length
         saved.append(i + length)
         if use_bpy:
             #export.run_blender_export(Path(file_path), 'obj', True, True)
             #bpy.ops.export_scene.obj(filepath=file_path, use_selection=True)
             #os.remove(os.path.join(path, idx, f"objs/{i + length}.mtl"))
-            export_curr_scene([part], Path(os.path.join(path, idx, f"objs/{i + length}")), format="obj", image_res=1024, vertex_colors=False, individual_export=True)
+            export_curr_scene([part], Path(os.path.join(path, idx, f"objs/{i + length}")), format="obj", image_res=1024, vertex_colors=False, individual_export=True, before_export=before_export)
 
         # Save the current scene as a new .obj file
         else:

@@ -13,27 +13,13 @@ import importlib
 import logging
 import math
 import os
-import random
 import re
 import subprocess
-import sys
 import traceback
 from itertools import product
 from multiprocessing import Pool
 from pathlib import Path
-import cv2
 
-# from torch.multiprocessing import Pool
-# # from multiprocessing import Pool
-# import torch.multiprocessing as mp
-# # mp.set_start_method('spawn', force=True)
-# context = mp.get_context("spawn")
-# Pool = context.Pool
-# ORIG_SYS_PATH = list(sys.path)
-# from torch.multiprocessing import current_process
-# if current_process().name == 'MainProcess':
-#     import bpy
-# BPY_SYS_PATH = list(sys.path)
 import bpy
 import gin
 import numpy as np
@@ -58,15 +44,16 @@ from infinigen.assets.lighting import (
 
 # from infinigen.core.rendering.render import enable_gpu
 from infinigen.assets.utils.decorate import read_base_co, read_co
-from infinigen.assets.utils.misc import assign_material, subclasses
+from infinigen.assets.utils.misc import assign_material
 from infinigen.core import init, surface
 from infinigen.core.init import configure_cycles_devices
-from infinigen.core.placement import AssetFactory, density
+from infinigen.core.placement import density
 from infinigen.core.tagging import tag_system
 
 # noinspection PyUnresolvedReferences
 from infinigen.core.util import blender as butil
 from infinigen.core.util.camera import points_inview
+from infinigen.core.util.logging import save_polycounts
 from infinigen.core.util.math import FixedSeed
 from infinigen.core.util.test_utils import load_txt_list
 from infinigen.tools import export
@@ -83,7 +70,7 @@ OBJECTS_PATH = infinigen.repo_root() / "infinigen/assets/objects"
 assert OBJECTS_PATH.exists(), OBJECTS_PATH
 
 
-def build_scene_asset(args, factory_name, idx, path):
+def build_scene_asset(args, factory_name, idx):
     fac = None
     for subdir in sorted(list(OBJECTS_PATH.iterdir())):
         clsname = subdir.name.split(".")[0].strip()
@@ -99,21 +86,16 @@ def build_scene_asset(args, factory_name, idx, path):
 
     if args.dryrun:
         return
-
     with FixedSeed(idx):
         fac = fac(idx)
         try:
-            if args.spawn_placeholder:
-                ph = fac.spawn_placeholder(idx, (0, 0, 0), (0, 0, 0))
-                asset = fac.spawn_asset(idx, path, placeholder=ph)
-            else:
-                asset = fac.spawn_asset(idx, path)
+            asset = fac.create_asset(i=idx, path=args.output_folder)
         except Exception as e:
             traceback.print_exc()
             print(f"{fac}.spawn_asset({idx=}) FAILED!! {e}")
             raise e
         fac.finalize_assets(asset)
-        return asset
+        exit(0)
         if args.fire:
             from infinigen.assets.fluid.fluid import set_obj_on_fire
 
@@ -210,32 +192,23 @@ def build_scene_surface(args, factory_name, idx):
                         f"infinigen.assets.materials.{factory_name}"
                     )
                 except ImportError:
-                    for subdir in os.listdir("infinigen/assets/materials" if 'plastic' not in factory_name else "infinigen/assets/materials/plastics"):
+                    for subdir in os.listdir("infinigen/assets/materials"):
                         with gin.unlock_config():
-                            if 'plastic' in factory_name:
-                                module = importlib.import_module(
-                                    f'infinigen.assets.materials.plastics.{subdir.split(".")[0]}'
-                                )
-                            else:
-                                module = importlib.import_module(
-                                    f'infinigen.assets.materials.{subdir.split(".")[0]}'
-                                )
-                            if hasattr(module, factory_name) and hasattr(module, 'apply'):
-                                template = module#getattr(module, factory_name)
-                                print(template)
-                                break
+                            module = importlib.import_module(
+                                f'infinigen.assets.materials.{subdir.split(".")[0]}'
+                            )
+                        if hasattr(module, factory_name):
+                            template = getattr(module, factory_name)
+                            break
                     else:
                         raise Exception(f"{factory_name} not Found.")
 
                 if args.dryrun:
                     return
 
-                if hasattr(template, "make_sphere"):
-                    asset = template.make_sphere()
-                else:
-                    bpy.ops.mesh.primitive_plane_add(size=100)
-                    #bpy.ops.mesh.primitive_ico_sphere_add(radius=0.8, subdivisions=9)
-                    asset = bpy.context.active_object
+                bpy.ops.mesh.primitive_ico_sphere_add(radius=0.8, subdivisions=9)
+                asset = bpy.context.active_object
+
                 if type(template) is type:
                     template = template(idx)
                 template.apply(asset)
@@ -251,45 +224,68 @@ def build_and_save_asset(payload: dict):
     args = payload["args"]
     idx = payload["idx"]
 
+    output_folder = args.output_folder / f"{factory_name}_{args.seed:03d}"
+
+    if output_folder.exists() and args.skip_existing:
+        print(f"Skipping {output_folder}")
+        return
+
+    
+    #output_folder.mkdir(exist_ok=True)
+
+    init.apply_gin_configs(
+        ["infinigen_examples/configs_indoor", "infinigen_examples/configs_nature"],
+        configs=args.configs,
+        overrides=args.overrides,
+        skip_unknown=True,
+    )
+
+    if args.debug is not None:
+        for name in logging.root.manager.loggerDict:
+            if not name.startswith("infinigen"):
+                continue
+            if len(args.debug) == 0 or any(name.endswith(x) for x in args.debug):
+                logging.getLogger(name).setLevel(logging.DEBUG)
+
+    init.configure_blender()
+
+    if args.gpu:
+        init.configure_render_cycles()
+
     logger.info(f"Building scene for {factory_name} {idx}")
 
     if args.seed > 0:
         idx = args.seed
 
-    path = args.output_folder / factory_name
-    if not factory_name.startswith("shader"):
-        if (path / f"images/image_{idx:03d}.png").exists() and args.skip_existing:
-            print(f"Skipping {path}")
-            return
-        if (path / f"{idx}").exists():
-            return
-        path.mkdir(exist_ok=True)
+    surface.registry.initialize_from_gin()
 
     scene = bpy.context.scene
     scene.render.engine = "CYCLES"
     scene.render.resolution_x, scene.render.resolution_y = map(
         int, args.resolution.split("x")
     )
-    scene.cycles.samples = 20
+    scene.cycles.samples = args.samples
     butil.clear_scene()
 
     if not args.fire:
         bpy.context.scene.render.film_transparent = args.film_transparent
-        bpy.context.scene.world.node_tree.nodes["Background"].inputs[0].default_value[
-            -1
-        ] = 0
+        bg = bpy.context.scene.world.node_tree.nodes["Background"]
+        bg.inputs[0].default_value[-1] = 0
+
     camera, center = setup_camera(args)
 
     if "Factory" in factory_name:
-        asset = build_scene_asset(args, factory_name, idx, path)
+        asset = build_scene_asset(args, factory_name, idx)
     else:
         asset = build_scene_surface(args, factory_name, idx)
 
     if args.dryrun:
         return
-    if not factory_name.startswith('shader'):
-        print("here")
-        exit(0)
+
+    with (output_folder / "polycounts.txt").open("w") as f:
+        save_polycounts(f)
+    print(asset)
+
     configure_cycles_devices()
 
     with FixedSeed(args.lighting + idx):
@@ -305,54 +301,32 @@ def build_and_save_asset(payload: dict):
             sky_texture.sun_elevation = np.deg2rad(args.elevation)
             sky_texture.sun_rotation = np.pi * 0.75
 
-    if args.scale_reference:
-        bpy.ops.mesh.primitive_cylinder_add(
-            radius=0.3, depth=1.8, location=(4.9, 4.9, 1.8 / 2)
-        )
-
     if args.cam_center > 0 and asset:
-        co = read_base_co(asset) + asset.location
-        center.location = (np.amin(co, 0) + np.amax(co, 0)) / 2
+        co = read_base_co(asset)
+        location = (np.amin(co, 0) + np.amax(co, 0)) / 2
+        center.location = (np.array(asset.matrix_world) @ np.array([*location, 1]))[:-1]
         center.location[-1] += args.cam_zoff
 
-    # if args.cam_dist <= 0 and asset:
-    #     if "Factory" in factory_name:
-    #         adjust_cam_distance(asset, camera, args.margin)
-    #     else:
-    #         adjust_cam_distance(asset, camera, args.margin, 0.75)
+    if args.cam_dist <= 0 and asset:
+        if "Factory" in factory_name:
+            adjust_cam_distance(asset, camera, args.margin)
+        else:
+            adjust_cam_distance(asset, camera, args.margin, 0.75)
 
     cam_info_ng = bpy.data.node_groups.get("nodegroup_active_cam_info")
     if cam_info_ng is not None:
         cam_info_ng.nodes["Object Info"].inputs["Object"].default_value = camera
 
-    if args.save_blend:
-        (path / "scenes").mkdir(exist_ok=True)
-        butil.save_blend(f"{path}/scenes/scene_{idx:03d}.blend", autopack=True)
-        tag_system.save_tag(f"{path}/MaskTag.json")
-
-    if args.fire:
-        bpy.data.worlds["World"].node_tree.nodes["Background.001"].inputs[
-            1
-        ].default_value = 0.04
-        bpy.context.scene.view_settings.exposure = -2
-
     if args.render == "image":
-        #(path / "images").mkdir(exist_ok=True)
-        #imgpath = path / f"images/image_{idx:03d}.png"
-        imgpath = args.output_folder
-        print(imgpath)
-        scene.render.filepath = str(imgpath)
+        image_path = output_folder / "Image.png"
+        scene.render.filepath = str(image_path)
         bpy.ops.render.render(write_still=True)
-        img = cv2.imread(imgpath)
-        cropped = img[256: 256+512, 256:256+512]  # 裁剪坐标为[y0:y1, x0:x1]
-        cv2.imwrite(imgpath, cropped)
     elif args.render == "video":
         bpy.context.scene.frame_end = args.frame_end
-        parent(asset).driver_add("rotation_euler")[
-            -1
-        ].driver.expression = f"frame/{args.frame_end / (2 * np.pi * args.cycles)}"
-        (path / "frames" / f"scene_{idx:03d}").mkdir(parents=True, exist_ok=True)
-        imgpath = path / f"frames/scene_{idx:03d}/frame_###.png"
+        driver = parent(asset).driver_add("rotation_euler")[-1]
+        driver.driver.expression = f"frame/{args.frame_end / (2 * np.pi * args.cycles)}"
+
+        imgpath = output_folder / "Image_###.png"
         scene.render.filepath = str(imgpath)
         bpy.ops.render.render(animation=True)
     elif args.render == "none":
@@ -361,30 +335,81 @@ def build_and_save_asset(payload: dict):
         raise ValueError(f"Unrecognized {args.render=}")
 
     if args.export is not None:
-        export_path = path / "export" / f"export_{idx:03d}"
-        export_path.mkdir(exist_ok=True, parents=True)
+        export_path = args.output_folder / f"export_{idx:03d}"
         export.export_curr_scene(
             export_path, format=args.export, image_res=args.export_texture_res
         )
 
 
-def build_and_save_asset_for_loop(payloads: list):
-    # Initialize CUDA in the worker
-    # if torch.cuda.is_available():
-    #     try:
-    #         device = torch.device("cuda:0")  # Initialize your GPU device
-    # torch.cuda.init()  # Initialize CUDA if necessary
-    # except RuntimeError as e:
-    #     print(f"CUDA initialization error: {e}")
-    #     return None  # Handle the error appropriately
-
-    for payload in payloads:
-        # print(payload)
-        build_and_save_asset(payload)
-
-
 def parent(obj):
     return obj if obj.parent is None else obj.parent
+
+def load_obj_and_render(obj_path, args):
+    init.apply_gin_configs(
+        ["infinigen_examples/configs_indoor", "infinigen_examples/configs_nature"],
+        configs=args.configs,
+        overrides=args.overrides,
+        skip_unknown=True,
+    )
+    scene = bpy.context.scene
+    scene.render.engine = "CYCLES"
+    scene.render.resolution_x, scene.render.resolution_y = 2048, 2048
+    scene.cycles.samples = 1000
+    butil.clear_scene()
+    init.configure_render_cycles()
+
+    configure_cycles_devices()
+
+    asset = bpy.ops.wm.obj_import(filepath=obj_path)
+    asset = bpy.context.active_object
+    asset.rotation_euler = (0, 0, 0)
+    asset.location = (0, 0, 5)
+    butil.apply_transform(asset, loc=True)
+    camera, center = setup_camera(args)
+
+    with FixedSeed(args.lighting + 10):
+        if args.hdri:
+            hdri_lighting.add_lighting()
+        elif args.three_point:
+            holdout_lighting.add_lighting()
+            three_point_lighting.add_lighting(asset)
+        else:
+            sky_lighting.add_lighting(camera)
+            nodes = bpy.data.worlds["World"].node_tree.nodes
+            sky_texture = [n for n in nodes if n.name.startswith("Sky Texture")][-1]
+            sky_texture.sun_elevation = np.deg2rad(args.elevation)
+            sky_texture.sun_rotation = np.pi * 0.75
+
+    bpy.ops.mesh.primitive_plane_add(location=(0, 0, 0), size=100)
+    bpy.ops.mesh.primitive_plane_add(location=(10, 10, 0), size=100, rotation=(-np.pi / 2, 0, 0))
+    bpy.ops.mesh.primitive_plane_add(location=(-10, 10, 0), size=100, rotation=(0, -np.pi / 2, 0))
+
+    if  asset:
+        co = read_base_co(asset)
+        location = (np.amin(co, 0) + np.amax(co, 0)) / 2
+        center.location = (np.array(asset.matrix_world) @ np.array([*location, 1]))[:-1]
+        center.location[-1] += args.cam_zoff
+
+    adjust_cam_distance(asset, camera, args.margin)
+
+    cam_info_ng = bpy.data.node_groups.get("nodegroup_active_cam_info")
+    if cam_info_ng is not None:
+        cam_info_ng.nodes["Object Info"].inputs["Object"].default_value = camera
+    image_path = "outputs/Image.png"
+    scene.render.filepath = str(image_path)
+    bpy.ops.render.render(write_still=True)
+    # elif args.render == "video":
+    #     bpy.context.scene.frame_end = args.frame_end
+    #     driver = parent(asset).driver_add("rotation_euler")[-1]
+    #     driver.driver.expression = f"frame/{args.frame_end / (2 * np.pi * args.cycles)}"
+
+    #     imgpath = "outputs" / "Image_###.png"
+    #     scene.render.filepath = str(imgpath)
+    #     bpy.ops.render.render(animation=True)
+    # elif args.render == "none":
+    #     pass
+
+
 
 
 def adjust_cam_distance(asset, camera, margin, percent=0.999):
@@ -406,48 +431,37 @@ def adjust_cam_distance(asset, camera, margin, percent=0.999):
         camera.location[1] = -6
 
 
-def make_grid(args, path, n):
-    files = []
-    for filename in sorted(os.listdir(f"{path}/images")):
-        if filename.endswith(".png"):
-            files.append(f"{path}/images/{filename}")
-    files = files[:n]
-    if len(files) == 0:
-        print("No images found")
-        return
+def make_grid(args, name, files, n):
+    path = args.output_folder
+
     with Image.open(files[0]) as i:
         x, y = i.size
-    for i, name in enumerate([path.stem, f"{path.stem}_"]):
-        if args.zoom:
-            img = Image.new("RGBA", (2 * x, y))
-            sz = int(np.floor(np.sqrt(n - 0.9)))
-            if i > 0:
-                random.shuffle(files)
-            with Image.open(files[0]) as i:
-                img.paste(i, (0, 0))
-            for idx in range(sz**2):
-                with Image.open(files[min(idx + 1, len(files) - 1)]) as i:
-                    img.paste(
-                        i.resize((x // sz, y // sz)),
-                        (x + (idx % sz) * (x // sz), idx // sz * (y // sz)),
-                    )
-            img.save(f"{path}/{name}.png")
-        else:
-            sz_x = list(
-                sorted(
-                    range(1, n + 1),
-                    key=lambda x: abs(math.ceil(n / x) / x - args.best_ratio),
+
+    if args.zoom:
+        img = Image.new("RGBA", (2 * x, y))
+        sz = int(np.floor(np.sqrt(n - 0.9)))
+        with Image.open(files[0]) as i:
+            img.paste(i, (0, 0))
+        for idx in range(sz**2):
+            with Image.open(files[min(idx + 1, len(files) - 1)]) as i:
+                img.paste(
+                    i.resize((x // sz, y // sz)),
+                    (x + (idx % sz) * (x // sz), idx // sz * (y // sz)),
                 )
-            )[0]
-            sz_y = math.ceil(n / sz_x)
-            img = Image.new("RGBA", (sz_x * x, sz_y * y))
-            if i > 0:
-                random.shuffle(files)
-            for idx, file in enumerate(files):
-                with Image.open(file) as i:
-                    img.paste(i, (idx % sz_x * x, idx // sz_x * y))
-            img.save(f"{path}/{name}.png")
-        print(f"{path}/{name}.png generated")
+        img.save(path / f"{path}/{name}.png")
+    else:
+        sz_x = list(
+            sorted(
+                range(1, n + 1),
+                key=lambda x: abs(math.ceil(n / x) / x - args.best_ratio),
+            )
+        )[0]
+        sz_y = math.ceil(n / sz_x)
+        img = Image.new("RGBA", (sz_x * x, sz_y * y))
+        for idx, file in enumerate(files):
+            with Image.open(file) as i:
+                img.paste(i, (idx % sz_x * x, idx // sz_x * y))
+        img.save(f"{path}/{name}.png")
 
 
 def setup_camera(args):
@@ -456,7 +470,7 @@ def setup_camera(args):
     camera = bpy.context.active_object
     camera.parent = butil.spawn_empty("Camera parent")
     camera.parent.location = (0, 0, args.cam_zoff)
-    #camera.parent.rotation_euler = np.deg2rad(np.array(args.cam_angle))
+    camera.parent.rotation_euler = np.deg2rad(np.array(args.cam_angle))
     bpy.data.scenes["Scene"].camera = camera
     scene = bpy.context.scene
     camera.data.sensor_height = (
@@ -472,22 +486,35 @@ def setup_camera(args):
     return camera, camera.parent
 
 
-def mapfunc(f, its, args):
+@gin.configurable
+def mapfunc(
+    f,
+    its,
+    args,
+    slurm_nodelist=None,
+):
     if args.n_workers == 1:
         return [f(i) for i in its]
     elif not args.slurm:
         with Pool(args.n_workers) as p:
             return list(p.imap(f, its))
-
     else:
         executor = submitit.AutoExecutor(folder=args.output_folder / "logs")
+
+        slurm_additional_parameters = {}
+
+        if slurm_nodelist is not None:
+            slurm_additional_parameters["nodelist"] = slurm_nodelist
+
         executor.update_parameters(
             name=args.output_folder.name,
             timeout_min=60,
-            cpus_per_task=2,
+            cpus_per_task=4,
             mem_gb=8,
-            slurm_partition=os.environ["INFINIGEN_SLURMPARTITION"],
+            gpus_per_node=1 if args.gpu else 0,
+            slurm_partition=os.environ.get("INFINIGEN_SLURMPARTITION"),
             slurm_array_parallelism=args.n_workers,
+            slurm_additional_parameters=slurm_additional_parameters,
         )
         jobs = executor.map_array(f, its)
         for j in jobs:
@@ -497,107 +524,44 @@ def mapfunc(f, its, args):
 def main(args):
     bpy.context.window.workspace = bpy.data.workspaces["Geometry Nodes"]
 
-    init.apply_gin_configs(
-        ["infinigen_examples/configs_indoor", "infinigen_examples/configs_nature"],
-        skip_unknown=True,
-    )
-    surface.registry.initialize_from_gin()
-
-    if args.debug is not None:
-        for name in logging.root.manager.loggerDict:
-            if not name.startswith("infinigen"):
-                continue
-            if len(args.debug) == 0 or any(name.endswith(x) for x in args.debug):
-                logging.getLogger(name).setLevel(logging.DEBUG)
-
-    init.configure_blender()
-
-    if args.gpu:
-        init.configure_render_cycles()
-
-    if ".txt" in args.factories[0]:
-        name = args.factories[0].split(".")[-2].split("/")[-1]
-    else:
-        name = "_".join(args.factories)
-
     if args.output_folder is None:
-        args.output_folder = Path(os.getcwd()) / "outputs"
+        outputs = Path("outputs")
+        assert outputs.exists(), outputs
+        name = "_".join(args.factories)
+        args.output_folder = Path("outputs") / name
 
-    path = Path(args.output_folder) / name
-    #path.mkdir(exist_ok=True, parents=True)
+    args.output_folder.mkdir(exist_ok=True, parents=True)
 
     factories = list(args.factories)
 
-    if "ALL_ASSETS" in factories:
-        factories += [f.__name__ for f in subclasses(AssetFactory)]
-        factories.remove("ALL_ASSETS")
-        logger.warning(
-            "ALL_ASSETS is deprecated. Use `-f tests/assets/list_nature_meshes.txt` and `-f tests/assets/list_indoor_meshes.txt` instead."
-        )
-    if "ALL_SCATTERS" in factories:
-        factories += [f.stem for f in Path("infinigen/assets/scatters").iterdir()]
-        factories.remove("ALL_SCATTERS")
-    if "ALL_MATERIALS" in factories:
-        factories += [f.stem for f in Path("infinigen/assets/materials").iterdir()]
-        factories.remove("ALL_MATERIALS")
-        logger.warning(
-            "ALL_MATERIALS is deprecated. Use `-f tests/assets/list_nature_materials.txt` and `-f tests/assets/list_indoor_materials.txt` instead."
-        )
-
-    has_txt = ".txt" in factories[0]
-    if has_txt:
+    if len(factories) == 1 and factories[0].endswith(".txt"):
         factories = [
             f.split(".")[-1] for f in load_txt_list(factories[0], skip_sharp=False)
         ]
+    else:
+        assert not any(f.endswith(".txt") for f in factories)
+
+    targets = [
+        {"args": args, "fac": fac, "idx": idx}
+        for idx in range(args.n_images)
+        for fac in factories
+    ]
 
     if not args.postprocessing_only:
-        for fac in factories:
-            if args.start_seed > 0:
-                start_seed = args.start_seed
-            else:
-                start_seed = 0
-            targets = [{"args": args, "fac": fac, "idx": idx} for idx in range(start_seed, start_seed + args.n_images)]
-            if args.sep_batches > 1:
-                # import multiprocessing
-                # multiprocessing.set_start_method("spawn")
-                batch_size = args.n_images // args.sep_batches
-                chunked_targets = []
-                chunk_idx = 0
-                for _ in range(args.sep_batches):
-                    chunked_targets.append(targets[chunk_idx : chunk_idx + batch_size])
-                    chunk_idx += batch_size
-                mapfunc(build_and_save_asset_for_loop, chunked_targets, args)
-            else:
-                mapfunc(build_and_save_asset, targets, args)
+        mapfunc(build_and_save_asset, targets, args)
 
     if args.dryrun:
         return
 
-    for j, fac in enumerate(factories):
-        break
-        fac_path = args.output_folder / fac
-        fac_path.mkdir(exist_ok=True, parents=True)
-
-        f"{fac_path} does not exist"
-        if has_txt:
-            for i in range(args.n_images):
-                img_path = fac_path / "images" / f"image_{i:03d}.png"
-                if img_path.exists():
-                    subprocess.run(
-                        f"cp -f {img_path} {path}/{fac}_{i:03d}.png", shell=True
-                    )
-                else:
-                    print(f"{img_path} does not exist")
-        elif args.render == "image":
-            make_grid(args, fac_path, args.n_images)
+    for fac in factories:
+        if args.render == "image":
+            files = list(args.output_folder.glob(f"{fac}_*/Image*.png"))
+            make_grid(args, "grid_" + fac, files, args.n_images)
         elif args.render == "video":
-            (fac_path / "videos").mkdir(exist_ok=True)
-            for i in range(args.n_images):
-                subprocess.run(
-                    f'ffmpeg -y -r 24 -pattern_type glob -i "{fac_path}/frames/scene_{i:03d}/frame*.png" '
-                    f"{fac_path}/videos/video_{i:03d}.mp4",
-                    shell=True,
-                )
+            subprocess.run(
+                f'ffmpeg -y -r 24 -pattern_type glob -i "{fac}_*/Image*.png" video.mp4',
+                shell=True,
+            )
 
 
 def snake_case(s):
@@ -659,10 +623,11 @@ def make_args():
         type=float,
         help="Distance from the camera to the look-at position",
     )
+    angle = (-30, 0, 45)
     parser.add_argument(
         "-a",
         "--cam_angle",
-        default=(-30, 0, 45),
+        default=(-30, 0, 70),
         type=float,
         nargs="+",
         help="Camera rotation in XYZ",
@@ -755,16 +720,25 @@ def make_args():
         help="Import assets but do not run them. Used for testing.",
     )
     parser.add_argument(
-        "--sep_batches",
-        type=int,
-        default=1,
-        help="Separate for multi-processing",
+        "--configs",
+        type=str,
+        nargs="+",
+        default=[],
+        help="List of gin config files to apply",
     )
     parser.add_argument(
-        "--start_seed",
-        type=int,
-        default=-1,
-        help="Separate for multi-processing",
+        "--overrides",
+        type=str,
+        nargs="+",
+        default=[],
+        help="List of gin overrides to apply",
+    )
+
+    parser.add_argument(
+        "--obj_path",
+        type=str,
+        default="",
+        help="obj_path",
     )
 
     return init.parse_args_blender(parser)
@@ -772,6 +746,9 @@ def make_args():
 
 if __name__ == "__main__":
     args = make_args()
+    if args.obj_path != "":
+        load_obj_and_render(args.obj_path, args)
+        exit(0)
     args.no_mod = args.no_mod or args.fire
     args.film_transparent = args.film_transparent and not args.hdri
     with FixedSeed(1):

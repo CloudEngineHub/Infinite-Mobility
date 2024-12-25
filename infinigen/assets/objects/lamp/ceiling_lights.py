@@ -121,7 +121,8 @@ class CeilingLightFactory(AssetFactory):
         )
         return obj
 
-    def create_asset(self, i, placeholder, **params):
+    def create_asset(self, i, placeholder=None, **params):
+        placeholder = self.create_placeholder(i, **params)
         obj = butil.copy(placeholder, keep_materials=True)
         self.beveler(obj)
 

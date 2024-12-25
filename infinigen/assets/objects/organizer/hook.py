@@ -8,6 +8,7 @@ import numpy as np
 from numpy.random import randint, uniform
 
 from infinigen.assets.materials import shader_brushed_metal, shader_rough_plastic
+from infinigen.assets.utils.object import join_objects
 from infinigen.core import surface, tagging
 from infinigen.core.nodes import node_utils
 from infinigen.core.nodes.node_wrangler import Nodes, NodeWrangler
@@ -573,5 +574,6 @@ class SpatulaOnHookBaseFactory(AssetFactory):
 
         spatula.location = hang_points[0]
         butil.apply_transform(spatula, loc=True)
+        obj = join_objects([hook, spatula])
 
-        return hook
+        return obj

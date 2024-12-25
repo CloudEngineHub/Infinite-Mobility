@@ -15,9 +15,11 @@ from infinigen.assets.materials import text
 from infinigen.assets.utils.decorate import write_co
 from infinigen.assets.utils.object import (
     # join_objects,
+    join_objects,
     new_circle,
     new_cylinder,
     save_obj_parts_join_objects,
+    save_obj_parts_add
 )
 
 # save_objects,
@@ -64,14 +66,16 @@ class CanFactory(AssetFactory):
         surface.add_geomod(obj, self.geo_cap, apply=True)
         self.surface.apply(obj)
         wrap = self.make_wrap(coords)
-        # obj = join_objects([obj, wrap])
-        obj = save_obj_parts_join_objects(
-            [obj, wrap],
-            params.get("path", None),
-            params.get("i", "unknown"),
-            name=["obj", "wrap"],
-            obj_name="Can"
-        )
+        save_obj_parts_add(obj, params.get("path", None), params.get("i", "unknown"), first=True, use_bpy=True)
+        save_obj_parts_add(wrap, params.get("path", None), params.get("i", "unknown"), first=False, use_bpy=True)
+        obj = join_objects([obj, wrap])
+        # obj = save_obj_parts_join_objects(
+        #     [obj, wrap],
+        #     params.get("path", None),
+        #     params.get("i", "unknown"),
+        #     name=["obj", "wrap"],
+        #     obj_name="Can",
+        # )
         return obj
 
     @staticmethod

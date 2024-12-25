@@ -209,11 +209,11 @@ class HardwareFactory(AssetFactory):
         if self.hardware_type == "bar":
             attachment_ = self.make_attachment(translation=(self.bar_length, 0, 0))
             #attachment_.location[0] = self.bar_length
-            butil.apply_transform(attachment_, True)
+            #butil.apply_transform(attachment_, True)
             parts.append(attachment_)
         obj = join_objects(parts)
-        obj.rotation_euler[-1] = np.pi / 2
-        butil.apply_transform(obj)
+        #obj.rotation_euler[-1] = np.pi / 2
+        #butil.apply_transform(obj)
         join_objects_save_whole(obj, self.params.get("path", None), self.params.get("i", None), use_bpy=True)
         return obj
 
