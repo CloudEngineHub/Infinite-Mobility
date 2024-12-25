@@ -36,7 +36,7 @@ from infinigen.core.util.blender import select_none
 
 import urdfpy
 from infinigen.tools import export
-import infinigen.assets.utils.usdutils as usdutils
+# import infinigen.assets.utils.usdutils as usdutils
 import math
 
 # def sample_and_save_points(verts, faces, path, num_samples=50000, return_normals=True):

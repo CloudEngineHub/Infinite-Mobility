@@ -74,6 +74,25 @@ def main():
     #camera.entity.set_pose(sapien.Pose(mat44))
 
     loader = scene.create_urdf_loader()
+<<<<<<< HEAD
+    robot = loader.load("/home/qihong/infinigen_sep_part_urdf/outputs/bottles/BottleFactory/0/scene.urdf")
+    robot.set_root_pose(sapien.Pose([0, 0, 0], [1, 0, 0, 0]))
+    poses = []
+    steps = []
+    for joint in robot.get_joints():
+        if joint.type == "fixed":
+            continue
+        limit = joint.limit[0]
+        lower = limit[0]
+        upper = limit[1]
+        steps.append(0.001)
+        if not math.isinf(upper) and not math.isinf(lower):
+            poses.append((lower + upper) / 2)
+        elif not math.isinf(lower):
+            poses.append(lower)
+        else:
+            poses.append(0)
+=======
     robots = []
     # for i in range(100):
     #     robot = loader.load(f"/home/pjlab/projects/infinigen_sep_part_urdf/outputs/TVFactory/{i}/scene.urdf")
@@ -118,6 +137,7 @@ def main():
             valid_idx += 1
         all_poses.append(poses)
         all_steps.append(steps)
+>>>>>>> 0e9251e2835af8d600f6051bbc1d45fdbcd6065e
 
     if len(robots) == 1:
         mode = "joint by joint"
