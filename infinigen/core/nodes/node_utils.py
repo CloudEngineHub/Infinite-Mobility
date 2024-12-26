@@ -13,6 +13,7 @@ import os
 import json
 import numpy as np
 from numpy.random import normal, uniform
+from infinigen.assets.utils.decorate import read_co
 from infinigen.core.util import blender as butil
 
 import urdfpy
@@ -111,9 +112,8 @@ def to_modifier(name=None, singleton=False, type="GeometryNodeTree"):
                 #     set_geomod_inputs(mod, kwargs.get("inputs"))
                 nw = NodeWrangler(mod)
                 fn(nw, *args, **kwargs)
-                ng = nw.node_group
-                #ng = mod.node_group
                 mod = obj.modifiers.new(name, "NODES")
+                ng = nw.node_group
                 mod.node_group = ng
                 ng.name = name
                 return mod
@@ -219,7 +219,8 @@ def save_geometry(
     parent_obj_id=None,
     joint_info=None,
     material=None,
-    after_seperate=None
+    after_seperate=None,
+    return_center=False,
 ):
     output = nw.new_node(
         Nodes.GroupOutput,
@@ -247,6 +248,11 @@ def save_geometry(
         )
         new_mesh.update()  # Update the mesh
 
+        if return_center:
+            co = read_co(new_object)
+            center = ((co[:, 0].max() + co[:, 0].min()) / 2, (co[:, 1].max() + co[:, 1].min()) / 2, (co[:, 2].max() + co[:, 2].min()) / 2)
+
+
         if name == 'whole':
             join_objects_save_whole([new_object], path, idx, name, join=False, use_bpy=use_bpy)
             res = True
@@ -255,6 +261,8 @@ def save_geometry(
     #bpy.ops.export_scene.obj(filepath='./file.obj', use_selection=True)
     # 取消选择新对象
     #new_obj.select_set(False)
+    if return_center:
+        return res, center
     return res
 
 def get_seperate_objects(obj):

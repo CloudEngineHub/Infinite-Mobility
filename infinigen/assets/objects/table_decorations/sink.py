@@ -22,9 +22,15 @@ from infinigen.core.nodes.node_wrangler import Nodes, NodeWrangler
 from infinigen.core.placement.factory import AssetFactory
 from infinigen.core.util import blender as butil
 from infinigen.core.util.math import FixedSeed
-from infinigen.assets.utils.object import get_joint_name
-import math
-
+from infinigen.assets.utils.object import (
+    join_objects,
+    new_circle,
+    new_cylinder,
+    save_obj_parts_join_objects,
+    join_objects_save_whole,
+    save_obj_parts_add,
+    get_joint_name
+)
 
 class SinkFactory(AssetFactory):
     def __init__(
@@ -160,11 +166,20 @@ class TapFactory(AssetFactory):
             "one_side": True if U() > 0.5 else False,
             "different_type": True if U() > 0.8 else False,
         }
-        params['hand_type'] = False
-        params['one_side'] = False
-        params['different_type'] = False
-        params['length_one_side'] = False
-        params['Switch'] = True
+        # params = {
+        #     "base_width": U(0.570, 0.630),
+        #     "tap_head": U(0.7, 1.1),
+        #     "roation_z": U(5.5, 7.0),
+        #     "tap_height": U(0.5, 1),
+        #     "base_radius": U(0.0, 0.3),
+        #     "Switch": True,
+        #     "Y": U(-0.5, -0.06),
+        #     "hand_type": True,
+        #     "hands_length_x": U(0.750, 1.25),
+        #     "hands_length_Y": U(0.950, 1.550),
+        #     "one_side": True,
+        #     "different_type": True,
+        # }
         return params
 
     def get_material_params(self):
@@ -187,11 +202,8 @@ class TapFactory(AssetFactory):
         return wrapped_params, scratch, edge_wear
 
     def create_asset(self, **params):
-        #self.params.update(self.tap_parameters())
         obj = butil.spawn_cube()
         params.update({"obj": obj, "inputs": self.params})
-        params.update(self.params)
-        params.update(self.tap_parameters())
         ng = nodegroup_water_tap(**params)
         butil.modify_mesh(
             obj, "NODES", node_group=ng, ng_inputs=self.params, apply=True, mod=True
@@ -307,20 +319,35 @@ def nodegroup_water_tap(nw: NodeWrangler, **kwargs):
 
     group_input = nw.new_node(
         Nodes.GroupInput,
+        # expose_input=[
+        #     ("NodeSocketFloatDistance", "base_width", U(0.2, 0.3)),
+        #     ("NodeSocketFloat", "tap_head", U(0.7, 1.1)),
+        #     ("NodeSocketFloat", "roation_z", U(5.5, 7.0)),
+        #     ("NodeSocketFloat", "tap_height", U(0.5, 1)),
+        #     ("NodeSocketFloatDistance", "base_radius", U(0.0, 0.1)),
+        #     ("NodeSocketBool", "Switch", True if U() > 0.5 else False),
+        #     ("NodeSocketFloat", "Y", U(-0.5, -0.06)),
+        #     ("NodeSocketBool", "hand_type", True if U() > 0.2 else False),
+        #     ("NodeSocketFloat", "hands_length_x", U(0.750, 1.25)),
+        #     ("NodeSocketFloat", "hands_length_Y", U(0.950, 1.550)),
+        #     ("NodeSocketBool", "one_side", True if U() > 0.5 else False),
+        #     ("NodeSocketBool", "different_type", True if U() > 0.8 else False),
+        #     ("NodeSocketBool", "length_one_side", True if U() > 0.8 else False),
+        # ],
         expose_input=[
             ("NodeSocketFloatDistance", "base_width", U(0.2, 0.3)),
             ("NodeSocketFloat", "tap_head", U(0.7, 1.1)),
             ("NodeSocketFloat", "roation_z", U(5.5, 7.0)),
             ("NodeSocketFloat", "tap_height", U(0.5, 1)),
             ("NodeSocketFloatDistance", "base_radius", U(0.0, 0.1)),
-            ("NodeSocketBool", "Switch", kwargs['Switch']),
+            ("NodeSocketBool", "Switch", False),
             ("NodeSocketFloat", "Y", U(-0.5, -0.06)),
-            ("NodeSocketBool", "hand_type", kwargs['hand_type']),
+            ("NodeSocketBool", "hand_type", False),
             ("NodeSocketFloat", "hands_length_x", U(0.750, 1.25)),
             ("NodeSocketFloat", "hands_length_Y", U(0.950, 1.550)),
-            ("NodeSocketBool", "one_side", kwargs['one_side']),
-            ("NodeSocketBool", "different_type", kwargs['different_type']),
-            ("NodeSocketBool", "length_one_side", kwargs['length_one_side']),
+            ("NodeSocketBool", "one_side", False),
+            ("NodeSocketBool", "different_type", False),
+            ("NodeSocketBool", "length_one_side", False),
         ],
     )
     group_input = nw.new_node(
@@ -568,21 +595,10 @@ def nodegroup_water_tap(nw: NodeWrangler, **kwargs):
 
     handle = nw.new_node(nodegroup_handle().name)
 
-    # Add store named attribute here
-    store_named_attribute_handle = nw.new_node(
-        Nodes.StoreNamedAttribute,
-        input_kwargs={
-            "Geometry": handle,
-            "Name": "handle",
-            "Value": 3,
-        },
-        attrs={"domain": "POINT", "data_type": "INT"},
-    )
-
     transform_geometry_4 = nw.new_node(
         Nodes.Transform,
         input_kwargs={
-            "Geometry": store_named_attribute_handle.outputs["Geometry"],
+            "Geometry": handle,
             "Translation": (0.0000, -0.2000, 0.0000),
             "Rotation": (0.0000, 0.0000, 3.6652),
             "Scale": (0.3000, 0.3000, 0.3000),
@@ -592,16 +608,39 @@ def nodegroup_water_tap(nw: NodeWrangler, **kwargs):
     transform_geometry_3 = nw.new_node(
         Nodes.Transform,
         input_kwargs={
-            "Geometry": store_named_attribute_handle.outputs["Geometry"],
+            "Geometry": handle,
             "Translation": (0.0000, 0.2000, 0.0000),
             "Rotation": (0.0000, 0.0000, 2.6180),
             "Scale": (0.3000, 0.3000, 0.3000),
         },
     )
 
+    # Add store named attribute here
+    store_named_attribute_handle_2 = nw.new_node(
+        Nodes.StoreNamedAttribute,
+        input_kwargs={
+            "Geometry": transform_geometry_4,
+            "Name": "handle",
+            "Value": 2,
+        },
+        attrs={"domain": "POINT", "data_type": "INT"},
+    )
+
+    # Add store named attribute here
+    store_named_attribute_handle_3 = nw.new_node(
+        Nodes.StoreNamedAttribute,
+        input_kwargs={
+            "Geometry": transform_geometry_3,
+            "Name": "handle",
+            "Value": 3,
+        },
+        attrs={"domain": "POINT", "data_type": "INT"},
+    )
+
+
     join_geometry_2 = nw.new_node(
         Nodes.JoinGeometry,
-        input_kwargs={"Geometry": [transform_geometry_4, transform_geometry_3]},
+        input_kwargs={"Geometry": [store_named_attribute_handle_2, store_named_attribute_handle_3]},
     )
 
     cylinder = nw.new_node(
@@ -1082,7 +1121,8 @@ def nodegroup_water_tap(nw: NodeWrangler, **kwargs):
 
     first = True
     names = ["tap", "handle"]
-    parts = [14, 1]
+    parts = [14, 3]
+    part = []
     for i, name in enumerate(names):
         for j in range(1, parts[i] + 1):
             named_attribute = nw.new_node(
@@ -1103,38 +1143,54 @@ def nodegroup_water_tap(nw: NodeWrangler, **kwargs):
                 },
             )
             output_geometry = separate_geometry
-            joint_info = None
-            parent_id = "world"
-            if kwargs['Switch'] == False and j == 2:
-                pass
-                
-            if j == 10:
-                joint_info = {
-                    "name": get_joint_name("fixed"),
-                    "type": "fixed",
-                }
-            a = save_geometry(
-                nw,
-                output_geometry,
-                kwargs.get("path", None),
-                name,
-                kwargs.get("i", "unknown"),
-                first=first,
-                material=kwargs.get("Tap", None),
-                parent_obj_id=parent_id,
-                joint_info=joint_info,
-            )
-            print(a, j)
+            if name == "handle" and (j == 2 or j == 3):
+                a = save_geometry(
+                    nw,
+                    output_geometry,
+                    kwargs.get("path", None),
+                    name,
+                    kwargs.get("i", "unknown"),
+                    first=first,
+                    use_bpy=True,
+                    parent_obj_id=2,
+                    joint_info={
+                        "name": get_joint_name("revolute"),
+                        "type": "revolute",
+                        "axis": (0, 0, 1),
+                        "limits": {
+                            "lower": -np.pi / 2,
+                            "upper": np.pi / 2,
+                        },
+                        "origin_shift": [0, 0, 0]
+                    },
+                    material=kwargs["inputs"]["Tap"],
+                )
+            else:
+                a = save_geometry(
+                    nw,
+                    output_geometry,
+                    kwargs.get("path", None),
+                    name,
+                    kwargs.get("i", "unknown"),
+                    first=first,
+                    use_bpy=True,
+                    parent_obj_id=None,
+                    joint_info=None,
+                    material=kwargs["inputs"]["Tap"],
+                )
+            part.append(a)
             if a:
                 first = False
+        part.append('[SEP]')
+    print(part)
 
-    # save_geometry(
-    #     nw,
-    #     join_geometry_6,
-    #     kwargs.get("path", None),
-    #     "whole",
-    #     kwargs.get("i", "unknown"),
-    # )
+    save_geometry(
+        nw,
+        join_geometry_6,
+        kwargs.get("path", None),
+        "whole",
+        kwargs.get("i", "unknown"),
+    )
 
     group_output = nw.new_node(
         Nodes.GroupOutput,

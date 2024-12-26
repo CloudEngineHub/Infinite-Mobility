@@ -10,11 +10,11 @@ import json
 def main():
     #engine.set_log_level('warning')
 
-    if True:
-        sapien.render.set_camera_shader_dir("rt")
-        sapien.render.set_viewer_shader_dir("rt")
-        sapien.render.set_ray_tracing_samples_per_pixel(64)  # change to 256 for less noise
-        sapien.render.set_ray_tracing_denoiser("oidn") # change to "optix" or "oidn"
+    # if True:
+    #     sapien.render.set_camera_shader_dir("rt")
+    #     sapien.render.set_viewer_shader_dir("rt")
+    #     sapien.render.set_ray_tracing_samples_per_pixel(64)  # change to 256 for less noise
+    #     sapien.render.set_ray_tracing_denoiser("oidn") # change to "optix" or "oidn"
 
 
     
@@ -74,25 +74,6 @@ def main():
     #camera.entity.set_pose(sapien.Pose(mat44))
 
     loader = scene.create_urdf_loader()
-<<<<<<< HEAD
-    robot = loader.load("/home/qihong/infinigen_sep_part_urdf/outputs/bottles/BottleFactory/0/scene.urdf")
-    robot.set_root_pose(sapien.Pose([0, 0, 0], [1, 0, 0, 0]))
-    poses = []
-    steps = []
-    for joint in robot.get_joints():
-        if joint.type == "fixed":
-            continue
-        limit = joint.limit[0]
-        lower = limit[0]
-        upper = limit[1]
-        steps.append(0.001)
-        if not math.isinf(upper) and not math.isinf(lower):
-            poses.append((lower + upper) / 2)
-        elif not math.isinf(lower):
-            poses.append(lower)
-        else:
-            poses.append(0)
-=======
     robots = []
     # for i in range(100):
     #     robot = loader.load(f"/home/pjlab/projects/infinigen_sep_part_urdf/outputs/TVFactory/{i}/scene.urdf")
@@ -100,7 +81,7 @@ def main():
     #     c = i % 10
     #     robot.set_root_pose(sapien.Pose([-10 + 2* c, -10  + 2 * r, 0], [1, 0, 0, 0]))
     #     robots.append(robot)
-    robots.append(loader.load("/home/pjlab/projects/infinigen_sep_part_urdf/outputs/OfficeChairFactory/0/scene.urdf"))
+    robots.append(loader.load("/home/tangqihong/infinigen_sep_part_urdf/outputs/TapFactory/0/scene.urdf"))
     robots[0].set_root_pose(sapien.Pose([0, 0, 0], [1, 0, 0, 0]))
     #robot = loader.load("/home/pjlab/projects/infinigen_sep_part_urdf/outputs/OfficeChairFactory/0/scene.urdf")
     #robot.set_root_pose(sapien.Pose([0, 0, 0], [1, 0, 0, 0]))
@@ -137,7 +118,6 @@ def main():
             valid_idx += 1
         all_poses.append(poses)
         all_steps.append(steps)
->>>>>>> 0e9251e2835af8d600f6051bbc1d45fdbcd6065e
 
     if len(robots) == 1:
         mode = "joint by joint"
