@@ -10,11 +10,11 @@ import json
 def main():
     #engine.set_log_level('warning')
 
-    if True:
-        sapien.render.set_camera_shader_dir("rt")
-        sapien.render.set_viewer_shader_dir("rt")
-        sapien.render.set_ray_tracing_samples_per_pixel(64)  # change to 256 for less noise
-        sapien.render.set_ray_tracing_denoiser("oidn") # change to "optix" or "oidn"
+    # if True:
+    #     sapien.render.set_camera_shader_dir("rt")
+    #     sapien.render.set_viewer_shader_dir("rt")
+    #     sapien.render.set_ray_tracing_samples_per_pixel(64)  # change to 256 for less noise
+    #     sapien.render.set_ray_tracing_denoiser("oidn") # change to "optix" or "oidn"
 
 
     
@@ -81,7 +81,7 @@ def main():
     #     c = i % 10
     #     robot.set_root_pose(sapien.Pose([-10 + 2* c, -10  + 2 * r, 0], [1, 0, 0, 0]))
     #     robots.append(robot)
-    robots.append(loader.load("/home/tangqihong/infinigen_sep_part_urdf/outputs/TapFactory/TapFactory/0/scene.urdf"))
+    robots.append(loader.load("/home/tangqihong/infinigen_sep_part_urdf/outputs/TapFactory/0/scene.urdf"))
     robots[0].set_root_pose(sapien.Pose([0, 0, 0], [1, 0, 0, 0]))
     #robot = loader.load("/home/pjlab/projects/infinigen_sep_part_urdf/outputs/OfficeChairFactory/0/scene.urdf")
     #robot.set_root_pose(sapien.Pose([0, 0, 0], [1, 0, 0, 0]))

@@ -1154,10 +1154,14 @@ def nodegroup_water_tap(nw: NodeWrangler, **kwargs):
                     use_bpy=True,
                     parent_obj_id=2,
                     joint_info={
-                        "origin": (0, 0, 0),
                         "name": get_joint_name("revolute"),
-                        "type": "continuous",
-                        "axis": (0, 0, 1)
+                        "type": "revolute",
+                        "axis": (0, 0, 1),
+                        "limits": {
+                            "lower": -np.pi / 2,
+                            "upper": np.pi / 2,
+                        },
+                        "origin_shift": [0, 0, 0]
                     },
                     material=kwargs["inputs"]["Tap"],
                 )
