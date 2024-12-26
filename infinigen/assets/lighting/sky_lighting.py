@@ -22,7 +22,7 @@ def nishita_lighting(
     cam,
     dust_density=("clip_gaussian", 1, 1, 0.1, 2),
     air_density=("clip_gaussian", 1, 0.2, 0.7, 1.3),
-    strength=("uniform", 0.18, 0.22),
+    strength=("uniform", 0.03, 0.03),
     sun_intensity=("uniform", 0.8, 1),
     sun_elevation=("spherical_sample", 10, None),
     dynamic=False,

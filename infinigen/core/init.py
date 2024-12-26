@@ -227,7 +227,7 @@ def configure_render_cycles(
         except Exception as e:
             logger.warning(f"Cannot use OPTIX denoiser {e}")
 
-    bpy.context.scene.cycles.samples = num_samples  # i.e. infinity
+    bpy.context.scene.cycles.samples = 1000#num_samples  # i.e. infinity
     bpy.context.scene.cycles.adaptive_min_samples = min_samples
     bpy.context.scene.cycles.adaptive_threshold = (
         adaptive_threshold  # i.e. noise threshold

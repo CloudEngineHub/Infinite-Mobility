@@ -15,9 +15,9 @@ from infinigen.assets.utils.object import (
     new_circle,
     new_cylinder,
     save_obj_parts_join_objects,
-    join_objects_save_whole,
     save_obj_parts_add,
-    get_joint_name
+    join_objects_save_whole,
+    get_joint_name,
 )
 
 # save_objects,

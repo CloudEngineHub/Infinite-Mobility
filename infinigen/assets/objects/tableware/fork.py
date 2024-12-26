@@ -13,6 +13,15 @@ from infinigen.assets.utils.object import new_grid
 from infinigen.core.util import blender as butil
 from infinigen.core.util.math import FixedSeed
 from infinigen.core.util.random import log_uniform
+from infinigen.assets.utils.object import (
+    # join_objects,
+    join_objects,
+    join_objects_save_whole,
+    new_cylinder,
+    save_obj_parts_add,
+    save_obj_parts_join_objects,
+    get_joint_name
+)
 
 from .base import TablewareFactory
 
@@ -24,15 +33,14 @@ class ForkFactory(TablewareFactory):
     def __init__(self, factory_seed, coarse=False):
         super().__init__(factory_seed, coarse)
         with FixedSeed(factory_seed):
-            self.x_length = log_uniform(0.4, 0.8)
-            self.x_tip = uniform(0.15, 0.2)
-            self.y_length = log_uniform(0.05, 0.08)
-            self.z_depth = log_uniform(0.02, 0.04)
-            self.z_offset = uniform(0.0, 0.05)
-            self.thickness = log_uniform(0.008, 0.015)
-            self.has_guard = uniform(0, 1) < 0.4
-            self.guard_type = "round" if uniform(0, 1) < 0.6 else "double"
-            self.n_cuts = np.random.randint(1, 3) if uniform(0, 1) < 0.3 else 3
+            self.x_length = log_uniform(0.4, 0.8) # 0.04
+            self.x_tip = uniform(0.15, 0.2)#0.0119
+            self.y_length = log_uniform(0.05, 0.08)#0.013
+            self.z_depth = log_uniform(0.02, 0.04) #0.02
+            self.z_offset = uniform(0.0, 0.05) # 0.06
+            self.thickness = log_uniform(0.008, 0.015) # 0.012
+            self.guard_type = "round"
+            self.n_cuts = np.random.randint(1, 3) if uniform(0, 1) < 0.3 else 3 # important param not a chance 
             self.guard_depth = log_uniform(0.2, 1.0) * self.thickness
             self.scale = log_uniform(0.15, 0.25)
             self.has_cut = True
@@ -46,18 +54,18 @@ class ForkFactory(TablewareFactory):
                 -0.12,
                 -self.x_end,
                 -self.x_end - self.x_length,
-                -self.x_end - self.x_length * log_uniform(1.2, 1.4),
+                -self.x_end - self.x_length * log_uniform(1.2, 1.4),#0.015
             ]
         )
         y_anchors = np.array(
             [
-                self.y_length * log_uniform(0.8, 1.0),
-                self.y_length * log_uniform(1.0, 1.2),
-                self.y_length * log_uniform(0.6, 1.0),
-                self.y_length * log_uniform(0.2, 0.4),
-                log_uniform(0.01, 0.02),
-                log_uniform(0.02, 0.05),
-                log_uniform(0.01, 0.02),
+                self.y_length * log_uniform(0.8, 1.0),# 0.007
+                self.y_length * log_uniform(1.0, 1.2),# 0.007
+                self.y_length * log_uniform(0.6, 1.0),# 0.007
+                self.y_length * log_uniform(0.2, 0.4),# 0.007
+                log_uniform(0.01, 0.02),# 0.007
+                log_uniform(0.02, 0.05),# 0.01
+                log_uniform(0.01, 0.02),# 0.007
             ]
         )
         z_anchors = np.array(
@@ -67,8 +75,8 @@ class ForkFactory(TablewareFactory):
                 -self.z_depth,
                 0,
                 self.z_offset,
-                self.z_offset + uniform(-0.02, 0.04),
-                self.z_offset + uniform(-0.02, 0),
+                self.z_offset + uniform(-0.02, 0.04),# 0.035
+                self.z_offset + uniform(-0.02, 0),# 0.0117
             ]
         )
         n = 2 * (self.n_cuts + 1)
@@ -81,6 +89,9 @@ class ForkFactory(TablewareFactory):
             self.make_cuts(obj)
         butil.modify_mesh(obj, "SOLIDIFY", thickness=self.thickness)
         subsurf(obj, 1)
+        obj_ = butil.deep_clone_obj(obj)
+        subsurf(obj_, 1)
+        save_obj_parts_add(obj_, params.get("path"), params.get("i"), "fork", first=True, use_bpy=True)
 
         def selection(nw, x):
             return nw.compare("LESS_THAN", x, -self.x_end)
@@ -89,8 +100,9 @@ class ForkFactory(TablewareFactory):
             selection = self.make_double_sided(selection)
         self.add_guard(obj, selection)
         subsurf(obj, 1)
-        obj.scale = [self.scale] * 3
-        butil.apply_transform(obj)
+        #obj.scale = [self.scale] * 3
+        #butil.apply_transform(obj)
+        save_obj_parts_add(obj.copy(), params.get("path"), params.get("i"), "fork", first=True, use_bpy=True)
         return obj
 
     def make_cuts(self, obj):

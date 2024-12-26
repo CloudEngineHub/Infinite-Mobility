@@ -251,7 +251,7 @@ def geometry_assemble_chair(nw: NodeWrangler, **kwargs):
                         first=first,
                         joint_info=joint_info,
                         parent_obj_id=parent_idx,
-                        material=kwargs["SeatMaterial"]
+                        material=kwargs["LegMaterial"]
                     )
                     if a:
                         first = False
@@ -296,9 +296,11 @@ class BarChairFactory(AssetFactory):
             "SeatMaterial": material_assignments["seat"].assign_material(),
             "LegMaterial": material_assignments["leg"].assign_material(),
         }
+        params['SeatMaterial'] = params['LegMaterial']
         wrapped_params = {
             k: surface.shaderfunc_to_material(v) for k, v in params.items()
         }
+        wrapped_params['SeatMaterial'] = wrapped_params['LegMaterial']
 
         scratch_prob, edge_wear_prob = material_assignments["wear_tear_prob"]
         scratch, edge_wear = material_assignments["wear_tear"]
@@ -439,3 +441,5 @@ class BarChairFactory(AssetFactory):
             self.scratch.apply(assets)
         if self.edge_wear:
             self.edge_wear.apply(assets)
+
+        save_obj_parts_add([assets], self.params["path"], self.params["i"], "part", first=False, use_bpy=True)

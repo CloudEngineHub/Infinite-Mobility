@@ -145,6 +145,7 @@ def microwave_materials():
         "glass": TextureAssignments([microwave_shaders.shader_glass], [1.0]),
         "wear_tear": [procedural_scratch, procedural_edge_wear],
         "wear_tear_prob": [DEFAULT_SCRATCH_PROB, DEFAULT_EDGE_WEAR_PROB],
+        "rotate_surface": TextureAssignments([metal, plastic_rough], [1.0, 0.2]),
     }
 
 
@@ -170,6 +171,7 @@ def tv_materials():
         "support": TextureAssignments([metal, plastic_rough], [1.0, 0.2]),
         "wear_tear": [procedural_scratch, procedural_edge_wear],
         "wear_tear_prob": [DEFAULT_SCRATCH_PROB, DEFAULT_EDGE_WEAR_PROB],
+        "button_surface": TextureAssignments([metal, plastic_rough], [1.0, 0.2]),
     }
 
 
@@ -354,9 +356,9 @@ def office_chair_materials(leg_style=None):
                 fabrics.shader_leather,
                 wood.shader_wood,
                 shader_rough_plastic,
-                glass_volume.shader_glass_volume,
+                #glass_volume.shader_glass_volume,
             ],
-            [1.0, 1.0, 1.0, 1.0],
+            [1.0, 1.0, 1.0],
         ),
         "leg": TextureAssignments([wood.shader_wood, *metal_shaders], [1.0] + probs),
         "wear_tear": [procedural_scratch, procedural_edge_wear],
@@ -494,7 +496,7 @@ def lid_materials():
     return {
         "surface": TextureAssignments([ceramic, metal], [0.5, 0.5]),
         "rim_surface": TextureAssignments([metal], [1.0]),
-        "handle_surface": TextureAssignments([metal, ceramic], [1.0, 1.0]),
+        "handle_surface": TextureAssignments([metal, ceramic, wood], [1.0, 1.0, 1.0]),
         "wear_tear": [procedural_scratch, procedural_edge_wear],
         "wear_tear_prob": [DEFAULT_SCRATCH_PROB, 0.0],
     }
@@ -504,7 +506,7 @@ def glasslid_materials():
     return {
         "surface": TextureAssignments([glass], [1.0]),
         "rim_surface": TextureAssignments([metal], [1.0]),
-        "handle_surface": TextureAssignments([metal, ceramic], [1.0, 1.0]),
+        "handle_surface": TextureAssignments([metal, ceramic, wood], [1.0, 1.0, 1.0]),
         "wear_tear": [procedural_scratch, procedural_edge_wear],
         "wear_tear_prob": [DEFAULT_SCRATCH_PROB, 0.0],
     }

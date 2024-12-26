@@ -154,11 +154,13 @@ class RackFactory(AssetFactory):
                         'upper_2': self.width / 4
                     },
                 })
-        obj.rotation_euler[-1] = np.pi / 2
-        butil.apply_transform(obj)
+        # obj.rotation_euler[-1] = np.pi / 2
+        # butil.apply_transform(obj)
+        obj = join_objects([obj] + pallets)
         if not save:
             self.create_asset(save=True, **params)
             save_geometry_new(obj, 'whole', 0, self.params.get("i", None), self.params.get("path", None), True)
+            #save_obj_parts_add([obj], self.params.get("path", None), self.params.get("i", None), "part", first=True, use_bpy=True)
             first = True
         return obj
 
@@ -201,11 +203,12 @@ class RackFactory(AssetFactory):
             stands.append(o)
         if save:
             for stand in stands:
+                self.stand_surface.apply(stand, "stand", metal_color="bw")
                 save_obj_parts_add([stand], self.params.get("path", None), self.params.get("i", None), "stand", first=first, use_bpy=True, parent_obj_id=
                                    "world", joint_info={
                                        "type": "fixed",
                                        "name": get_joint_name("fixed")
-                                      }, material=self.stand_surface) 
+                                      }, material=[self.stand_surface]) 
                 first = False
         return stands
 
@@ -291,16 +294,18 @@ class RackFactory(AssetFactory):
         butil.apply_transform(o, True)
 
         if save:
+            self.support_surface.apply(o, "support", metal_color="bw")
             res = save_obj_parts_add([o], self.params.get("path", None), self.params.get("i", None), "support", first=False, use_bpy=True, parent_obj_id="world", joint_info={
                 "name": get_joint_name("fixed"),
                 "type": "fixed",
-            }, material=self.support_surface)
+            })
             if res:
                 last_idx = res[0]
+            self.support_surface.apply(obj, "support", metal_color="bw")
             res = save_obj_parts_add([obj], self.params.get("path", None), self.params.get("i", None), "support", first=False, use_bpy=True, parent_obj_id="world", joint_info={
                 "name": get_joint_name("fixed"),
                 "type": "fixed",
-            }, material=self.support_surface)
+            })
         #save_obj_parts_add([o], self.params.get("path", None), self.params.get("i", None), "support", first=first) 
         return [obj, o]
     
@@ -352,15 +357,16 @@ class RackFactory(AssetFactory):
         if save:
             frame.location[-1] = 0
             butil.apply_transform(frame, True)
+            self.frame_surface.apply(frame, metal_color="bw")
             res = save_obj_parts_add([frame], self.params.get("path", None), self.params.get("i", None), "frame", first=False, use_bpy=True, parent_obj_id="world", joint_info={
                 "name": get_joint_name("prismatic"),
                 "type": "prismatic",
                 "axis": (0, 0, 1),
                 "limit": {
                     "lower": 0,
-                    "upper": self.height / 2,
+                    "upper": self.height / 3,
                 }
-            }, material=self.frame_surface)
+            })
             if res:
                 last_idx = res[0]
                 ids.append(last_idx)
@@ -375,15 +381,16 @@ class RackFactory(AssetFactory):
             butil.apply_transform(frame_, True)
             frames.append(frame_)
             if save:
+                self.frame_surface.apply(frame_, metal_color="bw")
                 res = save_obj_parts_add([frame_], self.params.get("path", None), self.params.get("i", None), "frame", first=False, use_bpy=True, parent_obj_id="world", joint_info={
                     "name": get_joint_name("prismatic"),
                     "type": "prismatic",
                     "axis": (0, 0, 1),
                     "limit": {
-                        "lower":  - self.height / 2,
-                        "upper":   self.height / 2 if i != self.steps - 2 else 0,
+                        "lower":  - self.height / 3,
+                        "upper":   self.height / 3 if i != self.steps - 2 else 0,
                     }
-                }, material=self.frame_surface)
+                })
                 if res:
                     last_idx = res[0]
                     ids.append(last_idx)

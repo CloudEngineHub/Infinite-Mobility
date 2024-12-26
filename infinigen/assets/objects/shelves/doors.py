@@ -16,16 +16,11 @@ from infinigen.assets.materials.shelf_shaders import (
     shader_shelves_wood,
     shader_shelves_wood_sampler,
 )
-from infinigen.core.nodes.node_utils import save_geometry, save_geometry_new
 from infinigen.core import surface, tagging
 from infinigen.core.nodes import node_utils
 from infinigen.core.nodes.node_wrangler import Nodes, NodeWrangler
 from infinigen.core.placement.factory import AssetFactory
-import math
-import random
-import numpy as np
 
-first = True
 
 @node_utils.to_nodegroup(
     "nodegroup_node_group", singleton=False, type="GeometryNodeTree"
@@ -35,35 +30,15 @@ def nodegroup_node_group(nw: NodeWrangler):
 
     cube = nw.new_node(Nodes.MeshCube, input_kwargs={"Size": (0.0120, 0.00060, 0.0400)})
 
-    store_cube = nw.new_node(
-        Nodes.StoreNamedAttribute,
-        input_kwargs={
-            "Geometry": cube,  # Geometry with UV map
-            "Name": "node_group",
-            "Value": 1,  # Assign Cube 1 an ID of 1
-        },
-        attrs={"domain": "POINT", "data_type": "INT"},
-    )
-
     cylinder = nw.new_node(
         "GeometryNodeMeshCylinder",
         input_kwargs={"Vertices": 64, "Radius": 0.0100, "Depth": 0.00050},
     )
 
-    store_cylinder = nw.new_node(
-        Nodes.StoreNamedAttribute,
-        input_kwargs={
-            "Geometry": cylinder,  # Geometry with UV map
-            "Name": "node_group",
-            "Value": 2,  # Assign Cube 1 an ID of 1
-        },
-        attrs={"domain": "POINT", "data_type": "INT"},
-    )
-
     transform = nw.new_node(
         Nodes.Transform,
         input_kwargs={
-            "Geometry": store_cylinder.outputs["Geometry"],
+            "Geometry": cylinder.outputs["Mesh"],
             "Translation": (0.0050, 0.0000, 0.0000),
             "Rotation": (1.5708, 0.0000, 0.0000),
         },
@@ -73,23 +48,13 @@ def nodegroup_node_group(nw: NodeWrangler):
         Nodes.MeshCube, input_kwargs={"Size": (0.0200, 0.0006, 0.0120)}
     )
 
-    store_cube_1 = nw.new_node(
-        Nodes.StoreNamedAttribute,
-        input_kwargs={
-            "Geometry": cube_1,  # Geometry with UV map
-            "Name": "node_group",
-            "Value": 3,  # Assign Cube 1 an ID of 1
-        },
-        attrs={"domain": "POINT", "data_type": "INT"},
-    )
-
     transform_1 = nw.new_node(
         Nodes.Transform,
-        input_kwargs={"Geometry": store_cube_1.outputs["Geometry"], "Translation": (0.0080, 0.0000, 0.0000)},
+        input_kwargs={"Geometry": cube_1, "Translation": (0.0080, 0.0000, 0.0000)},
     )
 
     join_geometry_1 = nw.new_node(
-        Nodes.JoinGeometry, input_kwargs={"Geometry": [store_cube.outputs["Geometry"], transform, transform_1]}
+        Nodes.JoinGeometry, input_kwargs={"Geometry": [cube, transform, transform_1]}
     )
 
     group_input = nw.new_node(
@@ -169,16 +134,6 @@ def nodegroup_knob_handle(nw: NodeWrangler):
         },
     )
 
-    store_cylinder = nw.new_node(
-        Nodes.StoreNamedAttribute,
-        input_kwargs={
-            "Geometry": cylinder,  # Geometry with UV map
-            "Name": "knob_handle",
-            "Value": 1,  # Assign Cube 1 an ID of 1
-        },
-        attrs={"domain": "POINT", "data_type": "INT"},
-    )
-
     subtract = nw.new_node(
         Nodes.Math,
         input_kwargs={
@@ -212,7 +167,7 @@ def nodegroup_knob_handle(nw: NodeWrangler):
     transform_6 = nw.new_node(
         Nodes.Transform,
         input_kwargs={
-            "Geometry": store_cylinder.outputs["Geometry"],
+            "Geometry": cylinder.outputs["Mesh"],
             "Translation": combine_xyz_6,
             "Rotation": (1.5708, 0.0000, 0.0000),
         },
@@ -276,16 +231,6 @@ def nodegroup_mid_board(nw: NodeWrangler, **kwargs):
         },
     )
 
-    store_cube = nw.new_node(
-        Nodes.StoreNamedAttribute,
-        input_kwargs={
-            "Geometry": cube,  # Geometry with UV map
-            "Name": "mid_board",
-            "Value": 1,
-        },
-        attrs={"domain": "POINT", "data_type": "INT"},
-    )
-
     multiply_1 = nw.new_node(
         Nodes.Math, input_kwargs={0: multiply}, attrs={"operation": "MULTIPLY"}
     )
@@ -295,7 +240,7 @@ def nodegroup_mid_board(nw: NodeWrangler, **kwargs):
     )
 
     transform_4 = nw.new_node(
-        Nodes.Transform, input_kwargs={"Geometry": store_cube.outputs["Geometry"], "Translation": combine_xyz_4}
+        Nodes.Transform, input_kwargs={"Geometry": cube, "Translation": combine_xyz_4}
     )
 
     set_material = nw.new_node(
@@ -320,16 +265,6 @@ def nodegroup_mid_board(nw: NodeWrangler, **kwargs):
         },
     )
 
-    store_cube_1 = nw.new_node(
-        Nodes.StoreNamedAttribute,
-        input_kwargs={
-            "Geometry": cube_1,  # Geometry with UV map
-            "Name": "mid_board",
-            "Value": 2,
-        },
-        attrs={"domain": "POINT", "data_type": "INT"},
-    )
-
     multiply_2 = nw.new_node(
         Nodes.Math,
         input_kwargs={0: multiply, 1: 1.5000},
@@ -341,7 +276,7 @@ def nodegroup_mid_board(nw: NodeWrangler, **kwargs):
     )
 
     transform_7 = nw.new_node(
-        Nodes.Transform, input_kwargs={"Geometry": store_cube_1.outputs["Geometry"], "Translation": combine_xyz_8}
+        Nodes.Transform, input_kwargs={"Geometry": cube_1, "Translation": combine_xyz_8}
     )
 
     set_material_1 = nw.new_node(
@@ -418,16 +353,6 @@ def nodegroup_mid_board_001(nw: NodeWrangler, **kwargs):
         },
     )
 
-    store_cube = nw.new_node(
-        Nodes.StoreNamedAttribute,
-        input_kwargs={
-            "Geometry": cube,  # Geometry with UV map
-            "Name": "mid_board",
-            "Value": 1,
-        },
-        attrs={"domain": "POINT", "data_type": "INT"},
-    )
-
     multiply_1 = nw.new_node(
         Nodes.Math, input_kwargs={0: multiply}, attrs={"operation": "MULTIPLY"}
     )
@@ -437,7 +362,7 @@ def nodegroup_mid_board_001(nw: NodeWrangler, **kwargs):
     )
 
     transform_4 = nw.new_node(
-        Nodes.Transform, input_kwargs={"Geometry": store_cube.outputs["Geometry"], "Translation": combine_xyz_4}
+        Nodes.Transform, input_kwargs={"Geometry": cube, "Translation": combine_xyz_4}
     )
 
     set_material = nw.new_node(
@@ -622,31 +547,11 @@ def nodegroup_double_rampled_edge(nw: NodeWrangler):
         },
     )
 
-    store_curve_to_mesh = nw.new_node(
-        Nodes.StoreNamedAttribute,
-        input_kwargs={
-            "Geometry": curve_to_mesh,  # Geometry with UV map
-            "Name": "double_rampled_edge",
-            "Value": 1,
-        },
-        attrs={"domain": "POINT", "data_type": "INT"},
-    )
-
     combine_xyz = nw.new_node(
         Nodes.CombineXYZ, input_kwargs={"X": add_1, "Y": add_4, "Z": add}
     )
 
     cube = nw.new_node(Nodes.MeshCube, input_kwargs={"Size": combine_xyz})
-
-    store_double_rampled_edge_1 = nw.new_node(
-        Nodes.StoreNamedAttribute,
-        input_kwargs={
-            "Geometry": cube,  # Geometry with UV map
-            "Name": "double_rampled_edge",
-            "Value": 3,  # Assign Cube 1 an ID of 1
-        },
-        attrs={"domain": "POINT", "data_type": "INT"},
-    )
 
     multiply_6 = nw.new_node(
         Nodes.Math, input_kwargs={0: add_4}, attrs={"operation": "MULTIPLY"}
@@ -655,7 +560,7 @@ def nodegroup_double_rampled_edge(nw: NodeWrangler):
     combine_xyz_2 = nw.new_node(Nodes.CombineXYZ, input_kwargs={"Y": multiply_6})
 
     transform = nw.new_node(
-        Nodes.Transform, input_kwargs={"Geometry": store_double_rampled_edge_1.outputs["Geometry"], "Translation": combine_xyz_2}
+        Nodes.Transform, input_kwargs={"Geometry": cube, "Translation": combine_xyz_2}
     )
 
     combine_xyz_1 = nw.new_node(
@@ -663,16 +568,6 @@ def nodegroup_double_rampled_edge(nw: NodeWrangler):
     )
 
     cube_1 = nw.new_node(Nodes.MeshCube, input_kwargs={"Size": combine_xyz_1})
-
-    store_double_rampled_edge_2 = nw.new_node(
-        Nodes.StoreNamedAttribute,
-        input_kwargs={
-            "Geometry": cube_1,  # Geometry with UV map
-            "Name": "double_rampled_edge",
-            "Value": 4,  # Assign Cube 1 an ID of 1
-        },
-        attrs={"domain": "POINT", "data_type": "INT"},
-    )
 
     multiply_7 = nw.new_node(
         Nodes.Math, input_kwargs={0: add_3}, attrs={"operation": "MULTIPLY"}
@@ -683,7 +578,7 @@ def nodegroup_double_rampled_edge(nw: NodeWrangler):
     combine_xyz_3 = nw.new_node(Nodes.CombineXYZ, input_kwargs={"Y": add_6})
 
     transform_1 = nw.new_node(
-        Nodes.Transform, input_kwargs={"Geometry": store_double_rampled_edge_2.outputs["Geometry"], "Translation": combine_xyz_3}
+        Nodes.Transform, input_kwargs={"Geometry": cube_1, "Translation": combine_xyz_3}
     )
 
     join_geometry = nw.new_node(
@@ -719,19 +614,9 @@ def nodegroup_double_rampled_edge(nw: NodeWrangler):
         },
     )
 
-    store_curve_to_mesh_1 = nw.new_node(
-        Nodes.StoreNamedAttribute,
-        input_kwargs={
-            "Geometry": curve_to_mesh_1,  # Geometry with UV map
-            "Name": "double_rampled_edge",
-            "Value": 2,
-        },
-        attrs={"domain": "POINT", "data_type": "INT"},
-    )
-
     join_geometry_1 = nw.new_node(
         Nodes.JoinGeometry,
-        input_kwargs={"Geometry": [store_curve_to_mesh.outputs["Geometry"], transform_4, store_curve_to_mesh_1.outputs["Geometry"]]},
+        input_kwargs={"Geometry": [curve_to_mesh, transform_4, curve_to_mesh_1]},
     )
 
     merge_by_distance = nw.new_node(
@@ -768,13 +653,7 @@ def nodegroup_ramped_edge(nw: NodeWrangler):
             ("NodeSocketFloat", "width", 0.5000),
             ("NodeSocketFloat", "thickness_1", 0.5000),
             ("NodeSocketFloat", "ramp_angle", 0.5000),
-            ("NodeSocketInt", "num", 0),
         ],
-    )
-
-    num = nw.new_node(
-        Nodes.Math, input_kwargs={0: group_input.outputs["num"], 1: 3},
-        attrs={"operation": "MULTIPLY"},
     )
 
     add = nw.new_node(
@@ -909,39 +788,11 @@ def nodegroup_ramped_edge(nw: NodeWrangler):
         },
     )
 
-    # Store unique 'cube' for Cube 1
-    store_curve_to_mesh = nw.new_node(
-        Nodes.StoreNamedAttribute,
-        input_kwargs={
-            "Geometry": curve_to_mesh,  # Geometry with UV map
-            "Name": "ramped_edge",
-            "Value": nw.new_node(
-                Nodes.Math,
-                input_kwargs={0: num, 1: 1.0000},
-            ),
-        },
-        attrs={"domain": "POINT", "data_type": "INT"},
-    )
-
     combine_xyz = nw.new_node(
         Nodes.CombineXYZ, input_kwargs={"X": add_1, "Y": add_4, "Z": add}
     )
 
     cube = nw.new_node(Nodes.MeshCube, input_kwargs={"Size": combine_xyz})
-
-    # Store unique 'cube' for Cube 1
-    store_cube = nw.new_node(
-        Nodes.StoreNamedAttribute,
-        input_kwargs={
-            "Geometry": cube,  # Geometry with UV map
-            "Name": "ramped_edge",
-            "Value": nw.new_node(
-                Nodes.Math,
-                input_kwargs={0: num, 1: 2.0000},
-            ),
-        },
-        attrs={"domain": "POINT", "data_type": "INT"},
-    )
 
     multiply_3 = nw.new_node(
         Nodes.Math, input_kwargs={0: add_4}, attrs={"operation": "MULTIPLY"}
@@ -950,7 +801,7 @@ def nodegroup_ramped_edge(nw: NodeWrangler):
     combine_xyz_2 = nw.new_node(Nodes.CombineXYZ, input_kwargs={"Y": multiply_3})
 
     transform = nw.new_node(
-        Nodes.Transform, input_kwargs={"Geometry": store_cube.outputs["Geometry"], "Translation": combine_xyz_2}
+        Nodes.Transform, input_kwargs={"Geometry": cube, "Translation": combine_xyz_2}
     )
 
     combine_xyz_1 = nw.new_node(
@@ -958,20 +809,6 @@ def nodegroup_ramped_edge(nw: NodeWrangler):
     )
 
     cube_1 = nw.new_node(Nodes.MeshCube, input_kwargs={"Size": combine_xyz_1})
-
-    # Store unique 'cube' for Cube 1
-    store_cube_1 = nw.new_node(
-        Nodes.StoreNamedAttribute,
-        input_kwargs={
-            "Geometry": cube_1,  # Geometry with UV map
-            "Name": "ramped_edge",
-            "Value": nw.new_node(
-                Nodes.Math,
-                input_kwargs={0: num, 1: 3.0000},
-            ),
-        },
-        attrs={"domain": "POINT", "data_type": "INT"},
-    )
 
     multiply_4 = nw.new_node(
         Nodes.Math, input_kwargs={0: multiply_1}, attrs={"operation": "MULTIPLY"}
@@ -988,7 +825,7 @@ def nodegroup_ramped_edge(nw: NodeWrangler):
     )
 
     transform_1 = nw.new_node(
-        Nodes.Transform, input_kwargs={"Geometry": store_cube_1.outputs["Geometry"], "Translation": combine_xyz_3}
+        Nodes.Transform, input_kwargs={"Geometry": cube_1, "Translation": combine_xyz_3}
     )
 
     join_geometry = nw.new_node(
@@ -1007,7 +844,7 @@ def nodegroup_ramped_edge(nw: NodeWrangler):
     )
 
     join_geometry_1 = nw.new_node(
-        Nodes.JoinGeometry, input_kwargs={"Geometry": [store_curve_to_mesh.outputs["Geometry"], transform_4]}
+        Nodes.JoinGeometry, input_kwargs={"Geometry": [curve_to_mesh, transform_4]}
     )
 
     merge_by_distance = nw.new_node(
@@ -1129,58 +966,11 @@ def nodegroup_panel_edge_frame(nw: NodeWrangler):
         input_kwargs={"Geometry": transform, "Scale": (-1.0000, 1.0000, 1.0000)},
     )
 
-    store_panel_edge_frame_1 = nw.new_node(
-        Nodes.StoreNamedAttribute,
-        input_kwargs={
-            "Geometry": transform,  # Geometry with UV map
-            "Name": "panel_edge_frame",
-            "Value": 1,  # Assign Cube 1 an ID of 1
-        },
-        attrs={"domain": "POINT", "data_type": "INT"},
-    )
+    # transform_1 = nw.new_node(Nodes.FlipFaces, input_kwargs={'Mesh': transform_1})
 
-    # Store unique 'cube' for Cube 1
-    store_panel_edge_frame_2 = nw.new_node(
-        Nodes.StoreNamedAttribute,
-        input_kwargs={
-            "Geometry": transform_1,  # Geometry with UV map
-            "Name": "panel_edge_frame",
-            "Value": 2,  # Assign Cube 1 an ID of 1
-        },
-        attrs={"domain": "POINT", "data_type": "INT"},
-    )
-
-    # Store unique 'cube' for Cube 1
-    store_panel_edge_frame_3 = nw.new_node(
-        Nodes.StoreNamedAttribute,
-        input_kwargs={
-            "Geometry": transform_2,  # Geometry with UV map
-            "Name": "panel_edge_frame",
-            "Value": 3,  # Assign Cube 1 an ID of 1
-        },
-        attrs={"domain": "POINT", "data_type": "INT"},
-    )
-
-    # Store unique 'cube' for Cube 1
-    store_panel_edge_frame_4 = nw.new_node(
-        Nodes.StoreNamedAttribute,
-        input_kwargs={
-            "Geometry": transform_3,  # Geometry with UV map
-            "Name": "panel_edge_frame",
-            "Value": 4,  # Assign Cube 1 an ID of 1
-        },
-        attrs={"domain": "POINT", "data_type": "INT"},
-    )
     join_geometry_1 = nw.new_node(
         Nodes.JoinGeometry,
-        input_kwargs={
-            "Geometry": [
-                store_panel_edge_frame_3,
-                store_panel_edge_frame_2,
-                store_panel_edge_frame_1,
-                store_panel_edge_frame_4
-            ]
-        },
+        input_kwargs={"Geometry": [transform_3, transform_2, transform_1, transform]},
     )
 
     group_output = nw.new_node(
@@ -1230,7 +1020,6 @@ def geometry_door_nodes(nw: NodeWrangler, **kwargs):
             "width": door_edge_width,
             "thickness_1": door_edge_thickness_1,
             "ramp_angle": door_edge_ramp_angle,
-            "num": 1
         },
     )
 
@@ -1243,9 +1032,6 @@ def geometry_door_nodes(nw: NodeWrangler, **kwargs):
             "horizontal_edge": ramped_edge_1,
         },
     )
-
-    names = ["panel_edge_frame"]
-    parts = [4]
 
     add = nw.new_node(
         Nodes.Math, input_kwargs={0: panel_edge_frame.outputs["Value"], 1: 0.0001}
@@ -1263,8 +1049,6 @@ def geometry_door_nodes(nw: NodeWrangler, **kwargs):
                 "width": door_width,
             },
         )
-        names.append("mid_board")
-        parts.append(2)
     else:
         mid_board = nw.new_node(
             nodegroup_mid_board_001(material=kwargs["panel_material"]).name,
@@ -1274,8 +1058,6 @@ def geometry_door_nodes(nw: NodeWrangler, **kwargs):
                 "width": door_width,
             },
         )
-        names.append("mid_board")
-        parts.append(1)
 
     combine_xyz_5 = nw.new_node(
         Nodes.CombineXYZ,
@@ -1304,11 +1086,9 @@ def geometry_door_nodes(nw: NodeWrangler, **kwargs):
             },
         )
         frame.append(transform_5)
-        names.append("double_rampled_edge")
-        parts.append(4)
 
     knob_raduis = nw.new_node(Nodes.Value, label="knob_raduis")
-    knob_raduis.outputs[0].default_value = kwargs["knob_R"]
+    knob_raduis.outputs[0].default_value = kwargs["knob_R"]* 3
 
     know_length = nw.new_node(Nodes.Value, label="know_length")
     know_length.outputs[0].default_value = kwargs["knob_length"]
@@ -1329,8 +1109,6 @@ def geometry_door_nodes(nw: NodeWrangler, **kwargs):
             "door_width": door_width,
         },
     )
-    names.append("knob_handle")
-    parts.append(1)
 
     join_geometry_1 = nw.new_node(
         Nodes.JoinGeometry, input_kwargs={"Geometry": frame + [knob_handle]}
@@ -1383,85 +1161,6 @@ def geometry_door_nodes(nw: NodeWrangler, **kwargs):
         Nodes.Transform,
         input_kwargs={"Geometry": transform_1, "Rotation": (0.0000, 0.0000, -1.5708)},
     )
-
-    global first
-    if not kwargs.get("save", True):
-        group_output = nw.new_node(
-        Nodes.GroupOutput,
-        input_kwargs={"Geometry": transform_2},
-        attrs={"is_active_output": True},
-        )
-        return
-
-    for i, name in enumerate(names):
-        named_attribute = nw.new_node(
-            node_type=Nodes.NamedAttribute,
-            input_args=[name],
-            attrs={"data_type": "INT"},
-        )
-        for j in range(1, parts[i]+1):
-            compare = nw.new_node(
-                node_type=Nodes.Compare,
-                input_kwargs={"A": named_attribute, "B": j},
-                attrs={"data_type": "INT", "operation": "EQUAL"},
-            )
-            separate_geometry = nw.new_node(
-                node_type=Nodes.SeparateGeometry,
-                input_kwargs={
-                    "Geometry": transform.outputs["Geometry"],
-                    "Selection": compare.outputs["Result"],
-                },
-            )
-            if name == "panel_edge_frame":
-                named_attribute_1 = nw.new_node(
-                    node_type=Nodes.NamedAttribute,
-                    input_args=["ramped_edge"],
-                    attrs={"data_type": "INT"},
-                )
-                for k in range(1, 7):
-                    compare_1 = nw.new_node(
-                        node_type=Nodes.Compare,
-                        input_kwargs={"A": named_attribute_1, "B": k},
-                        attrs={"data_type": "INT", "operation": "EQUAL"},
-                    )
-                    separate_geometry_1 = nw.new_node(
-                        node_type=Nodes.SeparateGeometry,
-                        input_kwargs={
-                            "Geometry": separate_geometry,
-                            "Selection": compare_1.outputs["Result"],
-                        },
-                    )
-                    output_geometry = separate_geometry_1
-                    a = save_geometry(
-                        nw,
-                        output_geometry,
-                        kwargs.get("path", None),
-                        name,
-                        kwargs.get("i", "unknown"),
-                        first=first,
-                    )
-                    if a:
-                        first = False
-            else:
-                output_geometry = separate_geometry
-                a = save_geometry(
-                    nw,
-                    output_geometry,
-                    kwargs.get("path", None),
-                    name,
-                    kwargs.get("i", "unknown"),
-                    first=first,
-                )
-                if a:
-                    first = False
-    save_geometry(
-        nw,
-        transform,
-        kwargs.get("path", None),
-        "whole",
-        kwargs.get("i", "unknown"),
-    )
-
 
     group_output = nw.new_node(
         Nodes.GroupOutput,
@@ -1593,9 +1292,7 @@ class CabinetDoorBaseFactory(AssetFactory):
         params["panel_material"] = materials
         return params
 
-    def create_asset(self, idx=0, first_= True, save=True, **params):
-        global first
-        first = first_
+    def create_asset(self, i=0, **params):
         bpy.ops.mesh.primitive_plane_add(
             size=1,
             enter_editmode=False,
@@ -1605,58 +1302,13 @@ class CabinetDoorBaseFactory(AssetFactory):
         )
         obj = bpy.context.active_object
 
-        obj_params = self.get_asset_params(idx)
-
-        path_dict = {
-            "path": params.get("path", None),
-            "i": params.get("i", "unknown"),
-            "save": save
-        }
-        obj_params.update(path_dict)
-
+        obj_params = self.get_asset_params(i)
         surface.add_geomod(
             obj, geometry_door_nodes, apply=True, attributes=[], input_kwargs=obj_params
         )
         tagging.tag_system.relabel_obj(obj)
-        obj_params.update({"first": first})
-
 
         if params.get("ret_params", False):
             return obj, obj_params
 
         return obj
-
-    def save(self, obj, params, first, parent_id, left=True):
-        names = ["mid_board", "panel_edge_frame", "double_rampled_edge", "knob_handle"]
-        parts = [2, 4, 4, 1]
-        object_idx = -1
-        for j, name in enumerate(names):
-            if name in ['mid_board']:
-                material = params["panel_material"]
-            else:
-                material = params["frame_material"]
-            if isinstance(material, list):
-                material = material[0]
-            material = surface.shaderfunc_to_material(material)
-            for k in range(1, parts[j] + 1):
-                if name == "mid_board" and object_idx == -1:
-                    res = save_geometry_new(obj, name, k, params.get("i", None), params.get("path", None), first, use_bpy=True, parent_obj_id=parent_id, joint_info={
-                        "name": f"rotate_door_{obj.name}_{random.randint(0, 10000000000000000000000000000000000000000000000000000000000000)}",
-                        "type": "revolute",
-                        "axis": (0, 0, 1),
-                        "limit": {
-                            "lower": (- math.pi / 2) if left else 0,
-                            "upper": 0 if left else math.pi / 2
-                        },
-                        "origin_shift": (0, -params["door_width"] / 2, 0) if left else (0,  params["door_width"] / 2, 0)
-                    }, material=material)
-                    object_idx = res[0]
-                else:
-                    res = save_geometry_new(obj, name, k, params.get("i", None), params.get("path", None), first, use_bpy=True, parent_obj_id=object_idx, joint_info={
-                        "name": f"fixed_door_{obj.name}_{random.randint(0, 10000000000000000000000000000000000000000000000000000000000000)}",
-                        "type": "fixed",
-                    }, material=material)
-                if res:
-                    first = False
-
-

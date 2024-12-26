@@ -13,6 +13,15 @@ from infinigen.assets.utils.draw import spin
 from infinigen.core.util import blender as butil
 from infinigen.core.util.math import FixedSeed
 from infinigen.core.util.random import log_uniform
+from infinigen.assets.utils.object import (
+    get_joint_name,
+    join_objects,
+    new_cylinder,
+    new_line,
+    save_obj_parts_join_objects,
+    save_obj_parts_add,
+    join_objects_save_whole
+)
 
 
 class WineglassFactory(TablewareFactory):
@@ -45,6 +54,7 @@ class WineglassFactory(TablewareFactory):
         anchors = x_anchors, np.zeros_like(x_anchors), z_anchors
         obj = spin(anchors, [0, 1, 2, 3], 4, 16)
         subsurf(obj, 2)
+        save_obj_parts_add(obj, params.get("path"), params.get("i"), "glass", first=True, use_bpy=True)
         butil.modify_mesh(obj, "SOLIDIFY", thickness=self.thickness)
         subsurf(obj, 1)
         obj.scale = [self.scale] * 3

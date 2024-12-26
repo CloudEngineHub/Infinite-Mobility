@@ -18,11 +18,14 @@ from infinigen.assets.materials.shelf_shaders import (
     shader_shelves_white_sampler,
 )
 from infinigen.assets.objects.shelves.utils import nodegroup_tagged_cube
+from infinigen.assets.utils.decorate import read_co, write_co
 from infinigen.core.nodes.node_utils import save_geometry
 from infinigen.core import surface, tagging
 from infinigen.core.nodes import node_utils
 from infinigen.core.nodes.node_wrangler import Nodes, NodeWrangler
 from infinigen.core.placement.factory import AssetFactory
+from infinigen.assets.utils.object import get_joint_name, join_objects_save_whole, save_obj_parts_add
+from infinigen.core.util import blender as butil
 
 
 @node_utils.to_nodegroup(
@@ -296,8 +299,10 @@ def nodegroup_table_top(nw: NodeWrangler, tag_support=True):
         attrs={"is_active_output": True},
     )
 
-
-def geometry_nodes(nw: NodeWrangler, **kwargs):
+@node_utils.to_nodegroup(
+    "nodegroup_table", singleton=False, type="GeometryNodeTree"
+)
+def geometry_nodes(nw: NodeWrangler, return_type_name="", **kwargs):
     # Code generated using version 2.6.4 of the node_transpiler
 
     table_depth = nw.new_node(Nodes.Value, label="table_depth")
@@ -360,6 +365,27 @@ def geometry_nodes(nw: NodeWrangler, **kwargs):
         Nodes.JoinGeometry, input_kwargs={"Geometry": [set_material, set_material_1]}
     )
 
+    if return_type_name == "leg":
+        set_material_1 = nw.new_node(
+            Nodes.RealizeInstances, [set_material_1]
+        )
+        group_output = nw.new_node(
+            Nodes.GroupOutput,
+            input_kwargs={"Geometry": set_material_1},
+            attrs={"is_active_output": True},
+        )
+        return
+    if return_type_name == "table_top":
+        set_material = nw.new_node(
+            Nodes.RealizeInstances, [set_material]
+        )
+        group_output = nw.new_node(
+            Nodes.GroupOutput,
+            input_kwargs={"Geometry": set_material},
+            attrs={"is_active_output": True},
+        )
+        return
+
     realize_instances = nw.new_node(
         Nodes.RealizeInstances, input_kwargs={"Geometry": join_geometry}
     )
@@ -373,46 +399,46 @@ def geometry_nodes(nw: NodeWrangler, **kwargs):
         input_kwargs={"Geometry": triangulate, "Rotation": (0.0000, 0.0000, 1.5708)},
     )
         
-    names = ["leg", "table_top"]
-    parts = [4, 1]
-    first = True
-    for i, name in enumerate(names):
-        named_attribute = nw.new_node(
-                node_type=Nodes.NamedAttribute,
-                input_args=[name],
-                attrs={"data_type": "INT"},
-            )
-        for j in range(1, parts[i]+1):
-            compare = nw.new_node(
-                    node_type=Nodes.Compare,
-                    input_kwargs={"A": named_attribute, "B": j},
-                    attrs={"data_type": "INT", "operation": "EQUAL"},
-                )
-            separate_geometry = nw.new_node(
-                node_type=Nodes.SeparateGeometry,
-                input_kwargs={
-                    "Geometry": transform.outputs["Geometry"],
-                    "Selection": compare.outputs["Result"],
-                },
-            )
-            output_geometry = separate_geometry
-            a = save_geometry(
-                nw,
-                output_geometry,
-                kwargs.get("path", None),
-                name,
-                kwargs.get("i", "unknown"),
-                first=first,
-            )
-            if a:
-                first = False
-    save_geometry(
-        nw,
-        transform,
-        kwargs.get("path", None),
-        "whole",
-        kwargs.get("i", "unknown"),
-    )
+    # names = ["leg", "table_top"]
+    # parts = [4, 1]
+    # first = True
+    # for i, name in enumerate(names):
+    #     named_attribute = nw.new_node(
+    #             node_type=Nodes.NamedAttribute,
+    #             input_args=[name],
+    #             attrs={"data_type": "INT"},
+    #         )
+    #     for j in range(1, parts[i]+1):
+    #         compare = nw.new_node(
+    #                 node_type=Nodes.Compare,
+    #                 input_kwargs={"A": named_attribute, "B": j},
+    #                 attrs={"data_type": "INT", "operation": "EQUAL"},
+    #             )
+    #         separate_geometry = nw.new_node(
+    #             node_type=Nodes.SeparateGeometry,
+    #             input_kwargs={
+    #                 "Geometry": transform.outputs["Geometry"],
+    #                 "Selection": compare.outputs["Result"],
+    #             },
+    #         )
+    #         output_geometry = separate_geometry
+    #         a = save_geometry(
+    #             nw,
+    #             output_geometry,
+    #             kwargs.get("path", None),
+    #             name,
+    #             kwargs.get("i", "unknown"),
+    #             first=first,
+    #         )
+    #         if a:
+    #             first = False
+    # save_geometry(
+    #     nw,
+    #     transform,
+    #     kwargs.get("path", None),
+    #     "whole",
+    #     kwargs.get("i", "unknown"),
+    # )
 
     group_output = nw.new_node(
         Nodes.GroupOutput,
@@ -505,10 +531,92 @@ class SimpleDeskBaseFactory(AssetFactory):
 
         obj_params = self.get_asset_params(idx)
         obj_params.update(path_dict)
-        surface.add_geomod(
-            obj, geometry_nodes, attributes=[], apply=True, input_kwargs=obj_params
+        butil.modify_mesh(
+            obj,
+            "NODES",
+            node_group=geometry_nodes(return_type_name="",**obj_params),
+            ng_inputs={},
+            apply=True,
         )
-        tagging.tag_system.relabel_obj(obj)
+
+        bpy.ops.mesh.primitive_plane_add(
+            size=1,
+            enter_editmode=False,
+            align="WORLD",
+            location=(0, 0, 0),
+            scale=(1, 1, 1),
+        )
+        leg = bpy.context.active_object
+        butil.modify_mesh(
+            leg,
+            "NODES",
+            node_group=geometry_nodes(return_type_name="leg",**obj_params),
+            ng_inputs={},
+            apply=True,
+        )
+        co = read_co(leg)
+        h = co[:, 2].max() - co[:, 2].min()
+        leg.scale[2] = 0.7
+        butil.apply_transform(leg, loc=True)
+        save_obj_parts_add(leg, params.get("path", None), params.get("i", "unknown"), "leg",first=True, use_bpy=True)
+
+        bpy.ops.mesh.primitive_plane_add(
+            size=1,
+            enter_editmode=False,
+            align="WORLD",
+            location=(0, 0, 0),
+            scale=(1, 1, 1),
+        )
+        leg = bpy.context.active_object
+        #obj_params['return_type_name'] = 'leg'
+        obj_params['leg_radius'] *= 0.8
+        butil.modify_mesh(
+            leg,
+            "NODES",
+            node_group=geometry_nodes(return_type_name="leg",**obj_params),
+            ng_inputs={},
+            apply=True,
+        )
+        # co = read_co(leg)
+        # co[:, 2] *= 0.3
+        # co[:, 2] += (h * 1.1)
+        # write_co(leg, co)
+        leg.scale[2] = 0.3
+        leg.location[2] = h * 0.7
+        butil.apply_transform(leg, loc=True)
+        save_obj_parts_add(leg, params.get("path", None), params.get("i", "unknown"), "leg",first=False, use_bpy=True, parent_obj_id="world", joint_info={
+            "name": get_joint_name("prismatic"),
+            "type": "prismatic",
+            "axis": (0, 0, 1),
+            "limit": {
+                "lower": -h * 0.3,
+                "upper": 0,
+            }
+        })
+
+        bpy.ops.mesh.primitive_plane_add(
+            size=1,
+            enter_editmode=False,
+            align="WORLD",
+            location=(0, 0, 0),
+            scale=(1, 1, 1),
+        )
+        table_top = bpy.context.active_object
+        #obj_params['return_type_name'] = 'table_top'
+        butil.modify_mesh(
+            table_top,
+            "NODES",
+            node_group=geometry_nodes(return_type_name="table_top",**obj_params),
+            ng_inputs={},
+            apply=True,
+        )
+        save_obj_parts_add(table_top, params.get("path", None), params.get("i", "unknown"), "top",first=False, use_bpy=True, parent_obj_id=1, joint_info={
+            "name": get_joint_name("fixed"),
+            "type": "fixed",
+        })
+        join_objects_save_whole(obj, params.get("path", None), params.get("i", "unknown"), use_bpy=True, join=False)
+
+        #tagging.tag_system.relabel_obj(obj)
 
         return obj
 

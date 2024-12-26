@@ -66,7 +66,7 @@ def add_bevel(obj, edges, offset=0.03, segments=8):
             if edge.index in edges:
                 edge.select_set(True)
         bpy.ops.mesh.bevel(
-            offset=offset, offset_pct=0, segments=segments, release_confirm=True
+            offset=offset, offset_pct=0, segments=segments, release_confirm=True, face_strength_mode="ALL"
         )
     return obj
 

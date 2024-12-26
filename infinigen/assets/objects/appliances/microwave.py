@@ -8,8 +8,13 @@ import numpy as np
 from numpy.random import uniform as U
 
 from infinigen.assets.material_assignments import AssetList
+from infinigen.assets.utils.decorate import read_co
 from infinigen.assets.utils.misc import generate_text
-from infinigen.assets.utils.object import get_joint_name
+from infinigen.assets.utils.object import (
+    get_joint_name,
+    join_objects,
+    save_obj_parts_add
+)
 from infinigen.core import surface
 from infinigen.core.nodes import node_utils
 from infinigen.core.nodes.node_wrangler import Nodes, NodeWrangler
@@ -18,6 +23,8 @@ from infinigen.core.util import blender as butil
 from infinigen.core.util.bevelling import add_bevel, complete_no_bevel, get_bevel_edges
 from infinigen.core.util.blender import delete
 from infinigen.core.util.math import FixedSeed
+import bpy
+import random
 
 
 class MicrowaveFactory(AssetFactory):
@@ -39,9 +46,10 @@ class MicrowaveFactory(AssetFactory):
             "Back": material_assignments["back"].assign_material(),
             "BlackGlass": material_assignments["black_glass"].assign_material(),
             "Glass": material_assignments["glass"].assign_material(),
+            "Rotate": material_assignments["rotate_surface"].assign_material(),
         }
         wrapped_params = {
-            k: surface.shaderfunc_to_material(v) for k, v in params.items()
+            k: surface.shaderfunc_to_material(v) for k, v in params.items() if k != 'Rotate'
         }
 
         params = {f"{k}_": v for k, v in params.items()}
@@ -68,7 +76,7 @@ class MicrowaveFactory(AssetFactory):
         margin_z = U(0.05, 0.1)
         door_thickness = U(0.02, 0.04)
         door_margin = U(0.03, 0.1)
-        door_rotation = 0  # Set to 0 for now
+        door_rotation = 0#-np.pi / 1.5  # Set to 0 for now
         brand_name = generate_text()
         params = {
             "Depth": depth,
@@ -84,6 +92,7 @@ class MicrowaveFactory(AssetFactory):
         return params
 
     def create_asset(self, **params):
+        self.button_lines = random.randint(1, 3)
         obj = butil.spawn_cube()
         butil.modify_mesh(
             obj,
@@ -103,7 +112,8 @@ class MicrowaveFactory(AssetFactory):
             apply=True,
         )
         obj = add_bevel(obj, bevel_edges)
-        self.params.update(params)
+        #self.params.update(params)
+        self.ps = params
 
         return obj
 
@@ -112,6 +122,7 @@ class MicrowaveFactory(AssetFactory):
         #     self.scratch.apply(assets)
         # if self.edge_wear:
         #     self.edge_wear.apply(assets)
+        material = [self.scratch, self.edge_wear]
         first = True
         for i in range(1, 6):
             if i == 1:
@@ -121,6 +132,36 @@ class MicrowaveFactory(AssetFactory):
                     "name": get_joint_name("fixed"),
                     "type": "fixed",
                 }
+                try: 
+                    text = butil.spawn_cube()
+                    butil.modify_mesh(
+                        text,
+                        "NODES",
+                        node_group=nodegroup_microwave_geometry(return_type_name="text", preprocess=True),
+                        ng_inputs=self.params,
+                        apply=True,
+                    )
+                    bevel_edges = get_bevel_edges(text)
+                    delete(text)
+                    text = butil.spawn_cube()
+                    butil.modify_mesh(
+                        text,
+                        "NODES",
+                        node_group=nodegroup_microwave_geometry(return_type_name="text"),
+                        ng_inputs=self.params,
+                        apply=True,
+                    )
+                    text = add_bevel(text, bevel_edges)
+                except:
+                    text = butil.spawn_cube()
+                    butil.modify_mesh(
+                        text,
+                        "NODES",
+                        node_group=nodegroup_microwave_geometry(return_type_name="text"),
+                        ng_inputs=self.params,
+                        apply=True,
+                    )
+                save_obj_parts_add([text], self.ps['path'], self.ps['i'], "text", first=True, use_bpy=True, parent_obj_id=parent_id, joint_info=joint_info, material=material)
             elif i == 2:
                 material = [self.shaders['Back_'], self.scratch, self.edge_wear]
                 parent_id = "world"
@@ -128,6 +169,36 @@ class MicrowaveFactory(AssetFactory):
                     "name": get_joint_name("fixed"),
                     "type": "fixed",
                 }
+                try:
+                    body = butil.spawn_cube()
+                    butil.modify_mesh(
+                        body,
+                        "NODES",
+                        node_group=nodegroup_microwave_geometry(return_type_name="body", preprocess=True),
+                        ng_inputs=self.params,
+                        apply=True,
+                    )
+                    bevel_edges = get_bevel_edges(body)
+                    delete(body)
+                    body = butil.spawn_cube()
+                    butil.modify_mesh(
+                        body,
+                        "NODES",
+                        node_group=nodegroup_microwave_geometry(return_type_name="body"),
+                        ng_inputs=self.params,
+                        apply=True,
+                    )
+                    body = add_bevel(body, bevel_edges)
+                except:
+                    body = butil.spawn_cube()
+                    butil.modify_mesh(
+                        body,
+                        "NODES",
+                        node_group=nodegroup_microwave_geometry(return_type_name="body"),
+                        ng_inputs=self.params,
+                        apply=True,
+                    )
+                save_obj_parts_add([body], self.ps['path'], self.ps['i'], "body", first=False, use_bpy=True, parent_obj_id=parent_id, joint_info=joint_info, material=material)
             elif i == 3:
                 material = [[self.shaders['Surface_'], "Out"], [self.shaders['BlackGlass_'], "In"], self.scratch, self.edge_wear]
                 parent_id = "world"
@@ -139,8 +210,40 @@ class MicrowaveFactory(AssetFactory):
                         "lower": -1.5708,
                         "upper": 0,
                     },
-                    "origin_shift": (0, -(self.params['Width'] - self.params['PanelWidth']) / 2, 0),
+                    "origin_shift": (-self.params['DoorThickness'] / 2, -(self.params['Width'] - self.params['PanelWidth']) *(0.52), 0),
                 }
+                try: 
+                    door = butil.spawn_cube()
+                    butil.modify_mesh(
+                        door,
+                        "NODES",
+                        node_group=nodegroup_microwave_geometry(return_type_name="door", preprocess=True),
+                        ng_inputs=self.params,
+                        apply=True,
+                    )
+                    bevel_edges = get_bevel_edges(door)
+                    delete(door)
+                    door = butil.spawn_cube()
+                    butil.modify_mesh(
+                        door,
+                        "NODES",
+                        node_group=nodegroup_microwave_geometry(return_type_name="door"),
+                        ng_inputs=self.params,
+                        apply=True,
+                    )
+                    door = add_bevel(door, bevel_edges)
+                except:
+                    door = butil.spawn_cube()
+                    butil.modify_mesh(
+                        door,
+                        "NODES",
+                        node_group=nodegroup_microwave_geometry(return_type_name="door"),
+                        ng_inputs=self.params,
+                        apply=True,
+                    )
+                door.location[0] += 0.02
+                butil.apply_transform(door, True)
+                save_obj_parts_add([door], self.ps['path'], self.ps['i'], "door", first=False, use_bpy=True, parent_obj_id=parent_id, joint_info=joint_info, material=material)
             elif i == 4:
                 material = [self.shaders['Glass_'], self.scratch, self.edge_wear]
                 parent_id = "world"
@@ -149,6 +252,36 @@ class MicrowaveFactory(AssetFactory):
                     "type": "continuous",
                     "axis": (0, 0, 1)
                 }
+                try:
+                    plate = butil.spawn_cube()
+                    butil.modify_mesh(
+                        plate,
+                        "NODES",
+                        node_group=nodegroup_microwave_geometry(return_type_name="plate", preprocess=True),
+                        ng_inputs=self.params,
+                        apply=True,
+                    )
+                    bevel_edges = get_bevel_edges(plate)
+                    delete(plate)
+                    plate = butil.spawn_cube()
+                    butil.modify_mesh(
+                        plate,
+                        "NODES",
+                        node_group=nodegroup_microwave_geometry(return_type_name="plate"),
+                        ng_inputs=self.params,
+                        apply=True,
+                    )
+                    plate = add_bevel(plate, bevel_edges)
+                except:
+                    plate = butil.spawn_cube()
+                    butil.modify_mesh(
+                        plate,
+                        "NODES",
+                        node_group=nodegroup_microwave_geometry(return_type_name="plate"),
+                        ng_inputs=self.params,
+                        apply=True,
+                    )
+                save_obj_parts_add([plate], self.ps['path'], self.ps['i'], "plate", first=False, use_bpy=True, parent_obj_id=parent_id, joint_info=joint_info, material=material)
             else:
                 material = [[self.shaders['Surface_'], "Out"], [self.shaders['BlackGlass_'], "In"], self.scratch, self.edge_wear]
                 parent_id = "world"
@@ -156,10 +289,103 @@ class MicrowaveFactory(AssetFactory):
                     "name": get_joint_name("fixed"),
                     "type": "fixed",
                 }
-            res = node_utils.save_geometry_new(assets, "part", i, self.params['i'], self.params['path'], first, True, material=material, parent_obj_id=parent_id, joint_info=joint_info)
-            if res:
-                first = False
-        node_utils.save_geometry_new(assets, "whole", 0, self.params['i'], self.params['path'], first, True)
+                try:
+                    panel = butil.spawn_cube()
+                    butil.modify_mesh(
+                        panel,
+                        "NODES",
+                        node_group=nodegroup_microwave_geometry(return_type_name="panel", preprocess=True),
+                        ng_inputs=self.params,
+                        apply=True,
+                    )
+                    bevel_edges = get_bevel_edges(panel)
+                    delete(panel)
+                    panel = butil.spawn_cube()
+                    butil.modify_mesh(
+                        panel,
+                        "NODES",
+                        node_group=nodegroup_microwave_geometry(return_type_name="panel"),
+                        ng_inputs=self.params,
+                        apply=True,
+                    )
+                    panel = add_bevel(panel, bevel_edges)
+                    rotate = butil.spawn_cylinder(radius=self.params['PanelWidth'] / 6, depth=self.params['PanelWidth'] / 18)
+                    rotate.rotation_euler[1] = np.pi / 2
+                    indicator = butil.spawn_cube()
+                    indicator.scale = (self.params['PanelWidth'] / 36, self.params['PanelWidth'] / 36, self.params['PanelWidth'] / 6 - self.params['PanelWidth'] / 36)
+                    butil.apply_transform(indicator, True)
+                    indicator.location = (self.params['Depth'] + self.params['DoorThickness'] + self.params['PanelWidth'] / 18, self.params['Width'] - self.params['PanelWidth'] / 2, self.params['Height'] * 0.4 + self.params['PanelWidth'] / 18)
+                    butil.apply_transform(indicator, True)
+                    butil.apply_transform(rotate, True)
+                    rotate.location = (self.params['Depth'] + self.params['DoorThickness'] + self.params['PanelWidth'] / 36, self.params['Width'] - self.params['PanelWidth'] / 2, self.params['Height'] * 0.4)
+                    butil.apply_transform(rotate, True)
+                    bpy.context.view_layer.objects.active = rotate
+                    bpy.ops.object.mode_set(mode='EDIT')
+                    bpy.ops.mesh.bevel(
+                        offset=self.params['PanelWidth'] / 36*0.95, offset_pct=0, segments=8, release_confirm=True, face_strength_mode="ALL"
+                    )
+                    bpy.ops.object.mode_set(mode='OBJECT')
+                    self.shaders['Rotate_'].apply(rotate, rough=True)
+                    button_width = self.params['PanelWidth'] / 7
+                    button_height = self.params['PanelWidth'] / 12 * (1 - self.button_lines * 0.1)
+                    gap = button_width
+                    rotate.location[2] += self.button_lines * (button_height)
+                    indicator.location[2] += self.button_lines * (button_height)
+                    butil.apply_transform(rotate, True)
+                    butil.apply_transform(rotate, True)
+                    butil.apply_transform(indicator, True)
+                    buttons = []
+                    for i in range(self.button_lines):
+                        for j in range(3):
+                            button = butil.spawn_cube()
+                            button.scale = (button_height / 4, button_width, button_height)
+                            button.location = (self.params['Depth'] + self.params['DoorThickness'] + self.params['PanelWidth'] / 36, self.params['Width'] - self.params['PanelWidth'] + j * (button_width) + (j)* gap+ button_width * 1.8, self.params['Height'] * 0.15 + i * (button_height) * 1.3)
+                            butil.apply_transform(button, True)
+                            bpy.context.view_layer.objects.active = button
+                            bpy.ops.object.mode_set(mode='EDIT')
+                            bpy.ops.mesh.bevel(
+                                offset=button_height / 8, offset_pct=0, segments=8, release_confirm=True, face_strength_mode="ALL"
+                            )
+                            bpy.ops.object.mode_set(mode='OBJECT')
+                            self.shaders['Rotate_'].apply(button, rough=True)
+                            save_obj_parts_add([button], self.ps['path'], self.ps['i'], "button", first=False, use_bpy=True, parent_obj_id="world", joint_info={
+                                "name": get_joint_name("prismatic"),
+                                "type": "prismatic",
+                                "axis": (1, 0, 0),
+                                "limit": {
+                                    "lower": -button_height / 4,
+                                    "upper": 0,
+                                },
+                            }, material=material)
+                    res = save_obj_parts_add([rotate], self.ps['path'], self.ps['i'], "rotate", first=False, use_bpy=True, parent_obj_id=parent_id, joint_info={
+                        "name": get_joint_name("continuous"),
+                        "type": "continuous",
+                        "axis": (1, 0, 0),
+                    })
+                    save_obj_parts_add([indicator], self.ps['path'], self.ps['i'], "indicator", first=False, use_bpy=True, parent_obj_id=res[0], joint_info={
+                        "name": get_joint_name("fixed"),
+                        "type": "fixed",
+                    })
+
+                except Exception as e:
+                    print(e)
+                    panel = butil.spawn_cube()
+                    butil.modify_mesh(
+                        panel,
+                        "NODES",
+                        node_group=nodegroup_microwave_geometry(return_type_name="panel"),
+                        ng_inputs=self.params,
+                        apply=True,
+                    )
+                door.location[0] += 0.02
+                butil.apply_transform(panel, True)
+                save_obj_parts_add([panel], self.ps['path'], self.ps['i'], "panel", first=False, use_bpy=True, parent_obj_id=parent_id, joint_info=joint_info, material=material)
+            #res = node_utils.save_geometry_new(assets, "part", i, self.params['i'], self.params['path'], first, True, material=material, parent_obj_id=parent_id, joint_info=joint_info)
+            #if res:
+                #first = False
+        node_utils.save_geometry_new(assets, "whole", 0, self.ps['i'], self.ps['path'], False, True)
+        save_obj_parts_add([assets], self.ps['path'], self.ps['i'], "part", first=False, use_bpy=True)
+        
         return assets
             
 
@@ -438,7 +664,7 @@ def nodegroup_cube(nw: NodeWrangler):
 @node_utils.to_nodegroup(
     "nodegroup_microwave_geometry", singleton=False, type="GeometryNodeTree"
 )
-def nodegroup_microwave_geometry(nw: NodeWrangler, preprocess: bool = False):
+def nodegroup_microwave_geometry(nw: NodeWrangler, preprocess: bool = False, return_type_name=""):
     # Code generated using version 2.6.5 of the node_transpiler
 
     group_input = nw.new_node(
@@ -865,7 +1091,7 @@ def nodegroup_microwave_geometry(nw: NodeWrangler, preprocess: bool = False):
         attrs={"operation": "SUBTRACT"},
     )
 
-    add_6 = nw.new_node(Nodes.Math, input_kwargs={0: subtract_3, 1: -0.1000})
+    add_6 = nw.new_node(Nodes.Math, input_kwargs={0: subtract_3, 1: -0.0500})
 
     combine_xyz_4 = nw.new_node(
         Nodes.CombineXYZ,
@@ -888,25 +1114,81 @@ def nodegroup_microwave_geometry(nw: NodeWrangler, preprocess: bool = False):
         input_kwargs={"Geometry": text_1, "Name": "part", "Value": 1},
     )
 
+    if return_type_name == "text":
+        store_1 = nw.new_node(
+            Nodes.RealizeInstances, [store_1]
+        )
+        group_output = nw.new_node(
+            Nodes.GroupOutput,
+            input_kwargs={"Geometry": store_1},
+            attrs={"is_active_output": True},
+        )
+        return 
+
     store_2 = nw.new_node(
         Nodes.StoreNamedAttribute,
         input_kwargs={"Geometry": set_material_1, "Name": "part", "Value": 2},
     )
+
+    if return_type_name == "body":
+        store_2 = nw.new_node(
+            Nodes.RealizeInstances, [store_2]
+        )
+
+        group_output = nw.new_node(
+            Nodes.GroupOutput,
+            input_kwargs={"Geometry": store_2},
+            attrs={"is_active_output": True},
+        )
+        return 
 
     store_3 = nw.new_node(
         Nodes.StoreNamedAttribute,
         input_kwargs={"Geometry": rotate_instances, "Name": "part", "Value": 3},
     )
 
+    if return_type_name == "door":
+        store_3 = nw.new_node(
+            Nodes.RealizeInstances, [store_3]
+        )
+        group_output = nw.new_node(
+            Nodes.GroupOutput,
+            input_kwargs={"Geometry": store_3},
+            attrs={"is_active_output": True},
+        )
+        return 
+
     store_4 = nw.new_node(
         Nodes.StoreNamedAttribute,
         input_kwargs={"Geometry": set_material, "Name": "part", "Value": 4},
     )
 
+    if return_type_name == "plate":
+        store_4 = nw.new_node(
+            Nodes.RealizeInstances, [store_4]
+        )
+        group_output = nw.new_node(
+            Nodes.GroupOutput,
+            input_kwargs={"Geometry": store_4},
+            attrs={"is_active_output": True},
+        )
+        return 
+
     store_5 = nw.new_node(
         Nodes.StoreNamedAttribute,
         input_kwargs={"Geometry": set_material_5, "Name": "part", "Value": 5},
     )
+
+    if return_type_name == "panel":
+        store_5 = nw.new_node(
+            Nodes.RealizeInstances, [store_5]
+        )
+        group_output = nw.new_node(
+            Nodes.GroupOutput,
+            input_kwargs={"Geometry": store_5},
+            attrs={"is_active_output": True},
+        )
+        return 
 
     join_geometry = nw.new_node(
         Nodes.JoinGeometry,

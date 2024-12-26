@@ -17,6 +17,14 @@ from infinigen.core.nodes import node_utils
 from infinigen.core.nodes.node_wrangler import Nodes, NodeWrangler
 from infinigen.core.placement.factory import AssetFactory
 from infinigen.core.util.math import FixedSeed
+from infinigen.assets.utils.object import (
+    center,
+    join_objects,
+    new_bbox,
+    new_cube,
+    save_obj_parts_join_objects,
+    save_obj_parts_add
+)
 
 
 class VaseFactory(AssetFactory):
@@ -91,6 +99,7 @@ class VaseFactory(AssetFactory):
             "Foot Height": uniform(0.01, 0.1),
             "Material": choice(["glass", "ceramic"]),
         }
+        print(parameters)
 
         return parameters
 

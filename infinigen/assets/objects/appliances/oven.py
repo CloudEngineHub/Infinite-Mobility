@@ -11,6 +11,7 @@ from numpy.random import randint as RI
 from numpy.random import uniform as U
 
 from infinigen.assets.material_assignments import AssetList
+from infinigen.assets.utils.decorate import read_co, write_co
 from infinigen.assets.utils.misc import generate_text
 from infinigen.core import surface
 from infinigen.core.nodes import node_utils
@@ -26,6 +27,21 @@ from infinigen.core.util.bevelling import (
 from infinigen.core.util.blender import delete
 from infinigen.core.util.math import FixedSeed
 
+from infinigen.assets.utils.object import (
+    data2mesh,
+    join_objects,
+    join_objects_save_whole,
+    mesh2obj,
+    new_bbox,
+    new_cube,
+    new_plane,
+    save_obj_parts_join_objects,
+    save_objects_obj,
+    save_obj_parts_add,
+    get_joint_name,
+    saved_obj
+)
+
 
 class OvenFactory(AssetFactory):
     def __init__(self, factory_seed, coarse=False, dimensions=[1.0, 1.0, 1.0]):
@@ -34,7 +50,7 @@ class OvenFactory(AssetFactory):
         self.dimensions = dimensions
         with FixedSeed(factory_seed):
             self.params, self.geometry_node_params = self.sample_parameters(dimensions)
-            self.material_params, self.scratch, self.edge_wear = (
+            self.ps, self.material_params, self.scratch, self.edge_wear = (
                 self.get_material_params()
             )
         self.geometry_node_params.update(self.material_params)
@@ -63,7 +79,7 @@ class OvenFactory(AssetFactory):
         if not is_edge_wear:
             edge_wear = None
 
-        return wrapped_params, scratch, edge_wear
+        return params, wrapped_params, scratch, edge_wear
 
     @staticmethod
     def sample_parameters(dimensions):
@@ -151,34 +167,31 @@ class OvenFactory(AssetFactory):
         )
 
     def create_asset(self, **params):
+        self.params["UseGas"] = False
         obj = butil.spawn_cube()
-        params.update({"obj": obj})
-        ng = nodegroup_oven_geometry(
-            preprocess=True, use_gas=self.params["UseGas"], **params
-        )
         butil.modify_mesh(
             obj,
             "NODES",
-            node_group=ng,
+            node_group=nodegroup_oven_geometry(
+                preprocess=True, use_gas=self.params["UseGas"]
+            ),
             ng_inputs=self.geometry_node_params,
             apply=True,
-            mod=True,
         )
         bevel_edges = get_bevel_edges(obj)
         delete(obj)
         obj = butil.spawn_cube()
-        params.update({"obj": obj, "inputs": self.geometry_node_params})
-        ng = nodegroup_oven_geometry(use_gas=self.params["UseGas"], **params)
         butil.modify_mesh(
             obj,
             "NODES",
-            node_group=ng,
+            node_group=nodegroup_oven_geometry(use_gas=self.params["UseGas"]),
             ng_inputs=self.geometry_node_params,
             apply=True,
-            mod=True,
         )
-        obj = add_bevel(obj, bevel_edges, offset=0.01)
+        #obj = add_bevel(obj, bevel_edges, offset=0.01)
         if not self.params["UseGas"]:
+            self.params.update(params)
+            self.params.update(self.ps)
             return obj
         width, depth = (
             self.params["Width"],
@@ -222,21 +235,237 @@ class OvenFactory(AssetFactory):
             bpy.context.object.modifiers["Bevel"].segments = 8
             bpy.context.object.modifiers["Bevel"].width = grate_thickness
             bpy.ops.object.modifier_apply(modifier="Bevel")
-        with butil.SelectObjects(obj):
-            bpy.ops.object.modifier_add(type="BOOLEAN")
-            bpy.context.object.modifiers["Boolean"].object = hollow
-            bpy.context.object.modifiers["Boolean"].use_hole_tolerant = True
-            bpy.ops.object.modifier_apply(modifier="Boolean")
+        # with butil.SelectObjects(obj):
+        #     bpy.ops.object.modifier_add(type="BOOLEAN")
+        #     bpy.context.object.modifiers["Boolean"].object = hollow
+        #     bpy.context.object.modifiers["Boolean"].use_hole_tolerant = True
+        #     bpy.ops.object.modifier_apply(modifier="Boolean")
+        #grates.location = hollow.location
+        butil.apply_transform(grates, True)
         butil.delete(hollow)
+        joint_info = {
+                "name": get_joint_name("limited_floating"),
+                "type": "limited_floating",
+                "axis": (1, 0, 0),
+                "limit": {
+                    "lower_1": 0,
+                    "upper_1": self.params['Depth'] * 0.75,
+                    "lower": 0,
+                    "upper": 0,
+                    "lower_2": 0,
+                    "upper_2": (self.params['Height'] - self.params['PanelHeight']) / (self.params['RackHAmount']) * (+ 0.5),
+                },
+            }
+        save_obj_parts_add([grates], params.get("path"), params.get("i"), "part", first=True, use_bpy=True, material=[self.scratch, self.edge_wear], joint_info=joint_info, parent_obj_id="world")
         butil.join_objects([obj, grates], check_attributes=True)
+        self.params.update(params)
+        self.params.update(self.ps)
 
         return obj
 
     def finalize_assets(self, assets):
+        global saved_obj
+        print(self.params)
         if self.scratch:
             self.scratch.apply(assets)
         if self.edge_wear:
             self.edge_wear.apply(assets)
+        first = False
+        material = None
+        print(self.params['WhiteMetal'])
+        parent_id = "world"
+        for i in range(5, 0, -1):
+            if i == 1:
+                material = None#[[self.params['Glass'],'In'], [self.params['Surface'], 'Out'], [self.params['WhiteMetal'], 'handle'], [self.params['WhiteMetal'], 'text'], self.scratch, self.edge_wear]
+                joint_info = {
+                    "name": get_joint_name("revolute"),
+                    "type": "revolute",
+                    "axis": (0, 1, 0),
+                    "limit": {
+                        "lower": 0,
+                        "upper": np.pi / 2,
+                    },
+                    "origin_shift": (0, 0, -self.params['Height'] / 2),
+                }
+                door = butil.spawn_cube()
+                butil.modify_mesh(
+                    door,
+                    "NODES",
+                    node_group=nodegroup_oven_geometry(
+                        preprocess=False, use_gas=self.params["UseGas"], return_part_name="door"
+                    ),
+                    ng_inputs=self.geometry_node_params,
+                    apply=True,
+                )
+                a = save_obj_parts_add([door], self.params.get("path"), self.params.get("i"), "door", first=first, use_bpy=True, material=[self.scratch, self.edge_wear], joint_info=joint_info, parent_obj_id=parent_id)
+            elif i == 2:
+                continue
+            elif i == 3:
+                material = None#[[self.params['Back'], 'back'], self.scratch, self.edge_wear]
+                joint_info = {
+                    "name": get_joint_name("fixed"),
+                    "type": "fixed",
+                }
+                heater = butil.spawn_cube()
+                butil.modify_mesh(
+                    heater,
+                    "NODES",
+                    node_group=nodegroup_oven_geometry(
+                        preprocess= False, use_gas=self.params["UseGas"], return_part_name="heater"
+                    ),
+                    ng_inputs=self.geometry_node_params,
+                    apply=True,
+                )
+                a = save_obj_parts_add([heater], self.params.get("path"), self.params.get("i"), "heater", first=first, use_bpy=True, material=[self.scratch, self.edge_wear], joint_info=joint_info, parent_obj_id=parent_id)
+            elif i == 4:
+                material = None#[[self.params['Back'], 'In'], [self.params['Surface'], 'Out'], [self.params['WhiteMetal'], 'handle'], self.scratch, self.edge_wear]
+                joint_info = {
+                    "name": get_joint_name("revolute"),
+                    "type": "revolute",
+                    "axis": (0, 1, 0),
+                    "limit": {
+                        "lower": -np.pi / 2,
+                        "upper": 0,
+                    },
+                    "origin_shift": (-self.params['PanelThickness'] / 2, 0, -self.params['PanelHeight'] / 2),
+                }
+                panel = butil.spawn_cube()
+                butil.modify_mesh(
+                    panel,
+                    "NODES",
+                    node_group=nodegroup_oven_geometry(
+                        preprocess=False, use_gas=self.params["UseGas"], return_part_name="panel"
+                    ),
+                    ng_inputs=self.geometry_node_params,
+                    apply=True,
+                )
+                panel.location[2] += 0.005
+                butil.apply_transform(panel, True)
+                a = save_obj_parts_add([panel], self.params.get("path"), self.params.get("i"), "panel", first=first, use_bpy=True, material=[self.scratch, self.edge_wear], joint_info=joint_info, parent_obj_id=parent_id)
+            elif i == 5:
+                material = None#[self.params['Surface'], self.scratch, self.edge_wear]
+                joint_info = {
+                    "name": get_joint_name("fixed"),
+                    "type": "fixed",
+                }
+                body = butil.spawn_cube()
+                butil.modify_mesh(
+                    body,
+                    "NODES",
+                    node_group=nodegroup_oven_geometry(
+                        preprocess=False, use_gas=self.params["UseGas"], return_part_name="body"
+                    ),
+                    ng_inputs=self.geometry_node_params,
+                    apply=True,
+                )
+                a = save_obj_parts_add([body], self.params.get("path"), self.params.get("i"), "body", first=first, use_bpy=True, material=[self.scratch, self.edge_wear], joint_info=joint_info, parent_obj_id=parent_id)
+            
+            #a = node_utils.save_geometry_new(assets, "part", i, self.params.get("i"), self.params.get("path"), first, True, False, material = material, parent_obj_id=parent_id, joint_info=joint_info)
+            if a:
+                first = False
+                if i == 4:
+                    p_id = a[0] 
+        parent_id = p_id
+        for i in range(1, self.params['BottonAmount'] + 1):
+            joint_info = {
+                "name": get_joint_name("revolute"),
+                "type": "revolute",
+                "axis": (1, 0, 0),
+                "limit": {
+                    "lower": -np.pi / 4,
+                    "upper": np.pi / 4,
+                },
+            }
+            a = node_utils.save_geometry_new(assets, "button", i, self.params.get("i"), self.params.get("path"), first, True, False, material = [self.params['WhiteMetal'], self.scratch, self.edge_wear], parent_obj_id=parent_id, joint_info=joint_info)
+            if a:
+                first = False
+                break
+        shift = self.params['Width'] / (self.params['BottonAmount'] + 3)
+        print(bpy.context.object)
+        saved_obj = bpy.context.object
+        for i in range(2, self.params['BottonAmount'] + 3):
+            co = read_co(saved_obj)
+            co[:, 1] += shift
+            write_co(saved_obj, co)
+            if i == self.params['BottonAmount'] / 2 + 1 or i == self.params['BottonAmount'] / 2 + 2:
+                continue
+            joint_info = {
+                "name": get_joint_name("revolute"),
+                "type": "revolute",
+                "axis": (1, 0, 0),
+                "limit": {
+                    "lower": -np.pi / 4,
+                    "upper": np.pi / 4,
+                },
+            }
+            save_obj_parts_add([saved_obj], self.params.get("path"), self.params.get("i"), "botton", first=False, use_bpy=True, material=[self.params['WhiteMetal'], self.scratch, self.edge_wear], joint_info=joint_info, parent_obj_id=parent_id)
+        for i in range(1, self.params['BottonAmount'] + 1):
+            joint_info = {
+                "name": get_joint_name("fixed"),
+                "type": "fixed"
+            }
+            a = node_utils.save_geometry_new(assets, "text_", i, self.params.get("i"), self.params.get("path"), first, True, False, material = [self.params['WhiteMetal'], self.scratch, self.edge_wear], parent_obj_id=parent_id, joint_info=joint_info)
+            if a:
+                first = False
+                break
+        shift = self.params['Width'] / (self.params['BottonAmount'] + 3)
+        print(bpy.context.object)
+        saved_obj = bpy.context.object
+        for i in range(2, self.params['BottonAmount'] + 3):
+            co = read_co(saved_obj)
+            co[:, 1] += shift
+            write_co(saved_obj, co)
+            if i == self.params['BottonAmount'] / 2 + 1 or i == self.params['BottonAmount'] / 2 + 2:
+                continue
+            joint_info = {
+                "name": get_joint_name("fixed"),
+                "type": "fixed"
+            }
+            save_obj_parts_add([saved_obj], self.params.get("path"), self.params.get("i"), "text_", first=False, use_bpy=True, material=[self.params['WhiteMetal'], self.scratch, self.edge_wear], parent_obj_id=parent_id, joint_info=joint_info)
+        print(self.params['RackHAmount'])
+        parent_id = "world"
+        for i in range(1, self.params['RackHAmount'] + 1):
+            # joint_info = {
+            #     "name": get_joint_name("limited_floating"),
+            #     "type": "limited_floating",
+            #     "axis": (1, 0, 0),
+            #     "limit": {
+            #         "lower_1": 0,
+            #         "upper_1": self.params['Depth'] * 0.75,
+            #         "lower": 0,
+            #         "upper": 0,
+            #         "lower_2": (self.params['Height'] - self.params['PanelHeight']) / (self.params['RackHAmount']) * (- 0.5),
+            #         "upper_2": (self.params['Height'] - self.params['PanelHeight']) / (self.params['RackHAmount']) * (+ 0.5),
+            #     },
+            # }
+            joint_info = {
+                "name": get_joint_name("primatic"),
+                "type": "prismatic",
+                "axis": (1, 0, 0),
+                "limit": {
+                    "lower": 0,
+                    "upper": self.params['Depth'] * 0.75,
+                },
+            }
+            racks= butil.spawn_cube()
+            butil.modify_mesh(
+                racks,
+                "NODES",
+                node_group=nodegroup_oven_geometry(
+                    preprocess=False, use_gas=self.params["UseGas"], return_part_name="racks"
+                ),
+                ng_inputs=self.geometry_node_params,
+                apply=True,
+            )
+            a = node_utils.save_geometry_new(racks, "rack", i, self.params.get("i"), self.params.get("path"), False, True, False, material = [self.params['Surface'], self.scratch, self.edge_wear], joint_info=joint_info, parent_obj_id="world")
+            if a:
+                first = False
+        #save_obj_parts_add([assets], self.params.get("path"), self.params.get("i"), "part", first=False, use_bpy=True, material=[self.scratch, self.edge_wear])
+        node_utils.save_geometry_new(assets, 'whole', 0, self.params.get("i"), self.params.get("path"), first, True, False)
+        save_obj_parts_add([assets], self.params.get("path"), self.params.get("i"), "part", first=False, use_bpy=True, material=[self.scratch, self.edge_wear])
+        return assets
+
+        
 
 
 def gas_grates(
@@ -1550,6 +1779,7 @@ def nodegroup_oven_geometry(
     preprocess: bool = False,
     use_gas: bool = False,
     is_placeholder: bool = False,
+    return_part_name: str =""
 ):
     # Code generated using version 2.6.5 of the node_transpiler
 
@@ -1629,7 +1859,23 @@ def nodegroup_oven_geometry(
         },
     )
 
-    # set_shade_smooth = nw.new_node(Nodes.SetShadeSmooth, input_kwargs={'Geometry': set_material_3})
+    # store = nw.new_node(
+    #     Nodes.StoreNamedAttribute,
+    #     input_kwargs={"Geometry": center.outputs['Out'], "Name": "Out", "Value": 1},
+    #     attrs={"domain": "FACE", "data_type": "INT"},
+    # )
+    # store_1 = nw.new_node(
+    #     Nodes.StoreNamedAttribute,
+    #     input_kwargs={"Geometry": center.outputs['In'], "Name": "In", "Value": 1},
+    #     attrs={"domain": "FACE", "data_type": "INT"},
+    # )
+
+    set_material_3 = nw.new_node(
+        Nodes.JoinGeometry,
+        input_kwargs={"Geometry": [set_material_3]},
+    )
+
+    #set_shade_smooth = nw.new_node(Nodes.SetShadeSmooth, input_kwargs={'Geometry': set_material_3})
 
     multiply = nw.new_node(
         Nodes.Math,
@@ -1741,6 +1987,25 @@ def nodegroup_oven_geometry(
         input_kwargs={"Geometry": text, "Material": group_input.outputs["WhiteMetal"]},
     )
 
+    set_material_9 = nw.new_node(
+        Nodes.StoreNamedAttribute,
+        input_kwargs={
+            "Geometry": set_material_9,
+            "Name": "text",
+            "Value": 1,
+        },
+    )
+
+    set_material_8 = nw.new_node(
+        Nodes.StoreNamedAttribute,
+        input_kwargs={
+            "Geometry": set_material_8,
+            "Name": "handle",
+            "Value": 1,
+        },
+        attrs={"domain": "FACE", "data_type": "INT"},
+    )
+
     set_material_8 = complete_bevel(nw, set_material_8, preprocess)
 
     join_geometry_3 = nw.new_node(
@@ -1774,7 +2039,7 @@ def nodegroup_oven_geometry(
     rotate_instances = nw.new_node(Nodes.RealizeInstances, [rotate_instances])
 
     door = nw.new_node(
-        Nodes.Reroute, input_kwargs={"Input": rotate_instances}, label="door"
+        Nodes.Reroute, input_kwargs={"Input": join_geometry_3}, label="door"
     )
 
     multiply_8 = nw.new_node(
@@ -1841,6 +2106,12 @@ def nodegroup_oven_geometry(
         input_kwargs={0: duplicate_elements.outputs["Duplicate Index"], 1: 1.0000},
     )
 
+    store = nw.new_node(
+        Nodes.StoreNamedAttribute,
+        input_kwargs={"Geometry": duplicate_elements, "Name": "rack", "Value": add_3},
+        attrs={"domain": "INSTANCE", "data_type": "INT"},
+    )
+
     multiply_12 = nw.new_node(
         Nodes.Math,
         input_kwargs={0: group_input.outputs["DoorThickness"], 1: 2.0000},
@@ -1875,7 +2146,7 @@ def nodegroup_oven_geometry(
     set_position = nw.new_node(
         Nodes.SetPosition,
         input_kwargs={
-            "Geometry": duplicate_elements.outputs["Geometry"],
+            "Geometry": store.outputs["Geometry"],
             "Offset": combine_xyz_5,
         },
     )
@@ -1975,6 +2246,16 @@ def nodegroup_oven_geometry(
 
     transform_2 = complete_no_bevel(nw, transform_2, preprocess)
 
+    set_material_5 = nw.new_node(
+        Nodes.StoreNamedAttribute,
+        input_kwargs={
+            "Geometry": set_material_5,
+            "Name": "back",
+            "Value": 1,
+        },
+        attrs={"domain": "FACE", "data_type": "INT"},
+    )
+
     if use_gas:
         join_geometry_2 = nw.new_node(
             Nodes.JoinGeometry, input_kwargs={"Geometry": [set_material_5]}
@@ -2038,13 +2319,37 @@ def nodegroup_oven_geometry(
         },
     )
 
-    set_material_7 = nw.new_node(
+    set_material_100 = nw.new_node(
         Nodes.SetMaterial,
         input_kwargs={
             "Geometry": set_material_4,
             "Selection": center_1.outputs["Out"],
             "Material": group_input.outputs["Surface"],
         },
+    )
+
+    set_material_7 = nw.new_node(
+        Nodes.StoreNamedAttribute,
+        input_kwargs={
+            "Geometry": set_material_100,
+            "Name": "Out",
+            "Value": 1,
+        },
+        attrs={"domain": "FACE", "data_type": "INT"},
+    )
+    set_material_4 = nw.new_node(
+        Nodes.StoreNamedAttribute,
+        input_kwargs={
+            "Geometry": set_material_4,
+            "Name": "In",
+            "Value": 1,
+        },
+        attrs={"domain": "FACE", "data_type": "INT"},
+    )
+
+    set_material_7 = nw.new_node(
+        Nodes.JoinGeometry,
+        input_kwargs={"Geometry": [set_material_100]},
     )
 
     # set_shade_smooth_3 = nw.new_node(Nodes.SetShadeSmooth, input_kwargs={'Geometry': set_material_7})
@@ -2263,7 +2568,15 @@ def nodegroup_oven_geometry(
 
     join_geometry_6 = nw.new_node(
         Nodes.JoinGeometry,
-        input_kwargs={"Geometry": [transform, text_2, text_3, text_4, text_5]},
+        input_kwargs={"Geometry": [text_2, text_3, text_4]},
+    )
+    geometry_to_instance_100 = nw.new_node(
+        "GeometryNodeGeometryToInstance", input_kwargs={"Geometry": join_geometry_6}
+    )
+
+    join_geometry_6 = nw.new_node(
+        Nodes.JoinGeometry,
+        input_kwargs={"Geometry": [transform, text_5]},
     )
 
     geometry_to_instance_2 = nw.new_node(
@@ -2282,9 +2595,36 @@ def nodegroup_oven_geometry(
         attrs={"domain": "INSTANCE"},
     )
 
+    duplicate_elements_2 = nw.new_node(
+        Nodes.DuplicateElements,
+        input_kwargs={"Geometry": geometry_to_instance_100, "Amount": reroute_6},
+        attrs={"domain": "INSTANCE"},
+    )
+
     add_14 = nw.new_node(
         Nodes.Math,
         input_kwargs={0: duplicate_elements_1.outputs["Duplicate Index"], 1: 1.0000},
+    )
+
+    add_100 = nw.new_node(
+        Nodes.Math,
+        input_kwargs={0: duplicate_elements_2.outputs["Duplicate Index"], 1: 1.0000},
+    )
+
+    store_6 = nw.new_node(
+        Nodes.StoreNamedAttribute,
+        input_kwargs={"Geometry": duplicate_elements_2, "Name": "text_", "Value": add_100},
+        attrs={"domain": "INSTANCE", "data_type": "INT"},
+    )
+
+    store_7 = nw.new_node(
+        Nodes.StoreNamedAttribute,
+        input_kwargs={"Geometry": duplicate_elements_1, "Name": "button", "Value": add_14},
+        attrs={"domain": "INSTANCE", "data_type": "INT"},
+    )
+
+    join_geometry_100 = nw.new_node(
+        Nodes.JoinGeometry, input_kwargs={"Geometry": [store_6, store_7]}
     )
 
     add_15 = nw.new_node(Nodes.Math, input_kwargs={0: reroute_6, 1: 1.0000})
@@ -2301,15 +2641,31 @@ def nodegroup_oven_geometry(
         attrs={"operation": "MULTIPLY"},
     )
 
+    multiply_100 = nw.new_node(
+        Nodes.Math,
+        input_kwargs={0: add_100, 1: divide_1},
+        attrs={"operation": "MULTIPLY"},
+    )
+
     combine_xyz_11 = nw.new_node(Nodes.CombineXYZ, input_kwargs={"Y": multiply_20})
+    combine_xyz_100 = nw.new_node(Nodes.CombineXYZ, input_kwargs={"Y": multiply_100})
 
     set_position_1 = nw.new_node(
         Nodes.SetPosition,
         input_kwargs={
-            "Geometry": duplicate_elements_1.outputs["Geometry"],
+            "Geometry": store_7.outputs["Geometry"],
             "Offset": combine_xyz_11,
         },
     )
+
+    set_position_100 = nw.new_node(
+        Nodes.SetPosition,
+        input_kwargs={
+            "Geometry": store_6.outputs["Geometry"],
+            "Offset": combine_xyz_100,
+        },
+    )
+    
 
     multiply_21 = nw.new_node(
         Nodes.Math, input_kwargs={0: add_13}, attrs={"operation": "MULTIPLY"}
@@ -2331,9 +2687,21 @@ def nodegroup_oven_geometry(
         attrs={"operation": "LESS_THAN"},
     )
 
+    less_than_1 = nw.new_node(
+        Nodes.Math,
+        input_kwargs={0: duplicate_elements_2.outputs["Duplicate Index"], 1: add_17},
+        attrs={"operation": "LESS_THAN"},
+    )
+
     minimum = nw.new_node(
         Nodes.Math,
         input_kwargs={0: greater_than, 1: less_than},
+        attrs={"operation": "MINIMUM"},
+    )
+
+    minimum_1 = nw.new_node(    
+        Nodes.Math,
+        input_kwargs={0: greater_than, 1: less_than_1},
         attrs={"operation": "MINIMUM"},
     )
 
@@ -2343,10 +2711,21 @@ def nodegroup_oven_geometry(
         attrs={"domain": "INSTANCE"},
     )
 
+    delete_geometry_1 = nw.new_node(
+        Nodes.DeleteGeometry,
+        input_kwargs={"Geometry": set_position_100, "Selection": minimum_1},
+        attrs={"domain": "INSTANCE"},
+    )
+
+
+    realized = nw.new_node(Nodes.RealizeInstances, [delete_geometry])
+    realized_1 = nw.new_node(Nodes.RealizeInstances, [delete_geometry_1])
+    joined = nw.new_node(Nodes.JoinGeometry, input_kwargs={"Geometry": [realized, realized_1]})
+
     set_material_6 = nw.new_node(
         Nodes.SetMaterial,
         input_kwargs={
-            "Geometry": delete_geometry,
+            "Geometry": joined,
             "Material": group_input.outputs["WhiteMetal"],
         },
     )
@@ -2356,6 +2735,13 @@ def nodegroup_oven_geometry(
     )
 
     botton = complete_no_bevel(nw, botton, preprocess)
+
+    if return_part_name == "panel":
+        panel = nw.new_node(
+            Nodes.RealizeInstances, [join_geometry_5]
+        )
+        group_output = nw.new_node(Nodes.GroupOutput, input_kwargs={"Geometry": panel})
+        return
 
     join_geometry_1 = nw.new_node(
         Nodes.JoinGeometry, input_kwargs={"Geometry": [join_geometry_5, botton]}
@@ -2381,12 +2767,12 @@ def nodegroup_oven_geometry(
             "True": panel_bbox,
         },
     )
-
+    angle = 0
     rotate_instances_1 = nw.new_node(
         Nodes.RotateInstances,
         input_kwargs={
             "Instances": switch_1,
-            "Rotation": (0.0000, -0.1745, 0.0000),
+            "Rotation": (0.0000, angle, 0.0000),
             "Pivot Point": combine_xyz_14,
         },
     )
@@ -2433,6 +2819,54 @@ def nodegroup_oven_geometry(
     body = nw.new_node(
         Nodes.Reroute, input_kwargs={"Input": subdivide_mesh}, label="Body"
     )
+
+    if return_part_name == "door":
+        door = nw.new_node(
+            Nodes.RealizeInstances, [door]
+        )
+        group_output = nw.new_node(Nodes.GroupOutput, input_kwargs={"Geometry": door})
+        return 
+
+    body = nw.new_node(
+        Nodes.RealizeInstances,
+        [body],
+    )
+
+    # store_1 = nw.new_node(
+    #     Nodes.StoreNamedAttribute,
+    #     input_kwargs={"Geometry": door, "Name": "part", "Value": 1},
+    # )
+
+    if return_part_name == "racks":
+        group_output = nw.new_node(Nodes.GroupOutput, input_kwargs={"Geometry": racks})
+        return
+    # store_2 = nw.new_node(
+    #     Nodes.StoreNamedAttribute,
+    #     input_kwargs={"Geometry": racks, "Name": "part", "Value": 2},
+    # )
+
+    # store_3 = nw.new_node(
+    #     Nodes.StoreNamedAttribute,
+    #     input_kwargs={"Geometry": heater_1, "Name": "part", "Value": 3},
+    # )
+
+    if return_part_name == "heater":
+        group_output = nw.new_node(Nodes.GroupOutput, input_kwargs={"Geometry": heater_1})
+        return
+
+    # store_4 = nw.new_node(
+    #     Nodes.StoreNamedAttribute,
+    #     input_kwargs={"Geometry": panel, "Name": "part", "Value": 4},
+    # )
+
+    # store_5 = nw.new_node(
+    #     Nodes.StoreNamedAttribute,
+    #     input_kwargs={"Geometry": body, "Name": "part", "Value": 5},
+    # )
+
+    if return_part_name == "body":
+        group_output = nw.new_node(Nodes.GroupOutput, input_kwargs={"Geometry": body})
+        return
 
     join_geometry = nw.new_node(
         Nodes.JoinGeometry,

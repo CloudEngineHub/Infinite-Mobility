@@ -843,8 +843,8 @@ def geometry_nodes(nw: NodeWrangler, **kwargs):
 
     join_geometry_1 = nw.new_node(
         Nodes.JoinGeometry,
-        # input_kwargs={"Geometry": [set_material, set_material_1, set_material_2]},
-        input_kwargs={"Geometry": [set_material]},
+        input_kwargs={"Geometry": [set_material, set_material_1, set_material_2]},
+        #input_kwargs={"Geometry": [set_material]},
     )
 
     realize_instances_3 = nw.new_node(
@@ -869,7 +869,6 @@ def geometry_nodes(nw: NodeWrangler, **kwargs):
             attrs={"data_type": "INT"},
         )
         for j in range(1, parts[i]+1):
-            print(name, parts[i])
             compare = nw.new_node(
                 node_type=Nodes.Compare,
                 input_kwargs={"A": named_attribute, "B": j},
@@ -943,7 +942,6 @@ class SimpleBookcaseBaseFactory(AssetFactory):
         return params
 
     def create_asset(self, idx=0, **params):
-        print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!in mesh!!!!!!!!!!!!!!!!!!!!!!!!!!')
         bpy.ops.mesh.primitive_plane_add(
             size=1,
             enter_editmode=False,

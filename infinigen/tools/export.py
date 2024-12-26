@@ -704,7 +704,6 @@ def run_blender_export(
 ):
     assert exportPath.parent.exists()
     exportPath = str(exportPath)
-
     if format == "obj":
         if vertex_colors:
             bpy.ops.wm.obj_export(
@@ -713,7 +712,6 @@ def run_blender_export(
                 export_eval_mode="DAG_EVAL_RENDER",
                 export_selected_objects=individual_export,
                 export_materials=True,
-                export_pbr_extensions = True,
                 export_normals = True,
                 apply_modifiers = True
             )

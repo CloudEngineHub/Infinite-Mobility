@@ -20,8 +20,6 @@ from infinigen.core import surface
 from infinigen.core.nodes import node_utils
 from infinigen.core.nodes.node_wrangler import Nodes, NodeWrangler
 from infinigen.core.placement.factory import AssetFactory
-from infinigen.core.nodes.node_utils import save_geometry_new
-import random
 
 
 @node_utils.to_nodegroup(
@@ -369,45 +367,9 @@ def nodegroup_kallax_drawer_frame(nw: NodeWrangler):
         input_kwargs={"Geometry": store_named_attribute, "Translation": combine_xyz_5},
     )
 
-    store_1 = nw.new_node(
-            Nodes.StoreNamedAttribute,
-            input_kwargs={
-                "Geometry": transform,  # Geometry with UV map
-                "Name": "drawer_board",
-                "Value": 1,  # Assign Cube 1 an ID of 1
-            },
-    )
-
-    store_2 = nw.new_node(
-            Nodes.StoreNamedAttribute,
-            input_kwargs={
-                "Geometry": transform_1,  # Geometry with UV map
-                "Name": "drawer_board",
-                "Value": 2,  # Assign Cube 1 an ID of 1
-            },
-    )
-
-    store_3 = nw.new_node(
-            Nodes.StoreNamedAttribute,
-            input_kwargs={
-                "Geometry": transform_2,  # Geometry with UV map
-                "Name": "drawer_board",
-                "Value": 3,  # Assign Cube 1 an ID of 1
-            },
-    )
-
-    store_4 = nw.new_node(
-            Nodes.StoreNamedAttribute,
-            input_kwargs={
-                "Geometry": transform_3,  # Geometry with UV map
-                "Name": "drawer_board",
-                "Value": 4,  # Assign Cube 1 an ID of 1
-            },
-    )
-
     join_geometry_1 = nw.new_node(
         Nodes.JoinGeometry,
-        input_kwargs={"Geometry": [store_1, store_2, store_3, store_4]},
+        input_kwargs={"Geometry": [transform_1, transform, transform_2, transform_3]},
     )
 
     group_output = nw.new_node(
@@ -482,18 +444,9 @@ def nodegroup_door_knob(nw: NodeWrangler):
         },
     )
 
-    store_1 = nw.new_node(
-            Nodes.StoreNamedAttribute,
-            input_kwargs={
-                "Geometry": transform_1,  # Geometry with UV map
-                "Name": "knob",
-                "Value": 1,  # Assign Cube 1 an ID of 1
-            },
-    )
-
     group_output = nw.new_node(
         Nodes.GroupOutput,
-        input_kwargs={"Geometry": store_1},
+        input_kwargs={"Geometry": transform_1},
         attrs={"is_active_output": True},
     )
 
@@ -566,18 +519,9 @@ def nodegroup_drawer_door_board(nw: NodeWrangler):
         input_kwargs={"Geometry": store_named_attribute, "Translation": combine_xyz_1},
     )
 
-    store = nw.new_node(
-            Nodes.StoreNamedAttribute,
-            input_kwargs={
-                "Geometry": transform,  # Geometry with UV map
-                "Name": "drawer_door_board",
-                "Value": 1,  # Assign Cube 1 an ID of 1
-            },
-    )
-
     group_output = nw.new_node(
         Nodes.GroupOutput,
-        input_kwargs={"Geometry": store},
+        input_kwargs={"Geometry": transform},
         attrs={"is_active_output": True},
     )
 
@@ -604,7 +548,7 @@ def geometry_nodes(nw: NodeWrangler, **kwargs):
     )
 
     knob_radius = nw.new_node(Nodes.Value, label="knob_radius")
-    knob_radius.outputs[0].default_value = kwargs["knob_radius"]
+    knob_radius.outputs[0].default_value = kwargs["knob_radius"] * 3
 
     knob_length = nw.new_node(Nodes.Value, label="knob_length")
     knob_length.outputs[0].default_value = kwargs["knob_length"]
@@ -752,7 +696,7 @@ class CabinetDrawerBaseFactory(AssetFactory):
 
         return params
 
-    def create_asset(self, i=0, first=True, save=True, **params):
+    def create_asset(self, i=0, **params):
         bpy.ops.mesh.primitive_plane_add(
             size=1,
             enter_editmode=False,
@@ -767,48 +711,7 @@ class CabinetDrawerBaseFactory(AssetFactory):
             obj, geometry_nodes, apply=True, attributes=[], input_kwargs=obj_params
         )
 
-        names = ["drawer_door_board", "drawer_board", "knob"]
-        parts = [1, 4, 1]
-
-        if save:
-            for j, name in enumerate(names):
-                for k in range(1, parts[j] + 1):
-                    res = save_geometry_new(obj, name, k, i, params.get("path", None), first, use_bpy=True)
-                    if res:
-                        first = False
-
-            obj_params.update({"first": first})
-
-            save_geometry_new(obj, 'whole', 0, i, params.get("path", None), True)
-
         if params.get("ret_params", False):
             return obj, obj_params
 
         return obj
-    def save(self, obj, params, first, parent_id):
-        names = ["drawer_door_board", "drawer_board", "knob"]
-        parts = [1, 4, 1]
-        object_id = -1
-        for j, name in enumerate(names):
-                for k in range(1, parts[j] + 1):
-                    material = params.get("frame_material", None)
-                    material = surface.shaderfunc_to_material(material)
-                    if name == "drawer_door_board":
-                        res = save_geometry_new(obj, name, k, params.get("i", None), params.get("path", None), first, use_bpy=True, parent_obj_id=parent_id, joint_info={
-                            "name": f"primastic_{obj.name}_{name}_{k}__{random.randint(0, 10000000000000000000000000000000000000000000000000000000000000)}",
-                            "type": "prismatic",
-                            "axis": (1, 0, 0),
-                            "limit": {
-                                "lower": 0,
-                                "upper": params["drawer_depth"] * 0.8,
-                            }
-                        }, material=material)
-                        object_id = res[0]
-                    else:
-                        res = save_geometry_new(obj, name, k, params.get("i", None), params.get("path", None), first, use_bpy=True, parent_obj_id=object_id, joint_info={
-                            "name": f"fixed_{obj.name}_{name}_{k}__{random.randint(0, 10000000000000000000000000000000000000000000000000000000000000)}",
-                            "type": "fixed",
-                        }, material=material)
-                    if res:
-                        first = False
-

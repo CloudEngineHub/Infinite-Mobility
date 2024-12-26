@@ -16,17 +16,10 @@ from infinigen.assets.materials.shelf_shaders import (
     shader_shelves_wood_sampler,
 )
 from infinigen.assets.objects.shelves.utils import nodegroup_tagged_cube
-from infinigen.core.nodes.node_utils import save_geometry, save_geometry_new
 from infinigen.core import surface, tagging
 from infinigen.core.nodes import node_utils
 from infinigen.core.nodes.node_wrangler import Nodes, NodeWrangler
 from infinigen.core.placement.factory import AssetFactory
-
-from infinigen.core.util import blender as butil
-
-import random
-
-first = True
 
 
 @node_utils.to_nodegroup(
@@ -118,66 +111,18 @@ def nodegroup_screw_head(nw: NodeWrangler):
         Nodes.Transform,
         input_kwargs={"Geometry": transform, "Translation": combine_xyz_4},
     )
-    # Store unique 'cube' for Cube 1
-    store_screw_head_1 = nw.new_node(
-        Nodes.StoreNamedAttribute,
-        input_kwargs={
-            "Geometry": transform_1,  # Geometry with UV map
-            "Name": "division_board",
-            "Value": 1,  # Assign Cube 1 an ID of 1
-        },
-        attrs={"domain": "POINT", "data_type": "INT"},
-    )
-
-    # Store unique 'cube' for Cube 1
-    store_screw_head_2 = nw.new_node(
-        Nodes.StoreNamedAttribute,
-        input_kwargs={
-            "Geometry": transform_6,  # Geometry with UV map
-            "Name": "division_board",
-            "Value": 2,  # Assign Cube 1 an ID of 1
-        },
-        attrs={"domain": "POINT", "data_type": "INT"},
-    )
 
     join_geometry_2 = nw.new_node(
-        Nodes.JoinGeometry, input_kwargs={"Geometry": [store_screw_head_1.outputs["Geometry"], store_screw_head_2.outputs["Geometry"]]}
+        Nodes.JoinGeometry, input_kwargs={"Geometry": [transform_1, transform_6]}
     )
 
     transform_4 = nw.new_node(
         Nodes.Transform,
-        input_kwargs={"Geometry": transform_1, "Scale": (-1.0000, 1.0000, 1.0000)},
-    )
-
-    transform_5 = nw.new_node(
-        Nodes.Transform,
-        input_kwargs={"Geometry": transform_6, "Scale": (-1.0000, 1.0000, 1.0000)},
-    )
-
-    # Store unique 'cube' for Cube 1
-    store_screw_head_3 = nw.new_node(
-        Nodes.StoreNamedAttribute,
-        input_kwargs={
-            "Geometry": transform_4,  # Geometry with UV map
-            "Name": "division_board",
-            "Value": 3,  # Assign Cube 1 an ID of 1
-        },
-        attrs={"domain": "POINT", "data_type": "INT"},
-    )
-
-    # Store unique 'cube' for Cube 1
-    store_screw_head_4 = nw.new_node(
-        Nodes.StoreNamedAttribute,
-        input_kwargs={
-            "Geometry": transform_5,  # Geometry with UV map
-            "Name": "division_board",
-            "Value": 4,  # Assign Cube 1 an ID of 1
-        },
-        attrs={"domain": "POINT", "data_type": "INT"},
+        input_kwargs={"Geometry": join_geometry_2, "Scale": (-1.0000, 1.0000, 1.0000)},
     )
 
     join_geometry_3 = nw.new_node(
-        Nodes.JoinGeometry, input_kwargs={"Geometry": [store_screw_head_3.outputs["Geometry"], store_screw_head_4.outputs["Geometry"], join_geometry_2]}
+        Nodes.JoinGeometry, input_kwargs={"Geometry": [transform_4, join_geometry_2]}
     )
 
     realize_instances = nw.new_node(
@@ -283,30 +228,8 @@ def nodegroup_attachment(nw: NodeWrangler):
         input_kwargs={"Geometry": transform, "Scale": (-1.0000, 1.0000, 1.0000)},
     )
 
-    # Store unique 'cube' for Cube 1
-    store_attachment_1 = nw.new_node(
-        Nodes.StoreNamedAttribute,
-        input_kwargs={
-            "Geometry": transform,  # Geometry with UV map
-            "Name": "attachment",
-            "Value": 1,  # Assign Cube 1 an ID of 1
-        },
-        attrs={"domain": "POINT", "data_type": "INT"},
-    )
-
-    # Store unique 'cube' for Cube 1
-    store_attachment_2 = nw.new_node(
-        Nodes.StoreNamedAttribute,
-        input_kwargs={
-            "Geometry": transform_1,  # Geometry with UV map
-            "Name": "attachment",
-            "Value": 2,  # Assign Cube 1 an ID of 1
-        },
-        attrs={"domain": "POINT", "data_type": "INT"},
-    )
-
     join_geometry_1 = nw.new_node(
-        Nodes.JoinGeometry, input_kwargs={"Geometry": [store_attachment_1.outputs["Geometry"], store_attachment_2.outputs["Geometry"]]}
+        Nodes.JoinGeometry, input_kwargs={"Geometry": [transform_1, transform]}
     )
 
     group_output = nw.new_node(
@@ -360,31 +283,22 @@ def nodegroup_division_board(nw: NodeWrangler, material, tag_support=False):
                 "Vertices Z": 10,
             },
         )
-    store_cube = nw.new_node(
-        Nodes.StoreNamedAttribute,
+
+    screw_head = nw.new_node(
+        nodegroup_screw_head().name,
         input_kwargs={
-            "Geometry": cube,  # Geometry with UV map
-            "Name": "division_board",
-            "Value": 1,  # Assign Cube 1 an ID of 1
+            "Depth": group_input.outputs["screw_depth"],
+            "Radius": group_input.outputs["screw_radius"],
+            "division_thickness": group_input.outputs["thickness"],
+            "width": group_input.outputs["width"],
+            "depth": group_input.outputs["depth"],
+            "screw_width_gap": group_input.outputs["screw_width_gap"],
+            "screw_depth_gap": group_input.outputs["screw_depth_gap"],
         },
-        attrs={"domain": "POINT", "data_type": "INT"},
     )
 
-    # screw_head = nw.new_node(
-    #     nodegroup_screw_head().name,
-    #     input_kwargs={
-    #         "Depth": group_input.outputs["screw_depth"],
-    #         "Radius": group_input.outputs["screw_radius"],
-    #         "division_thickness": group_input.outputs["thickness"],
-    #         "width": group_input.outputs["width"],
-    #         "depth": group_input.outputs["depth"],
-    #         "screw_width_gap": group_input.outputs["screw_width_gap"],
-    #         "screw_depth_gap": group_input.outputs["screw_depth_gap"],
-    #     },
-    # )
-
     join_geometry = nw.new_node(
-        Nodes.JoinGeometry, input_kwargs={"Geometry": [store_cube.outputs["Geometry"]]}
+        Nodes.JoinGeometry, input_kwargs={"Geometry": [cube, screw_head]}
     )
 
     combine_xyz_1 = nw.new_node(
@@ -448,16 +362,6 @@ def nodegroup_bottom_board(nw: NodeWrangler):
         },
     )
 
-    store_cube = nw.new_node(
-        Nodes.StoreNamedAttribute,
-        input_kwargs={
-            "Geometry": cube,  # Geometry with UV map
-            "Name": "bottom_board",
-            "Value": 1,  # Assign Cube 1 an ID of 1
-        },
-        attrs={"domain": "POINT", "data_type": "INT"},
-    )
-    
     multiply = nw.new_node(
         Nodes.Math,
         input_kwargs={0: group_input.outputs["depth"]},
@@ -484,7 +388,7 @@ def nodegroup_bottom_board(nw: NodeWrangler):
     )
 
     transform = nw.new_node(
-        Nodes.Transform, input_kwargs={"Geometry": store_cube, "Translation": combine_xyz_1}
+        Nodes.Transform, input_kwargs={"Geometry": cube, "Translation": combine_xyz_1}
     )
 
     group_output = nw.new_node(
@@ -533,17 +437,6 @@ def nodegroup_back_board(nw: NodeWrangler):
         },
     )
 
-    # Store unique 'cube' for Cube 1
-    store_back_board = nw.new_node(
-        Nodes.StoreNamedAttribute,
-        input_kwargs={
-            "Geometry": cube_2,  # Geometry with UV map
-            "Name": "back_board",
-            "Value": 1,  # Assign Cube 1 an ID of 1
-        },
-        attrs={"domain": "POINT", "data_type": "INT"},
-    )
-
     add_2 = nw.new_node(
         Nodes.Math, input_kwargs={0: group_input.outputs["depth"], 1: 0.0000}
     )
@@ -567,7 +460,7 @@ def nodegroup_back_board(nw: NodeWrangler):
     )
 
     transform_5 = nw.new_node(
-        Nodes.Transform, input_kwargs={"Geometry": store_back_board.outputs["Geometry"], "Translation": combine_xyz_5}
+        Nodes.Transform, input_kwargs={"Geometry": cube_2, "Translation": combine_xyz_5}
     )
 
     group_output = nw.new_node(
@@ -656,9 +549,8 @@ def geometry_nodes(nw: NodeWrangler, **kwargs):
     add_1 = nw.new_node(Nodes.Math, input_kwargs={0: shelf_height, 1: 0.0020})
     add_2 = nw.new_node(Nodes.Math, input_kwargs={0: shelf_height, 1: -0.0010})
     side_boards = []
-    names = []
-    parts = []
-    for i, x in enumerate(kwargs["side_board_x_translation"]):
+
+    for x in kwargs["side_board_x_translation"]:
         side_board_x_translation = nw.new_node(
             Nodes.Value, label="side_board_x_translation"
         )
@@ -673,18 +565,7 @@ def geometry_nodes(nw: NodeWrangler, **kwargs):
                 "x_translation": side_board_x_translation,
             },
         )
-        store_side_board = nw.new_node(
-            Nodes.StoreNamedAttribute,
-            input_kwargs={
-                "Geometry": side_board,  # Geometry with UV map
-                "Name": "side_board",
-                "Value": i+1,  # Assign Cube 1 an ID of 1
-            },
-            attrs={"domain": "POINT", "data_type": "INT"},
-        )
-        side_boards.append(store_side_board.outputs["Geometry"])
-    names.append("side_board")
-    parts.append(len(kwargs["side_board_x_translation"]))
+        side_boards.append(side_board)
 
     shelf_width = nw.new_node(Nodes.Value, label="shelf_width")
     shelf_width.outputs[0].default_value = kwargs["shelf_width"]
@@ -704,8 +585,6 @@ def geometry_nodes(nw: NodeWrangler, **kwargs):
             "depth": shelf_depth,
         },
     )
-    names.append("back_board")
-    parts.append(1)
 
     bottom_board_y_gap = nw.new_node(Nodes.Value, label="bottom_board_y_gap")
     bottom_board_y_gap.outputs[0].default_value = kwargs["bottom_board_y_gap"]
@@ -736,19 +615,8 @@ def geometry_nodes(nw: NodeWrangler, **kwargs):
                 "width": shelf_cell_width,
             },
         )
-        store_bottomboard = nw.new_node(
-            Nodes.StoreNamedAttribute,
-            input_kwargs={
-                "Geometry": bottomboard,  # Geometry with UV map
-                "Name": "bottomboard",
-                "Value": i+1,  # Assign Cube 1 an ID of 1
-            },
-            attrs={"domain": "POINT", "data_type": "INT"},
-        )
-        bottom_boards.append(store_bottomboard.outputs["Geometry"])
 
-    names.append("bottomboard")
-    parts.append(len(kwargs["shelf_cell_width"]))    
+        bottom_boards.append(bottomboard)
 
     join_geometry = nw.new_node(
         Nodes.JoinGeometry,
@@ -823,20 +691,7 @@ def geometry_nodes(nw: NodeWrangler, **kwargs):
                     "screw_depth_gap": screw_depth_gap,
                 },
             )
-
-            store_division_boards = nw.new_node(
-                Nodes.StoreNamedAttribute,
-                input_kwargs={
-                    "Geometry": division_board,  # Geometry with UV map
-                    "Name": "divisionboard",
-                    "Value": i*len(kwargs["division_board_z_translation"]) + (j+1),  # Assign Cube 1 an ID of 1
-                },
-                attrs={"domain": "POINT", "data_type": "INT"},
-            )
-            
-            division_boards.append(store_division_boards.outputs["Geometry"])
-    names.append("divisionboard")
-    parts.append(len(kwargs["shelf_cell_width"])*len(kwargs["division_board_z_translation"]))
+            division_boards.append(division_board)
 
     attach_thickness = nw.new_node(Nodes.Value, label="attach_thickness")
     attach_thickness.outputs[0].default_value = kwargs["attach_thickness"]
@@ -882,82 +737,8 @@ def geometry_nodes(nw: NodeWrangler, **kwargs):
         input_kwargs={"Geometry": triangulate, "Rotation": (0.0000, 0.0000, -1.5708)},
     )
 
-    if not kwargs.get("save", True):
-        group_output = nw.new_node(
-        Nodes.GroupOutput,
-        input_kwargs={"Geometry": transform},
-        attrs={"is_active_output": True},
-        )
-        return
-
-    global first
-    for i, name in enumerate(names):
-        named_attribute = nw.new_node(
-            node_type=Nodes.NamedAttribute,
-            input_args=[name],
-            attrs={"data_type": "INT"},
-        )
-        for j in range(1, parts[i]+1):
-            compare = nw.new_node(
-                node_type=Nodes.Compare,
-                input_kwargs={"A": named_attribute, "B": j},
-                attrs={"data_type": "INT", "operation": "EQUAL"},
-            )
-            separate_geometry = nw.new_node(
-                node_type=Nodes.SeparateGeometry,
-                input_kwargs={
-                    "Geometry": transform.outputs["Geometry"],
-                    "Selection": compare.outputs["Result"],
-                },
-            )
-            if name == "divisionboard":
-                named_attribute_1 = nw.new_node(
-                    node_type=Nodes.NamedAttribute,
-                    input_args=["division_board"],
-                    attrs={"data_type": "INT"},
-                )
-                # for k in range(1, 6):
-                compare_1 = nw.new_node(
-                    node_type=Nodes.Compare,
-                    input_kwargs={"A": named_attribute_1, "B": 1},
-                    attrs={"data_type": "INT", "operation": "EQUAL"},
-                )
-                separate_geometry_1 = nw.new_node(
-                    node_type=Nodes.SeparateGeometry,
-                    input_kwargs={
-                        "Geometry": separate_geometry,
-                        "Selection": compare_1.outputs["Result"],
-                    },
-                )
-                output_geometry = separate_geometry_1
-                a = save_geometry(
-                    nw,
-                    output_geometry,
-                    kwargs.get("path", None),
-                    name,
-                    kwargs.get("i", "unknown"),
-                    first=first,
-                )
-                if a:
-                    first = False
-            else:
-                output_geometry = separate_geometry
-                a = save_geometry(
-                    nw,
-                    output_geometry,
-                    kwargs.get("path", None),
-                    name,
-                    kwargs.get("i", "unknown"),
-                    first=first,
-                )
-                if a:
-                    first = False
-    save_geometry(
-        nw,
-        transform,
-        kwargs.get("path", None),
-        "whole",
-        kwargs.get("i", "unknown"),
+    transform = nw.new_node(
+        Nodes.RealizeInstances, [transform]
     )
 
     group_output = nw.new_node(
@@ -1144,9 +925,7 @@ class LargeShelfBaseFactory(AssetFactory):
 
         return params
 
-    def create_asset(self, idx=0, first_=True, save=False, **params):
-        global first
-        first = first_
+    def create_asset(self, i=0, **params):
         bpy.ops.mesh.primitive_plane_add(
             size=1,
             enter_editmode=False,
@@ -1156,20 +935,10 @@ class LargeShelfBaseFactory(AssetFactory):
         )
         obj = bpy.context.active_object
 
-        obj_params = self.get_asset_params(idx)
-
-        path_dict = {
-            "path": params.get("path", None),
-            "i": params.get("i", "unknown"),
-            "save": save
-        }
-        obj_params.update(path_dict)
-        
+        obj_params = self.get_asset_params(i)
         surface.add_geomod(
             obj, geometry_nodes, attributes=[], apply=True, input_kwargs=obj_params
         )
-
-        obj_params.update({"first": first})
 
         if params.get("ret_params", False):
             return obj, obj_params
@@ -1177,35 +946,6 @@ class LargeShelfBaseFactory(AssetFactory):
         tagging.tag_system.relabel_obj(obj)
 
         return obj
-    
-    def save(self, obj, params, first):
-        names = ["back_board", "bottomboard", "divisionboard", "side_board"]
-        parts = [1, len(params["shelf_cell_width"]), len(params["shelf_cell_width"])*len(params["division_board_z_translation"]), len(params["side_board_x_translation"])]
-        object_id = -1
-        butil.select_none()
-        obj.select_set(True)
-        bpy.ops.object.mode_set(mode='EDIT')
-        bpy.ops.mesh.bevel(offset_type="PERCENT", offset=random.randint(0, 50) / 100, offset_pct=random.randint(0, 50), segments=10, affect='VERTICES', profile_type="SUPERELLIPSE", profile=0.5)
-        bpy.ops.mesh.bevel(offset_type="PERCENT", offset=random.randint(0, 50) / 100, offset_pct=random.randint(0, 50), segments=10, affect='EDGES', profile_type="SUPERELLIPSE", profile=0.5)
-        bpy.ops.object.mode_set(mode='OBJECT')
-        for j, name in enumerate(names):
-            if name != "divisionboard":
-                material = params["board_material"]
-            else:
-                material = params["frame_material"]
-            material = surface.shaderfunc_to_material(material)
-            for k in range(1, parts[j] + 1):
-                if name == "back_board":
-                    res = save_geometry_new(obj, name, k, params.get("i", None), params.get("path", None), first, use_bpy=True, parent_obj_id=None, joint_info=None, material=material)
-                    object_id = res[0]
-                else:
-                    res = save_geometry_new(obj, name, k, params.get("i", None), params.get("path", None), first, use_bpy=True, parent_obj_id=object_id, joint_info={
-                        "name": f"fixed_{name}_{k}_{obj.name}_{random.randint(0, 10000000000000000000000000000000000000000000000000000000000000)}",
-                        "type": "fixed"
-                    }, material=material)
-                if res:
-                    first = False
-        return object_id
 
 
 class LargeShelfFactory(LargeShelfBaseFactory):

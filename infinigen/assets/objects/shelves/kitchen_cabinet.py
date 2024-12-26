@@ -18,23 +18,33 @@ from infinigen.assets.materials.shelf_shaders import (
 from infinigen.assets.objects.shelves.doors import CabinetDoorBaseFactory
 from infinigen.assets.objects.shelves.drawers import CabinetDrawerBaseFactory
 from infinigen.assets.objects.shelves.large_shelf import LargeShelfBaseFactory
+from infinigen.assets.utils.decorate import read_co
 from infinigen.assets.utils.object import new_bbox
 from infinigen.core import surface, tagging
 from infinigen.core.nodes.node_wrangler import Nodes, NodeWrangler
 from infinigen.core.placement.factory import AssetFactory
 from infinigen.core.util import blender as butil
 from infinigen.core.util.math import FixedSeed
-from infinigen.assets.utils.decorate import read_co, write_co
+from infinigen.assets.utils.object import (
+    join_objects,
+    new_bbox,
+    new_cube,
+    new_plane,
+    save_objects,
+    save_parts_join_objects,
+    save_obj_parts_add,
+    get_joint_name,
+    join_objects_save_whole
+)
 
-from infinigen.core.nodes.node_utils import save_geometry_new, save_geometry
-
-import urdfpy
-
-from infinigen.assets.objects.elements.doors.lite import LiteDoorFactory
-
-
+target = -1
+left = False
+door = True
+done = True
+drawer_now = 0
 def geometry_nodes(nw: NodeWrangler, **kwargs):
     # Code generated using version 2.6.4 of the node_transpiler
+    global target, left, door, done, drawer_now
     cabinets = []
     for i, component in enumerate(kwargs["components"]):
         frame_info = nw.new_node(
@@ -42,6 +52,7 @@ def geometry_nodes(nw: NodeWrangler, **kwargs):
         )
 
         attachments = []
+        print(i, component[1])
         if component[1] == "door":
             right_door_info = nw.new_node(
                 Nodes.ObjectInfo, input_kwargs={"Object": component[2][0]}
@@ -59,6 +70,26 @@ def geometry_nodes(nw: NodeWrangler, **kwargs):
                 },
             )
             attachments.append(transform_r)
+            if i == target and done:
+                left = True
+                door = True
+                transform_r = nw.new_node(
+                        Nodes.Transform,
+                        input_kwargs={
+                            "Geometry": transform_r,
+                            "Translation": (0, kwargs["y_translations"][i], 0),
+                        },
+                    )
+                group_output = nw.new_node(
+                    Nodes.GroupOutput,
+                    input_kwargs={"Geometry": transform_r},
+                    attrs={"is_active_output": True},
+                )       
+                if len(component[2][2]["door_hinge_pos"]) > 1:
+                    done =False
+                else:
+                    target += 1
+                return 
             if len(component[2][2]["door_hinge_pos"]) > 1:
                 transform_l = nw.new_node(
                     Nodes.Transform,
@@ -68,8 +99,28 @@ def geometry_nodes(nw: NodeWrangler, **kwargs):
                         "Rotation": (0, 0, component[2][2]["door_open_angle"]),
                     },
                 )
+                transform_l = nw.new_node(
+                        Nodes.Transform,
+                        input_kwargs={
+                            "Geometry": transform_l,
+                            "Translation": (0, kwargs["y_translations"][i], 0),
+                        },
+                    )
                 attachments.append(transform_l)
+                if i == target and not done:
+                    left = False
+                    door = True
+                    group_output = nw.new_node(
+                        Nodes.GroupOutput,
+                        input_kwargs={"Geometry": transform_l},
+                        attrs={"is_active_output": True},
+                    )       
+                    done = True
+                    target += 1
+                    return 
         elif component[1] == "drawer":
+            # print(i, target)
+            # input()
             for j, drawer in enumerate(component[2]):
                 drawer_info = nw.new_node(
                     Nodes.ObjectInfo, input_kwargs={"Object": drawer[0]}
@@ -82,7 +133,33 @@ def geometry_nodes(nw: NodeWrangler, **kwargs):
                     },
                 )
                 attachments.append(transform)
+                if i == target and j == drawer_now:
+                    left = False
+                    door = False
+                    transform = nw.new_node(
+                        Nodes.Transform,
+                        input_kwargs={
+                            "Geometry": transform,
+                            "Translation": (0, kwargs["y_translations"][i], 0),
+                        },
+                    )
+                    group_output = nw.new_node(
+                        Nodes.GroupOutput,
+                        input_kwargs={"Geometry": transform},
+                        attrs={"is_active_output": True},
+                    )       
+                    done = False
+                    drawer_now += 1
+                    if drawer_now == len(component[2]):
+                        target += 1
+                        done = True
+                        drawer_now = 0
+                    return 
         else:
+            if i == target:
+                left = False
+                door = False
+                target += 1
             continue
 
         join_geometry = nw.new_node(
@@ -107,6 +184,10 @@ def geometry_nodes(nw: NodeWrangler, **kwargs):
         import pdb
 
         pdb.set_trace()
+    join_geometry_1  = nw.new_node(
+        Nodes.RealizeInstances, [join_geometry_1]
+    )
+    target = -1
     group_output = nw.new_node(
         Nodes.GroupOutput,
         input_kwargs={"Geometry": join_geometry_1},
@@ -123,7 +204,6 @@ class KitchenCabinetBaseFactory(AssetFactory):
         self.frame_fac = LargeShelfBaseFactory(factory_seed)
         self.door_fac = CabinetDoorBaseFactory(factory_seed)
         self.drawer_fac = CabinetDrawerBaseFactory(factory_seed)
-        #self.door_fac = LiteDoorFactory(factory_seed)
         self.drawer_only = False
         with FixedSeed(factory_seed):
             self.params = self.sample_params()
@@ -195,7 +275,7 @@ class KitchenCabinetBaseFactory(AssetFactory):
                 else:
                     params["board_material"] = shader_shelves_wood
 
-            params["panel_material"] = params["frame_material"]
+            params["panel_meterial"] = params["frame_material"]
             params["knob_material"] = params["frame_material"]
             return params
 
@@ -264,14 +344,15 @@ class KitchenCabinetBaseFactory(AssetFactory):
                 params["drawer_board_width"] = self.frame_params["shelf_width"]
                 params["drawer_board_height"] = drawer_h
                 params["drawer_depth"] = drawer_depth
-                params["drawer_hinge_pos"] = (
+                params["drawer_hinge_pos"] = [
                     self.frame_params["shelf_depth"] / 2.0,
                     0,
                     (
                         self.frame_params["division_board_thickness"] / 2.0
                         + self.frame_params["division_board_z_translation"][i]
                     ),
-                )
+                ]
+                #params["drawer_hinge_pos"][2] *= 1.1
                 params.update(self.material_params.copy())
                 param_sets.append(params)
         else:
@@ -291,25 +372,18 @@ class KitchenCabinetBaseFactory(AssetFactory):
             accum_w += thickness + w / 2.0 + 0.0005
         return x_translations
 
-    def create_cabinet_components(self, i, path, drawer_only=False):
-        first = True
+    def create_cabinet_components(self, i, drawer_only=False):
         # update material params
         self.material_params = self.get_material_params()
 
         components = []
-        params = []
-
         for k, w in enumerate(self.cabinet_widths):
             # create frame
             frame_params = self.get_frame_params(w, i=i)
             self.frame_fac.params = frame_params
-            frame, frame_params = self.frame_fac.create_asset(i=i, ret_params=True, path=path, first_=first,save=False)
-            first = False
+            frame, frame_params = self.frame_fac.create_asset(i=i, ret_params=True)
             frame.name = f"cabinet_frame_{k}"
             self.frame_params = frame_params
-            frame_params["i"] = i
-            frame_params["path"] = path
-            params.append([self.frame_params])
 
             # create attach
             if drawer_only:
@@ -324,20 +398,12 @@ class KitchenCabinetBaseFactory(AssetFactory):
                 self.door_fac.params = attach_params[0]
                 self.door_fac.params["door_left_hinge"] = False
                 right_door, door_obj_params = self.door_fac.create_asset(
-                    i=i, ret_params=True, path=path, first_=first, save=False
+                    i=i, ret_params=True
                 )
-                door_obj_params["i"] = i
-                door_obj_params["path"] = path
-                params[len(params) - 1].append(door_obj_params)
-                first = False
                 right_door.name = f"cabinet_right_door_{k}"
                 self.door_fac.params = door_obj_params
                 self.door_fac.params["door_left_hinge"] = True
-                left_door, _ = self.door_fac.create_asset(i=i, ret_params=True, path=path, first_=first, save=False)
-                _["i"] = i
-                _["path"] = path
-                params[len(params) - 1].append(_)
-                first = False
+                left_door, _ = self.door_fac.create_asset(i=i, ret_params=True)
                 left_door.name = f"cabinet_left_door_{k}"
                 components.append(
                     [frame, "door", [right_door, left_door, attach_params[0]]]
@@ -347,11 +413,7 @@ class KitchenCabinetBaseFactory(AssetFactory):
                 drawers = []
                 for j, p in enumerate(attach_params):
                     self.drawer_fac.params = p
-                    drawer, params_ = self.drawer_fac.create_asset(i=i, path=path, first=first, ret_params=True, save=False)
-                    params_["i"] = i
-                    params_["path"] = path
-                    params[len(params) - 1].append(params_)
-                    first = False
+                    drawer = self.drawer_fac.create_asset(i=i)
                     drawer.name = f"drawer_{k}_layer{j}"
                     drawers.append([drawer, p])
                 components.append([frame, "drawer", drawers])
@@ -362,13 +424,11 @@ class KitchenCabinetBaseFactory(AssetFactory):
             else:
                 raise NotImplementedError
 
-        return components, params
+        return components
 
-    def create_asset(self, i=0, save_whole=True, **params):
-        links = []
-        joints = []
-
-        components, ps = self.create_cabinet_components(i=i, drawer_only=self.drawer_only, path=params.get("path", None))
+    def create_asset(self, i=0, **params):
+        idx_ = i
+        components = self.create_cabinet_components(i=i, drawer_only=self.drawer_only)
         cabinet_params = self.get_cabinet_params(i=i)
         join_objs = []
 
@@ -400,60 +460,78 @@ class KitchenCabinetBaseFactory(AssetFactory):
             )
 
             join_objs += [obj]
-        idx = i
+        global target
+        target = 0
         first = True
-        for i, c in enumerate(components):
-            c[0].location = (0, cabinet_params[i], 0)
-            butil.apply_transform(c[0], loc=True)
-            join_objs.append(c[0])
-            f_id = self.frame_fac.save(c[0], ps[i][0], first)
+        for i in range(10 * len(components)):
+            bpy.ops.mesh.primitive_plane_add(
+                size=1,
+                enter_editmode=False,
+                align="WORLD",
+                location=(0, 0, 0),
+                scale=(1, 1, 1),
+            )
+            obj = bpy.context.active_object
+            surface.add_geomod(
+                obj,
+                geometry_nodes,
+                attributes=[],
+                input_kwargs={
+                    "components": components,
+                    "y_translations": cabinet_params,
+                },
+                apply=True,
+            )
+            if target == -1:
+                break
+            global door, left, done
+            parent_id = "world"
+            joint_info = {
+                "name": get_joint_name("fixed"),
+                "type": "fixed",
+            }
+            if not door:
+                parent_id = "world"
+                joint_info = {
+                    "name": get_joint_name("prismatic"),
+                    "type": "prismatic",
+                    "axis": (1, 0, 0),
+                    "limit":{
+                        "lower": 0,
+                        "upper": self.dimensions[0] * 0.75
+                    }
+                }
+            else:
+                co = read_co(obj)
+                width = co[:, 1].max() - co[:, 1].min()
+                joint_info = {
+                    "name": get_joint_name("revolute"),
+                    "type": "revolute",
+                    "axis": (0, 0, 1),
+                    "limit":{
+                        "lower": -np.pi / 2 if left else 0,
+                        "upper": 0 if left else np.pi / 2
+                    },
+                    "origin_shift": [0, -width / 2 if left else width / 2, 0]
+                }
+            save_obj_parts_add(obj, params.get("path", None), idx_, use_bpy=True, first=first, parent_obj_id=parent_id, joint_info=joint_info)
             first = False
+        first =True
+        for i, c in enumerate(components):
             if c[1] == "door":
-                butil.select_none()
-                geo = c[2][0]
-                co = read_co(geo)
-                co[:, 0] += ps[i][2]["door_hinge_pos"][0][0]
-                co[:, 1] += (ps[i][2]["door_hinge_pos"][0][1] + cabinet_params[i])
-                co[:, 2] += ps[i][2]["door_hinge_pos"][0][2]
-                write_co(geo, co)
-                #butil.apply_transform(c[2][0], True)
-                self.door_fac.save(geo, ps[i][2], first, parent_id=f_id)
-                first = False
-                butil.select_none()
-                c[2][1].select_set(True)
-                if len(ps[i][1]["door_hinge_pos"]) > 1:
-                    geo = c[2][1]
-                    co = read_co(geo)
-                    co[:, 0] += ps[i][1]["door_hinge_pos"][1][0]
-                    co[:, 1] += (ps[i][1]["door_hinge_pos"][1][1] + cabinet_params[i])
-                    co[:, 2] += ps[i][1]["door_hinge_pos"][1][2]
-                    write_co(geo, co)
-                    #bpy.ops.transform.translate(value=ps[i][1]["door_hinge_pos"][1])
-                    #bpy.ops.transform.translate(value=(0.0, cabinet_params[i], 0.0))
-                    #c[2][1].select_set(False)
-                #butil.apply_transform(c[2][1], True)
-                    self.door_fac.save(geo, ps[i][1], first, parent_id=f_id, left=False)
-                    first = False
                 butil.delete(c[2][:-1])
             elif c[1] == "drawer":
-                for j, d in enumerate(c[2]):
-                    geo = d[0]
-                    co = read_co(geo)
-                    co[:, 0] += ps[i][j  + 1]["drawer_hinge_pos"][0]
-                    co[:, 1] += (ps[i][j  + 1]["drawer_hinge_pos"][1] + cabinet_params[i])
-                    co[:, 2] += ps[i][j  + 1]["drawer_hinge_pos"][2]
-                    write_co(geo, co)
-                    self.drawer_fac.save(geo, ps[i][j + 1], first, parent_id=f_id)
-                    first = False
                 butil.delete([x[0] for x in c[2]])
-            first = False
+            c[0].location = (0, cabinet_params[i], 0)
+            butil.apply_transform(c[0], loc=True)
+            save_obj_parts_add(c[0], params.get("path", None), idx_, use_bpy=True, first=False)
+            first =False
+            join_objs.append(c[0])
 
             # butil.delete(c[:1])
         obj = butil.join_objects(join_objs)
         tagging.tag_system.relabel_obj(obj)
-        if save_whole:
-            save_geometry_new(obj, 'whole', 0, idx, params.get("path", None), True, use_bpy=True)
-
+        join_objects_save_whole(obj, params.get("path", None), idx_, use_bpy=True, join=False)
         return obj
 
 
@@ -469,7 +547,6 @@ class KitchenCabinetFactory(KitchenCabinetBaseFactory):
         params = dict()
         if self.dimensions is None:
             dimensions = (uniform(0.25, 0.35), uniform(1.0, 4.0), uniform(0.5, 1.3))
-            #dimensions = (uniform(0.25, 0.35), uniform(1.0, 40), uniform(0.5, 13))
             self.dimensions = dimensions
         else:
             dimensions = self.dimensions

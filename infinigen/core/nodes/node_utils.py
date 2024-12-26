@@ -18,6 +18,7 @@ from infinigen.core.util import blender as butil
 import urdfpy
 
 from infinigen.assets.utils.object import (
+    get_joint_name,
     join_objects_save_whole,
     save_file_path_obj,
     save_obj_parts_add,
@@ -216,7 +217,8 @@ def save_geometry(
     use_bpy=True,
     parent_obj_id=None,
     joint_info=None,
-    material=None
+    material=None,
+    after_seperate=None
 ):
     output = nw.new_node(
         Nodes.GroupOutput,
@@ -233,7 +235,6 @@ def save_geometry(
 
     # Link the new object to the current scene
     bpy.context.collection.objects.link(new_object)
-
     # Assign vertices and faces to the new mesh
     vertices, faces = get_geometry_data(geometry)
     res = None
@@ -249,7 +250,7 @@ def save_geometry(
             join_objects_save_whole([new_object], path, idx, name, join=False, use_bpy=use_bpy)
             res = True
         else:
-            res = save_obj_parts_add([new_object], path, idx, name, first=first, use_bpy=True, parent_obj_id=parent_obj_id, joint_info=joint_info,material=material)
+            res = save_obj_parts_add([new_object], path, idx, name, first=first, use_bpy=True, parent_obj_id=parent_obj_id, joint_info=joint_info,material=material, before_export=after_seperate)
     #bpy.ops.export_scene.obj(filepath='./file.obj', use_selection=True)
     # 取消选择新对象
     #new_obj.select_set(False)
@@ -275,7 +276,7 @@ def get_seperate_objects(obj):
     butil.select_none()
 
 count = 0
-def save_part(obj, type, path, idx, first):
+def save_part(obj, type, path, idx, first, parent_obj_id=None, joint_info=None, material=None):
         global count
         name = str(count)
         obj.name = name
@@ -283,25 +284,40 @@ def save_part(obj, type, path, idx, first):
         temp_obj = obj.copy()
         bpy.context.collection.objects.link(temp_obj)
         get_seperate_objects(obj)
+        print(initial, bpy.context.collection.objects.keys())
         new_obj = []
-        for ob in bpy.context.collection.objects:
-            if not ob.name in initial and name in ob.name:
+        obs = list(bpy.context.collection.objects.keys()).copy()
+        res = []
+        i = 0
+        for ob in obs:
+            name = ob
+            ob = bpy.context.collection.objects.get(ob)
+            if ob is None:
+                continue
+            print(ob)
+            if ob.name not in initial and name in ob.name :
                 butil.select_none()
-                save_obj_parts_add([ob], path, idx, type, first=first, use_bpy=True)
+                j_info = joint_info[i] if isinstance(joint_info, list) else joint_info
+                p_id = parent_obj_id[i] if isinstance(parent_obj_id, list) else parent_obj_id
+                j_info["name"] = get_joint_name(j_info["type"])
+                print(j_info)
+                a = save_obj_parts_add([ob], path, idx, type, first=first, use_bpy=True, parent_obj_id=p_id, joint_info=j_info, material=material)
+                i += 1
+                print(obs)
                 new_obj.append(ob)
+                res.append(a[0])
                 first = False
         count += 1
-        return new_obj
+        return res
 
-def save_geometry_new(obj, name, part_idx, idx, path, first, use_bpy=False, separate=False, parent_obj_id=None, joint_info=None, material=None):
-    print(obj.data.materials)
+def save_geometry_new(obj, name, part_idx, idx, path, first, use_bpy=False, separate=False, parent_obj_id=None, joint_info=None, material=None, apply=None, after_seperate=None, before_export=None):
     butil.select_none()
     if not obj.name in bpy.context.collection.objects.keys():
         bpy.context.collection.objects.link(obj)
     bpy.context.view_layer.objects.active = obj
     bpy.ops.object.mode_set(mode='EDIT')
     bm = bmesh.from_edit_mesh(obj.data)
-    print(bm.verts.layers.float.keys(), bm.verts.layers.int.keys(), bm.faces.layers.int.keys(), bm.edges.layers.float.keys())
+    print(bm.verts.layers.float.keys(), bm.verts.layers.int.keys(), bm.faces.layers.int.keys(), bm.edges.layers.float.keys(), bm.edges.layers.color.keys(), bm.edges.layers.float_color.keys())
     # if name not in bm.verts.layers.float.keys() and name not in bm.verts.layers.int.keys() and name != "whole":
     #     # 切换回对象模式
     #     bpy.ops.object.mode_set(mode='OBJECT')
@@ -321,6 +337,10 @@ def save_geometry_new(obj, name, part_idx, idx, path, first, use_bpy=False, sepa
                 continue
             attr_layers.append(attr_layer)
         found_verts = []
+        if len(attr_layers) == 0:
+            # 切换回对象模式
+            bpy.ops.object.mode_set(mode='OBJECT')
+            return False
         for v in bm.verts:
             check = True
             for i, attr_layer in enumerate(attr_layers):
@@ -354,13 +374,19 @@ def save_geometry_new(obj, name, part_idx, idx, path, first, use_bpy=False, sepa
         if edge.verts[0].index in vert_map and edge.verts[1].index in vert_map:
             new_bm.edges.new((vert_map[edge.verts[0].index], vert_map[edge.verts[1].index]))
 
+    for k in bm.faces.layers.int.keys():
+        if k not in new_bm.faces.layers.int.keys():
+            layer = new_bm.faces.layers.int.new(k)
+
     for face in bm.faces:
         if all(v.index in vert_map for v in face.verts):
-            try:
-                new_face = new_bm.faces.new([vert_map[v.index] for v in face.verts])
+            new_face = new_bm.faces.new([vert_map[v.index] for v in face.verts])
+            if face.material_index is not None and face.material_index >= 0:
                 new_face.material_index = face.material_index
-            except:
-                pass
+            for k in bm.faces.layers.int.keys():
+                attr_layer_1 = bm.faces.layers.int[k]
+                layer = new_bm.faces.layers.int[k]
+                new_face[layer] = int(face[attr_layer_1])
 
     # 写入新的网格数据并释放 bmesh
     new_bm.to_mesh(new_mesh)
@@ -370,15 +396,34 @@ def save_geometry_new(obj, name, part_idx, idx, path, first, use_bpy=False, sepa
     bpy.ops.object.mode_set(mode='OBJECT')
     bpy.context.view_layer.objects.active = new_obj
     #new_obj.select_set(True)  # 选择新对象
+    new_obj.data.materials.clear()
+    for mat in obj.data.materials:
+        new_obj.data.materials.append(mat)
+    # for i, mat in enumerate(obj.material_slots):
+    #     print(i)
+    #     new_obj.material_slots[i] = mat
+    if not isinstance(part_idx, list) and name != "whole":
+        part_idx = [part_idx]
+    if not isinstance(name, list) and name != "whole":
+        name = [name]
+    if len(name) > 1 and name!= "whole":
+        for i, idx in enumerate(part_idx):
+            if idx != 0:
+                name = [name[i]]
+
+    if not separate and after_seperate is not None:
+        after_seperate(new_obj)
 
     if separate:
-        save_part(new_obj, name, path, idx, first)
-        return True
+        res = save_part(new_obj, name, path, idx, first, parent_obj_id, joint_info, material)
+        return res
     if name == 'whole':
         join_objects_save_whole([new_obj], path, idx, name, join=False, use_bpy=use_bpy)
         res = True
     else:
-        res = save_obj_parts_add([new_obj], path, idx, name, first=first, use_bpy=True, parent_obj_id=parent_obj_id, joint_info=joint_info, material=material)
+        if apply is not None:
+            apply(new_obj)
+        res = save_obj_parts_add([new_obj], path, idx, name, first=first, use_bpy=True, parent_obj_id=parent_obj_id, joint_info=joint_info, material=material, before_export=before_export)
     #bpy.ops.export_scene.obj(filepath='./file.obj', use_selection=True)
     # 取消选择新对象
     #new_obj.select_set(False)
