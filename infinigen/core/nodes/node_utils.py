@@ -250,19 +250,19 @@ def save_geometry(
 
         if return_center:
             co = read_co(new_object)
-            center = ((co[:, 0].max() + co[:, 0].min()) / 2, (co[:, 1].max() + co[:, 1].min()) / 2, (co[:, 2].max() + co[:, 2].min()) / 2)
-
+            c = [(co[:, 0].max() - co[:, 0].min()) / 2, (co[:, 1].max() - co[:, 1].min()) / 2, (co[:, 2].max() - co[:, 2].min()) / 2]
 
         if name == 'whole':
             join_objects_save_whole([new_object], path, idx, name, join=False, use_bpy=use_bpy)
             res = True
         else:
             res = save_obj_parts_add([new_object], path, idx, name, first=first, use_bpy=True, parent_obj_id=parent_obj_id, joint_info=joint_info,material=material, before_export=after_seperate)
+        if return_center:
+            return res, c
     #bpy.ops.export_scene.obj(filepath='./file.obj', use_selection=True)
     # 取消选择新对象
     #new_obj.select_set(False)
-    if return_center:
-        return res, center
+
     return res
 
 def get_seperate_objects(obj):

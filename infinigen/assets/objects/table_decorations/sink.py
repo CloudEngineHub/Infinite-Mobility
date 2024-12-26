@@ -23,6 +23,7 @@ from infinigen.core.placement.factory import AssetFactory
 from infinigen.core.util import blender as butil
 from infinigen.core.util.math import FixedSeed
 from infinigen.assets.utils.object import (
+    add_joint,
     join_objects,
     new_circle,
     new_cylinder,
@@ -346,10 +347,19 @@ def nodegroup_water_tap(nw: NodeWrangler, **kwargs):
             ("NodeSocketFloat", "hands_length_x", U(0.750, 1.25)),
             ("NodeSocketFloat", "hands_length_Y", U(0.950, 1.550)),
             ("NodeSocketBool", "one_side", False),
-            ("NodeSocketBool", "different_type", False),
+            ("NodeSocketBool", "different_type", True),
             ("NodeSocketBool", "length_one_side", False),
         ],
     )
+
+    input = {
+            "Switch": False,
+            "hand_type": False,
+            "one_side": False,
+            "different_type": True,
+            "length_one_side": False,
+    }
+
     group_input = nw.new_node(
         Nodes.GroupInput, expose_input=[("NodeSocketMaterial", "Tap", None)]
     )
@@ -600,7 +610,7 @@ def nodegroup_water_tap(nw: NodeWrangler, **kwargs):
         input_kwargs={
             "Geometry": handle,
             "Translation": (0.0000, -0.2000, 0.0000),
-            "Rotation": (0.0000, 0.0000, 3.6652),
+            "Rotation": (0.0000, 0.0000, np.pi),
             "Scale": (0.3000, 0.3000, 0.3000),
         },
     )
@@ -610,7 +620,7 @@ def nodegroup_water_tap(nw: NodeWrangler, **kwargs):
         input_kwargs={
             "Geometry": handle,
             "Translation": (0.0000, 0.2000, 0.0000),
-            "Rotation": (0.0000, 0.0000, 2.6180),
+            "Rotation": (0.0000, 0.0000, np.pi),
             "Scale": (0.3000, 0.3000, 0.3000),
         },
     )
@@ -949,7 +959,7 @@ def nodegroup_water_tap(nw: NodeWrangler, **kwargs):
         input_kwargs={
             "Geometry": set_shade_smooth,
             "Translation": (0.0000, 0.0000, 0.1000),
-            "Rotation": (0.0000, 0.0000, 0.6807),
+            "Rotation": (0.0000, 0.0000, 0.0000),
             "Scale": (0.4000, 0.4000, 0.3000),
         },
     )
@@ -1143,7 +1153,7 @@ def nodegroup_water_tap(nw: NodeWrangler, **kwargs):
                 },
             )
             output_geometry = separate_geometry
-            if name == "handle" and (j == 2 or j == 3):
+            if name == "tap" and j == 3:
                 a = save_geometry(
                     nw,
                     output_geometry,
@@ -1152,19 +1162,157 @@ def nodegroup_water_tap(nw: NodeWrangler, **kwargs):
                     kwargs.get("i", "unknown"),
                     first=first,
                     use_bpy=True,
-                    parent_obj_id=2,
-                    joint_info={
+                    parent_obj_id=None,
+                    joint_info=None,
+                    material=kwargs["inputs"]["Tap"],
+                )
+                if all([not input[key] for key in input.keys()]):     
+                    add_joint(parent=1, child=a[0], joint_info={
+                        "name": get_joint_name("fixed"),
+                        "type": "fixed",
+                    })
+            elif name == "tap" and j == 6:
+                a = save_geometry(
+                    nw,
+                    output_geometry,
+                    kwargs.get("path", None),
+                    name,
+                    kwargs.get("i", "unknown"),
+                    first=first,
+                    use_bpy=True,
+                    parent_obj_id=None,
+                    joint_info=None,
+                    material=kwargs["inputs"]["Tap"],
+                )
+                if all([not input[key] for key in input.keys()]):     
+                    add_joint(parent=2, child=a[0], joint_info={
+                        "name": get_joint_name("continuous"),
+                        "type": "continuous",
+                        "axis": (0, 0, 1),
+                    })
+            elif name == "tap" and j == 7:
+                if all([not input[key] if key != "different_type" else input[key] for key in input.keys()]):    
+                    a, center = save_geometry(
+                        nw,
+                        output_geometry,
+                        kwargs.get("path", None),
+                        name,
+                        kwargs.get("i", "unknown"),
+                        first=first,
+                        use_bpy=True,
+                        material=kwargs["inputs"]["Tap"],
+                        return_center=True
+                    ) 
+                    add_joint(parent=1, child=a[0], joint_info={
                         "name": get_joint_name("revolute"),
                         "type": "revolute",
                         "axis": (0, 0, 1),
-                        "limits": {
+                        "limit": {
                             "lower": -np.pi / 2,
-                            "upper": np.pi / 2,
+                            "upper": np.pi / 2
                         },
-                        "origin_shift": [0, 0, 0]
-                    },
+                        "origin_shift": [center[0] - 0.1 * 1.3 * 0.9750 / 2, center[1] - 0.1 * 1.3 * 0.9750 / 2, 0]
+                    })
+                else:
+                    a = save_geometry(
+                    nw,
+                    output_geometry,
+                    kwargs.get("path", None),
+                    name,
+                    kwargs.get("i", "unknown"),
+                    first=first,
+                    use_bpy=True,
+                    material=kwargs["inputs"]["Tap"],
+                    return_center=True
+                ) 
+            elif name == "tap" and j == 13:
+                a = save_geometry(
+                    nw,
+                    output_geometry,
+                    kwargs.get("path", None),
+                    name,
+                    kwargs.get("i", "unknown"),
+                    first=first,
+                    use_bpy=True,
+                    parent_obj_id=None,
+                    joint_info=None,
                     material=kwargs["inputs"]["Tap"],
                 )
+                if all([not input[key] for key in input.keys()]):     
+                    add_joint(parent=0, child=a[0], joint_info={
+                        "name": get_joint_name("fixed"),
+                        "type": "fixed",
+                    })
+            elif name == "handle" and j == 2:
+                if all([not input[key] for key in input.keys()]):    
+                    a, center = save_geometry(
+                        nw,
+                        output_geometry,
+                        kwargs.get("path", None),
+                        name,
+                        kwargs.get("i", "unknown"),
+                        first=first,
+                        use_bpy=True,
+                        material=kwargs["inputs"]["Tap"],
+                        return_center=True
+                    ) 
+                    add_joint(parent=2, child=a[0], joint_info={
+                        "name": get_joint_name("revolute"),
+                        "type": "revolute",
+                        "axis": (0, 0, 1),
+                        "limit": {
+                            "lower": -np.pi / 4,
+                            "upper": np.pi / 4
+                        },
+                        "origin_shift": [center[0] - 0.1 * 1.3 * 0.9750 / 2, center[1] - 0.1 * 1.3 * 0.9750 / 2, 0]
+                    })
+                else:
+                    a = save_geometry(
+                        nw,
+                        output_geometry,
+                        kwargs.get("path", None),
+                        name,
+                        kwargs.get("i", "unknown"),
+                        first=first,
+                        use_bpy=True,
+                        material=kwargs["inputs"]["Tap"],
+                        return_center=True
+                    )
+            elif name == "handle" and j == 3:
+                if all([not input[key] for key in input.keys()]):  
+                    add_joint(parent=2, child=a[0], joint_info={
+                        "name": get_joint_name("revolute"),
+                        "type": "revolute",
+                        "axis": (0, 0, 1),
+                        "limit": {
+                            "lower": -np.pi / 4,
+                            "upper": np.pi / 4
+                        },
+                        "origin_shift": [-center[0] + 0.4 * 0.1 * 1.3 * 0.9750 / 2, -center[1] + 0.4 * 0.1 * 1.3 * 0.9750 / 2, 0]
+                    })
+                    a, center = save_geometry(
+                        nw,
+                        output_geometry,
+                        kwargs.get("path", None),
+                        name,
+                        kwargs.get("i", "unknown"),
+                        first=first,
+                        use_bpy=True,
+                        material=kwargs["inputs"]["Tap"],
+                        return_center=True
+                    )
+                else:
+                    a = save_geometry(
+                        nw,
+                        output_geometry,
+                        kwargs.get("path", None),
+                        name,
+                        kwargs.get("i", "unknown"),
+                        first=first,
+                        use_bpy=True,
+                        material=kwargs["inputs"]["Tap"],
+                        return_center=True
+                    )
             else:
                 a = save_geometry(
                     nw,
@@ -1182,7 +1330,7 @@ def nodegroup_water_tap(nw: NodeWrangler, **kwargs):
             if a:
                 first = False
         part.append('[SEP]')
-    print(part)
+    print("debug_part", part)
 
     save_geometry(
         nw,
