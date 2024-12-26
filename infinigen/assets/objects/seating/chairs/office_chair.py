@@ -29,7 +29,7 @@ from infinigen.assets.utils.object import (
     save_file_path_obj,
     save_obj_parts_add,
     add_joint,
-    get_joint_name
+    get_joint_name,
 )
 
 def geometry_assemble_chair(nw: NodeWrangler, **kwargs):
@@ -247,7 +247,7 @@ def geometry_assemble_chair(nw: NodeWrangler, **kwargs):
                             "type": "prismatic",
                             "axis": (0, 0, 1),
                             "limit": {
-                                "lower": -0.2,
+                                "lower": -(kwargs['Top Height'] - kwargs['Leg Joint Height']) * 0.7,
                                 "upper": 0,
                                 "lower_1": -0.2,
                                 "upper_1": 0
@@ -388,7 +388,7 @@ class OfficeChairFactory(AssetFactory):
             "Top Mid Relative Width": uniform(0.5, 0.9),
             "Top Back Bent": uniform(-1, -0.1),
             "Top Back Relative Width": uniform(0.6, 0.9),
-            "Top Mid Pos": uniform(0.4, 0.6),
+            "Top Mid Pos": 0.5,#uniform(0.4, 0.6),
             # 'Top Material': choice(['leather', 'wood', 'plastic', 'glass']),
             "Height": z,
             "Top Height": z - top_thickness,
@@ -494,9 +494,10 @@ class OfficeChairFactory(AssetFactory):
         tagging.tag_system.relabel_obj(obj)
         has_arm = choice([True, False])
         if has_arm:
+            self.params['Top Back Relative Width'] = max(self.params['Top Back Relative Width'], self.params['Top Mid Relative Width'], self.params['Top Front Relative Width'])
             seat = bpy.data.objects['seat']
             co = read_co(seat)
-            width = self.params['Top Profile Width'] * self.params['Top Front Relative Width']
+            width = self.params['Top Profile Width'] * self.params['Top Back Relative Width']
             height = self.params['Leg Height']
             y = (co[:, 1].max() + co[:, 1].min()) / 2
             pos = (width / 2, y, self.params['Top Height'])
@@ -529,18 +530,18 @@ class OfficeChairFactory(AssetFactory):
             arm_r.location[2] -= 0.03
             butil.apply_transform(arm_r, True)
             
-            base = butil.spawn_cylinder(self.params['Top Profile Width'] * self.params['Top Front Relative Width'] / 2 * 0.7, 0.02)
+            base = butil.spawn_cylinder(self.params['Top Profile Width'] * self.params['Top Back Relative Width'] / 2 * 0.7, 0.02)
             base.location[2] = pos[2]
             base.location[2] -= 0.03
             stretcher = butil.spawn_cube()
-            stretcher.scale = (self.params['Top Profile Width'] * self.params['Top Front Relative Width'], width * 1.5,0.02)
+            stretcher.scale = (self.params['Top Profile Width'] * self.params['Top Back Relative Width'], width * 1.5,0.02)
             stretcher.location = base.location
             butil.apply_transform(stretcher, True)
             butil.apply_transform(base, True)
 
             co = read_co(arm_l)
             h = co[:, 2].max()
-            if r_x > 0:
+            if r_y > 0:
                 w = co[:, 0].max() - width / 2
             else:
                 w = co[:, 0].min() - width / 2
@@ -551,7 +552,7 @@ class OfficeChairFactory(AssetFactory):
             handle.name = "handle"
             bpy.ops.object.convert(target='MESH')
             handle = bpy.data.objects['handle.001']
-            handle.scale = (width * 2, width * 12, width * 2)
+            handle.scale = (width * 4, width * 15, width * 2)
             butil.apply_transform(handle, True)
             # save_obj_parts_add(handle, params.get("path"), params.get("i"), "arm", first=False, use_bpy=True, parent_obj_id=0, joint_info={
             #     "name": get_joint_name("fixed"),
@@ -563,7 +564,7 @@ class OfficeChairFactory(AssetFactory):
             handle_.name = "handle_"
             bpy.ops.object.convert(target='MESH')
             handle_ = bpy.data.objects['handle_.001']
-            handle_.scale = (width * 2, width * 12, width * 2)
+            handle_.scale = (width * 4, width * 15, width * 2)
             butil.apply_transform(handle, True)
 
             arm_l = join_objects([arm_l, base, stretcher, arm_r])
@@ -597,5 +598,5 @@ class OfficeChairFactory(AssetFactory):
             self.scratch.apply(assets)
         if self.edge_wear:
             self.edge_wear.apply(assets)
-        save_obj_parts_add(assets, self.params.get("path"), self.params.get("i"),  "part", first=False, use_bpy=True, material=[self.params["LegMaterial"]])
+        #save_obj_parts_add(assets, self.params.get("path"), self.params.get("i"),  "part", first=False, use_bpy=True, material=[self.params["LegMaterial"]])
         
