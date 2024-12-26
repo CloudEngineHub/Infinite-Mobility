@@ -1132,7 +1132,6 @@ def nodegroup_water_tap(nw: NodeWrangler, **kwargs):
     first = True
     names = ["tap", "handle"]
     parts = [14, 3]
-    part = []
     for i, name in enumerate(names):
         for j in range(1, parts[i] + 1):
             named_attribute = nw.new_node(
@@ -1326,11 +1325,8 @@ def nodegroup_water_tap(nw: NodeWrangler, **kwargs):
                     joint_info=None,
                     material=kwargs["inputs"]["Tap"],
                 )
-            part.append(a)
             if a:
                 first = False
-        part.append('[SEP]')
-    print("debug_part", part)
 
     save_geometry(
         nw,
