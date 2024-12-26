@@ -92,7 +92,6 @@ class JarFactory(AssetFactory):
         butil.apply_transform(cap, True)
         subsurf(obj, 1, self.cap_subsurf)
         write_attribute(cap, 1, "cap", "FACE")
-        # obj = join_objects([obj, cap])
         res = save_obj_parts_add([obj], params.get("path", None), params.get("i", "unknown"), "jar", first=True, use_bpy=True, parent_obj_id=None, joint_info=None, material=self.surface)
         save_obj_parts_add([cap], params.get("path", None), params.get("i", "unknown"), "cap", first=False, use_bpy=True, material=self.cap_surface, parent_obj_id=res[0], joint_info={
             "name": get_joint_name("continuous_prismatic"),
@@ -103,15 +102,9 @@ class JarFactory(AssetFactory):
                 "lower_1": 0,
                 "upper_1": 0.05,
             }
-
         })
-        obj = save_obj_parts_join_objects(
-            [obj, cap],
-            params.get("path", None),
-            params.get("i", "unknown"),
-            name=["obj", "cap"],
-            obj_name="Jar"
-        )
+        obj = join_objects_save_whole(cap, params.get("path", None), params.get("i", "unknown"), name="jar", use_bpy=True, join=False)
+        # obj = join_objects([res, cap])
         return obj
 
     def finalize_assets(self, assets):

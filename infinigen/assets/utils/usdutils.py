@@ -2,7 +2,7 @@ from pxr import Usd, UsdGeom, UsdPhysics, Gf
 
 from pxr import Usd, UsdGeom, Gf, Sdf
 import numpy as np
-import open3d as o3d
+# import open3d as o3d
 
 max_try = 100
 
