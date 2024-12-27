@@ -1263,7 +1263,7 @@ def nodegroup_water_tap(nw: NodeWrangler, **kwargs):
                             "lower": -np.pi / 4,
                             "upper": np.pi / 4
                         },
-                        "origin_shift": [center[0] - 0.1 * 1.3 * 0.9750 * 0.5, center[1] - 0.1 * 1.3 * 0.9750 * 0.5, 0]
+                        "origin_shift": [center[0] - 0.1 * 1.3 * 0.9750 * 0.55, center[1] - 0.1 * 1.3 * 0.9750 * 0.5, 0]
                     })
                 else:
                     a = save_geometry(
@@ -1298,7 +1298,7 @@ def nodegroup_water_tap(nw: NodeWrangler, **kwargs):
                             "lower": -np.pi / 4,
                             "upper": np.pi / 4
                         },
-                        "origin_shift": [center[0] - 0.1 * 1.3 * 0.9750 * 0.5, center[1] - 0.1 * 1.3 * 0.9750 * 0.5, 0]
+                        "origin_shift": [center[0] - 0.1 * 1.3 * 0.9750 * 0.55, center[1] - 0.1 * 1.3 * 0.9750 * 0.5, 0]
                     })
                 else:
                     a = save_geometry(
