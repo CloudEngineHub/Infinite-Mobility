@@ -347,7 +347,7 @@ def nodegroup_water_tap(nw: NodeWrangler, **kwargs):
             ("NodeSocketFloat", "hands_length_x", U(0.750, 1.25)),
             ("NodeSocketFloat", "hands_length_Y", U(0.950, 1.550)),
             ("NodeSocketBool", "one_side", False),
-            ("NodeSocketBool", "different_type", True),
+            ("NodeSocketBool", "different_type", False),
             ("NodeSocketBool", "length_one_side", False),
         ],
     )
@@ -356,7 +356,7 @@ def nodegroup_water_tap(nw: NodeWrangler, **kwargs):
             "Switch": False,
             "hand_type": False,
             "one_side": False,
-            "different_type": True,
+            "different_type": False,
             "length_one_side": False,
     }
 
@@ -1210,7 +1210,7 @@ def nodegroup_water_tap(nw: NodeWrangler, **kwargs):
                             "lower": -np.pi / 2,
                             "upper": np.pi / 2
                         },
-                        "origin_shift": [center[0] - 0.1 * 1.3 * 0.9750 / 2, center[1] - 0.1 * 1.3 * 0.9750 / 2, 0]
+                        "origin_shift": [center[0] - 0.1 * 1.3 * 0.9750 * 0.4, center[1] - 0.1 * 1.3 * 0.9750 * 0.4, 0]
                     })
                 else:
                     a = save_geometry(
@@ -1263,7 +1263,7 @@ def nodegroup_water_tap(nw: NodeWrangler, **kwargs):
                             "lower": -np.pi / 4,
                             "upper": np.pi / 4
                         },
-                        "origin_shift": [center[0] - 0.1 * 1.3 * 0.9750 / 2, center[1] - 0.1 * 1.3 * 0.9750 / 2, 0]
+                        "origin_shift": [center[0] - 0.1 * 1.3 * 0.9750 * 0.5, center[1] - 0.1 * 1.3 * 0.9750 * 0.5, 0]
                     })
                 else:
                     a = save_geometry(
@@ -1279,16 +1279,6 @@ def nodegroup_water_tap(nw: NodeWrangler, **kwargs):
                     )
             elif name == "handle" and j == 3:
                 if all([not input[key] for key in input.keys()]):  
-                    add_joint(parent=2, child=a[0], joint_info={
-                        "name": get_joint_name("revolute"),
-                        "type": "revolute",
-                        "axis": (0, 0, 1),
-                        "limit": {
-                            "lower": -np.pi / 4,
-                            "upper": np.pi / 4
-                        },
-                        "origin_shift": [-center[0] + 0.4 * 0.1 * 1.3 * 0.9750 / 2, -center[1] + 0.4 * 0.1 * 1.3 * 0.9750 / 2, 0]
-                    })
                     a, center = save_geometry(
                         nw,
                         output_geometry,
@@ -1300,6 +1290,16 @@ def nodegroup_water_tap(nw: NodeWrangler, **kwargs):
                         material=kwargs["inputs"]["Tap"],
                         return_center=True
                     )
+                    add_joint(parent=2, child=a[0], joint_info={
+                        "name": get_joint_name("revolute"),
+                        "type": "revolute",
+                        "axis": (0, 0, 1),
+                        "limit": {
+                            "lower": -np.pi / 4,
+                            "upper": np.pi / 4
+                        },
+                        "origin_shift": [center[0] - 0.1 * 1.3 * 0.9750 * 0.5, center[1] - 0.1 * 1.3 * 0.9750 * 0.5, 0]
+                    })
                 else:
                     a = save_geometry(
                         nw,
