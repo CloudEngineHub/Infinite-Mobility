@@ -284,7 +284,6 @@ def build_and_save_asset(payload: dict):
 
     with (output_folder / "polycounts.txt").open("w") as f:
         save_polycounts(f)
-    print(asset)
 
     configure_cycles_devices()
 

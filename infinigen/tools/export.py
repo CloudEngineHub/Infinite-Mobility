@@ -755,6 +755,8 @@ def run_blender_export(
             selected_objects_only=individual_export,
             root_prim_path="/World",
         )
+    if format == "glb":
+        bpy.ops.export_scene.gltf(filepath=exportPath, check_existing=True, )
 
 
 def export_scene(

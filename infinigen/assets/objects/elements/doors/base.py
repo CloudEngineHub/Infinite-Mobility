@@ -112,7 +112,7 @@ class BaseDoorFactory(AssetFactory):
 
             self.metal_color = metal.sample_metal_color()
 
-    def create_asset(self, **params) -> bpy.types.Object:
+    def create_asset(self, return_panel=False, **params) -> bpy.types.Object:
         global first
         self.params = params
         #casing = self.casing_factory.create_asset()
@@ -120,7 +120,7 @@ class BaseDoorFactory(AssetFactory):
         #return self._create_asset()
 
         for _ in range(100):
-            obj = self._create_asset()
+            obj = self._create_asset(return_panel=return_panel)
         #     return obj
             if max(obj.dimensions) < 5:
                 first = True
@@ -154,7 +154,7 @@ class BaseDoorFactory(AssetFactory):
         count += 1
         return new_obj
 
-    def _create_asset(self, path=None, i="unknown"):
+    def _create_asset(self, path=None, i="unknown", save=True, return_panel=False):
         global first
         obj = new_cube(location=(1, 1, 1))
         butil.apply_transform(obj, loc=True)
@@ -175,16 +175,19 @@ class BaseDoorFactory(AssetFactory):
                     self.louver_surface.apply(
                         obj, selection="louver", metal_color=self.metal_color
                     )
-        save_obj_parts_add([obj], self.params.get("path", None), self.params.get("i", None), "panel", first=first, use_bpy=True, parent_obj_id="world", joint_info={
-            "name": get_joint_name("revolute"),
-            "type": "revolute",
-            "limit":{
-                "lower": -math.pi / 2,
-                "upper": math.pi / 2
-            },
-            "axis": (0, 0, 1),
-            "origin_shift": (self.width / 2, 0, 0)
-        })
+        if return_panel:
+            return obj
+        if save:
+            save_obj_parts_add([obj], self.params.get("path", None), self.params.get("i", None), "panel", first=first, use_bpy=True, parent_obj_id="world", joint_info={
+                "name": get_joint_name("revolute"),
+                "type": "revolute",
+                "limit":{
+                    "lower": -math.pi / 2,
+                    "upper": math.pi / 2
+                },
+                "axis": (0, 0, 1),
+                "origin_shift": (self.width / 2, 0, 0)
+            })
         first = False
         # objs = self.save_part(obj, "panel", path, i, True)
         # first = False
@@ -215,7 +218,8 @@ class BaseDoorFactory(AssetFactory):
         # butil.apply_transform(obj, True)
         # #obj = add_bevel(obj, get_bevel_edges(obj), offset=self.side_bevel)
         # print("here!!!!!!!!!!!!!!")
-        save_geometry_new(obj, 'whole', 0, self.params.get("i", None), self.params.get("path", None), True, use_bpy=True)
+        if save:
+            save_geometry_new(obj, 'whole', 0, self.params.get("i", None), self.params.get("path", None), True, use_bpy=True)
         first = True
         return obj
 
@@ -242,7 +246,7 @@ class BaseDoorFactory(AssetFactory):
             bpy.ops.mesh.edge_face_add()
         return self.make_handles(obj, name="knob")
 
-    def make_handles(self, obj, name):
+    def make_handles(self, obj, name, save=True):
         global first
         if name == "knob" or name == "pull":
             write_attribute(obj, 1, "handle", "FACE")
@@ -254,27 +258,28 @@ class BaseDoorFactory(AssetFactory):
             mirror(other, 1)
             self.handle_surface.apply(obj, selection="handle", metal_color="natural")
             self.handle_surface.apply(other, selection="handle", metal_color="natural")
-            save_obj_parts_add([obj], self.params.get("path", None), self.params.get("i", None), "knob", first=first, use_bpy=True, parent_obj_id=0, joint_info={
-                "name": get_joint_name("fixed"),
-                "type": "fixed",
-            })
-            first = False
-            if name == "knob":
-                joint_info = {
-                    "name": get_joint_name("revolute"),
-                    "type": "continuous",
-                    "axis": (0, 1, 0),
-                }
-            else:
-                joint_info = {
+            if save:
+                save_obj_parts_add([obj], self.params.get("path", None), self.params.get("i", None), "knob", first=first, use_bpy=True, parent_obj_id=0, joint_info={
                     "name": get_joint_name("fixed"),
                     "type": "fixed",
-                }
-            save_obj_parts_add([other], self.params.get("path", None), self.params.get("i", None), "knob", first=first, use_bpy=True, parent_obj_id=0, joint_info=joint_info)
-            first=False
-            joint_info = joint_info.copy()
-            joint_info["name"] = get_joint_name(joint_info['type'])
-            save_obj_parts_add([obj], self.params.get("path", None), self.params.get("i", None), "knob", first=first, use_bpy=True, parent_obj_id=0, joint_info=joint_info)
+                })
+                first = False
+                if name == "knob":
+                    joint_info = {
+                        "name": get_joint_name("revolute"),
+                        "type": "continuous",
+                        "axis": (0, 1, 0),
+                    }
+                else:
+                    joint_info = {
+                        "name": get_joint_name("fixed"),
+                        "type": "fixed",
+                    }
+                save_obj_parts_add([other], self.params.get("path", None), self.params.get("i", None), "knob", first=first, use_bpy=True, parent_obj_id=0, joint_info=joint_info)
+                first=False
+                joint_info = joint_info.copy()
+                joint_info["name"] = get_joint_name(joint_info['type'])
+                save_obj_parts_add([obj], self.params.get("path", None), self.params.get("i", None), "knob", first=first, use_bpy=True, parent_obj_id=0, joint_info=joint_info)
         else:
             write_attribute(obj[0], 1, "handle", "FACE")
             write_attribute(obj[1], 1, "handle", "FACE")

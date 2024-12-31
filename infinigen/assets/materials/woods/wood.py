@@ -208,6 +208,9 @@ def apply(obj, selection=None, **kwargs):
         shader = shader_shelves_black_wood
     else:
         shader = shader_wood
+    if kwargs.get("shader", None) is not None:
+        shader = kwargs["shader"]
+        del kwargs["shader"]
     common.apply(obj, shader, selection, **kwargs)
 
 

@@ -36,6 +36,13 @@ from infinigen.assets.utils.object import (
     get_joint_name,
     join_objects_save_whole
 )
+from infinigen.assets.objects.elements.doors import LiteDoorFactory
+
+from infinigen.assets.materials.woods.wood import apply
+
+from infinigen.assets.utils.auxiliary_parts import random_auxiliary
+import numpy.random as npr
+import random
 
 target = -1
 left = False
@@ -52,7 +59,7 @@ def geometry_nodes(nw: NodeWrangler, **kwargs):
         )
 
         attachments = []
-        print(i, component[1])
+        # print(i, component[1])
         if component[1] == "door":
             right_door_info = nw.new_node(
                 Nodes.ObjectInfo, input_kwargs={"Object": component[2][0]}
@@ -143,6 +150,11 @@ def geometry_nodes(nw: NodeWrangler, **kwargs):
                             "Translation": (0, kwargs["y_translations"][i], 0),
                         },
                     )
+                    transform = nw.new_node(
+                        Nodes.SetMaterial,
+                        input_kwargs={"Geometry": transform,
+                                      "Material": surface.shaderfunc_to_material(kwargs["material_params"]["frame_material"])},
+                    )
                     group_output = nw.new_node(
                         Nodes.GroupOutput,
                         input_kwargs={"Geometry": transform},
@@ -205,6 +217,17 @@ class KitchenCabinetBaseFactory(AssetFactory):
         self.door_fac = CabinetDoorBaseFactory(factory_seed)
         self.drawer_fac = CabinetDrawerBaseFactory(factory_seed)
         self.drawer_only = False
+        self.aux_drawer_handle = random_auxiliary("handles")[0]
+        self.aux_door_handle = random_auxiliary("handles")[0]
+        #self.use_auxiliary = random.choice([True, False], weight=[0.9, 0.1])
+        self.use_auxiliary = npr.choice([True, False], p=[0.9, 0.1])
+        self.use_auxiliary = True
+        self.aux_door_fac = LiteDoorFactory(factory_seed)
+        self.aux_door = self.aux_door_fac.create_asset(return_panel=True)
+        self.aux_drawer = random_auxiliary("drawers")
+        self.use_auxiliary_drawer = npr.choice([True, False], p=[0.3, 0.7])
+        #self.use_auxiliary_drawer = True
+        #self.use_auxiliary = True
         with FixedSeed(factory_seed):
             self.params = self.sample_params()
 
@@ -372,7 +395,7 @@ class KitchenCabinetBaseFactory(AssetFactory):
             accum_w += thickness + w / 2.0 + 0.0005
         return x_translations
 
-    def create_cabinet_components(self, i, drawer_only=False):
+    def create_cabinet_components(self, i, drawer_only=False, path=None):
         # update material params
         self.material_params = self.get_material_params()
 
@@ -398,12 +421,15 @@ class KitchenCabinetBaseFactory(AssetFactory):
                 self.door_fac.params = attach_params[0]
                 self.door_fac.params["door_left_hinge"] = False
                 right_door, door_obj_params = self.door_fac.create_asset(
-                    i=i, ret_params=True
+                    i=i, ret_params=True, auxiliary_knob=butil.deep_clone_obj(self.aux_door_handle), aux_door=butil.deep_clone_obj(self.aux_door)
                 )
                 right_door.name = f"cabinet_right_door_{k}"
                 self.door_fac.params = door_obj_params
                 self.door_fac.params["door_left_hinge"] = True
-                left_door, _ = self.door_fac.create_asset(i=i, ret_params=True)
+                part = butil.deep_clone_obj(self.aux_door_handle)
+                door = butil.deep_clone_obj(self.aux_door)
+
+                left_door, _ = self.door_fac.create_asset(i=i, ret_params=True, auxiliary_knob=part, aux_door=door)
                 left_door.name = f"cabinet_left_door_{k}"
                 components.append(
                     [frame, "door", [right_door, left_door, attach_params[0]]]
@@ -413,7 +439,13 @@ class KitchenCabinetBaseFactory(AssetFactory):
                 drawers = []
                 for j, p in enumerate(attach_params):
                     self.drawer_fac.params = p
-                    drawer = self.drawer_fac.create_asset(i=i)
+                    if self.use_auxiliary:
+                        if self.use_auxiliary_drawer:
+                            drawer = self.drawer_fac.create_asset(i=i, auxiliary_knob=butil.deep_clone_obj(self.aux_drawer_handle), path=path, auxiliary_drawer=[butil.deep_clone_obj(self.aux_drawer[0]), self.aux_drawer[1]])
+                        else:
+                            drawer = self.drawer_fac.create_asset(i=i, auxiliary_knob=butil.deep_clone_obj(self.aux_drawer_handle), path=path)
+                    else:
+                        drawer = self.drawer_fac.create_asset(i=i)
                     drawer.name = f"drawer_{k}_layer{j}"
                     drawers.append([drawer, p])
                 components.append([frame, "drawer", drawers])
@@ -428,7 +460,7 @@ class KitchenCabinetBaseFactory(AssetFactory):
 
     def create_asset(self, i=0, **params):
         idx_ = i
-        components = self.create_cabinet_components(i=i, drawer_only=self.drawer_only)
+        components = self.create_cabinet_components(i=i, drawer_only=self.drawer_only, path=params.get("path", None))
         cabinet_params = self.get_cabinet_params(i=i)
         join_objs = []
 
@@ -455,6 +487,7 @@ class KitchenCabinetBaseFactory(AssetFactory):
                 input_kwargs={
                     "components": components,
                     "y_translations": cabinet_params,
+                    "material_params": self.material_params,
                 },
                 apply=True,
             )
@@ -479,6 +512,7 @@ class KitchenCabinetBaseFactory(AssetFactory):
                 input_kwargs={
                     "components": components,
                     "y_translations": cabinet_params,
+                    "material_params": self.material_params,
                 },
                 apply=True,
             )
@@ -501,6 +535,8 @@ class KitchenCabinetBaseFactory(AssetFactory):
                         "upper": self.dimensions[0] * 0.75
                     }
                 }
+                #butil.save_blend("scene.blend", autopack=True)
+                #input()
             else:
                 co = read_co(obj)
                 width = co[:, 1].max() - co[:, 1].min()
@@ -514,12 +550,19 @@ class KitchenCabinetBaseFactory(AssetFactory):
                     },
                     "origin_shift": [0, -width / 2 if left else width / 2, 0]
                 }
-            save_obj_parts_add(obj, params.get("path", None), idx_, use_bpy=True, first=first, parent_obj_id=parent_id, joint_info=joint_info)
+            # while(len(obj.data.materials) > 0):
+            #     obj.data.materials.pop()
+            obj_ = butil.deep_clone_obj(obj, keep_materials=False, keep_modifiers=False)
+            #bpy.context.collection.objects.link(obj_)
+            apply(obj_, shader=self.material_params["frame_material"], selection="frame")
+            tagging.tag_system.relabel_obj(obj_)
+            #obj_.data.materials.append(surface.shaderfunc_to_material(self.material_params["frame_material"]))
+            save_obj_parts_add(obj_, params.get("path", None), idx_, use_bpy=True, first=first, parent_obj_id=parent_id, joint_info=joint_info)
             first = False
         first =True
         for i, c in enumerate(components):
             if c[1] == "door":
-                butil.delete(c[2][:-1])
+                butil.delete(c[2][:-2])
             elif c[1] == "drawer":
                 butil.delete([x[0] for x in c[2]])
             c[0].location = (0, cabinet_params[i], 0)
@@ -531,6 +574,7 @@ class KitchenCabinetBaseFactory(AssetFactory):
             # butil.delete(c[:1])
         obj = butil.join_objects(join_objs)
         tagging.tag_system.relabel_obj(obj)
+        #save_obj_parts_add(self.aux_drawer_handle, params.get("path", None), idx_, use_bpy=True, first=first)
         join_objects_save_whole(obj, params.get("path", None), idx_, use_bpy=True, join=False)
         return obj
 

@@ -75,14 +75,17 @@ def main():
 
     loader = scene.create_urdf_loader()
     robots = []
-    # for i in range(100):
-    #     robot = loader.load(f"/home/pjlab/projects/infinigen_sep_part_urdf/outputs/TVFactory/{i}/scene.urdf")
-    #     r = i / 10
-    #     c = i % 10
-    #     robot.set_root_pose(sapien.Pose([-10 + 2* c, -10  + 2 * r, 0], [1, 0, 0, 0]))
-    #     robots.append(robot)
-    robots.append(loader.load("/home/tangqihong/infinigen_sep_part_urdf/outputs/TapFactory/0/scene.urdf"))
-    robots[0].set_root_pose(sapien.Pose([0, 0, 0], [1, 0, 0, 0]))
+    for i in range(10):
+        try:
+            robot = loader.load(f"/home/pjlab/projects/infinigen_sep_part_urdf/outputs/KitchenCabinetFactory/{i}/scene.urdf")
+            r = i / 10
+            c = i % 10
+            robot.set_root_pose(sapien.Pose([-10 + 2* c, -20  + 4 * r, 0], [1, 0, 0, 0]))
+            robots.append(robot)
+        except:
+            pass
+    #robots.append(loader.load("/home/pjlab/projects/infinigen_sep_part_urdf/outputs/KitchenCabinetFactory/0/scene.urdf"))
+    #robots[0].set_root_pose(sapien.Pose([0, 0, 0], [1, 0, 0, 0]))
     #robot = loader.load("/home/pjlab/projects/infinigen_sep_part_urdf/outputs/OfficeChairFactory/0/scene.urdf")
     #robot.set_root_pose(sapien.Pose([0, 0, 0], [1, 0, 0, 0]))
     all_poses = []

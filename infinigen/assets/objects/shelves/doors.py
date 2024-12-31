@@ -16,10 +16,13 @@ from infinigen.assets.materials.shelf_shaders import (
     shader_shelves_wood,
     shader_shelves_wood_sampler,
 )
+from infinigen.assets.utils.decorate import read_co
+from infinigen.assets.utils.object import join_objects
 from infinigen.core import surface, tagging
 from infinigen.core.nodes import node_utils
 from infinigen.core.nodes.node_wrangler import Nodes, NodeWrangler
 from infinigen.core.placement.factory import AssetFactory
+from infinigen.core.util import blender as butil
 
 
 @node_utils.to_nodegroup(
@@ -979,8 +982,10 @@ def nodegroup_panel_edge_frame(nw: NodeWrangler):
         attrs={"is_active_output": True},
     )
 
-
-def geometry_door_nodes(nw: NodeWrangler, **kwargs):
+@node_utils.to_nodegroup(
+    "door", singleton=False, type="GeometryNodeTree"
+)
+def geometry_door_nodes(nw: NodeWrangler, return_name="",**kwargs):
     # Code generated using version 2.6.4 of the node_transpiler
 
     door_height = nw.new_node(Nodes.Value, label="door_height")
@@ -1088,7 +1093,7 @@ def geometry_door_nodes(nw: NodeWrangler, **kwargs):
         frame.append(transform_5)
 
     knob_raduis = nw.new_node(Nodes.Value, label="knob_raduis")
-    knob_raduis.outputs[0].default_value = kwargs["knob_R"]* 3
+    knob_raduis.outputs[0].default_value = kwargs["knob_R"]
 
     know_length = nw.new_node(Nodes.Value, label="know_length")
     know_length.outputs[0].default_value = kwargs["knob_length"]
@@ -1111,8 +1116,42 @@ def geometry_door_nodes(nw: NodeWrangler, **kwargs):
     )
 
     join_geometry_1 = nw.new_node(
-        Nodes.JoinGeometry, input_kwargs={"Geometry": frame + [knob_handle]}
+        Nodes.JoinGeometry, input_kwargs={"Geometry": frame}
     )
+    multiply = nw.new_node(
+        Nodes.Math,
+        input_kwargs={0: door_width, 1: -0.5000},
+        attrs={"operation": "MULTIPLY"},
+    )
+
+    combine_xyz = nw.new_node(Nodes.CombineXYZ, input_kwargs={"X": multiply})
+    if return_name == "handle":
+        knob_handle = nw.new_node(
+            Nodes.RealizeInstances, input_kwargs={"Geometry": knob_handle}
+        )
+        knob_handle = nw.new_node(
+            Nodes.Transform,
+            input_kwargs={"Geometry": knob_handle, "Translation": combine_xyz},
+        )
+        knob_handle = nw.new_node(
+            "GeometryNodeTriangulate", input_kwargs={"Mesh": knob_handle}
+        )
+        knob_handle = nw.new_node(
+            Nodes.Transform,
+            input_kwargs={
+                "Geometry": knob_handle,
+                "Scale": (-1.0 if kwargs["door_left_hinge"] else 1.0, 1.0000, 1.0000),
+            },
+        )
+
+        if kwargs["door_left_hinge"]:
+            knob_handle = nw.new_node(Nodes.FlipFaces, input_kwargs={"Mesh": knob_handle})
+        group_output = nw.new_node(
+            Nodes.GroupOutput,
+            input_kwargs={"Geometry": knob_handle},
+            attrs={"is_active_output": True},
+        )
+        return 
 
     set_material_3 = nw.new_node(
         Nodes.SetMaterial,
@@ -1124,14 +1163,6 @@ def geometry_door_nodes(nw: NodeWrangler, **kwargs):
 
     geos = [set_material_3, mid_board.outputs["Geometry"]]
     join_geometry = nw.new_node(Nodes.JoinGeometry, input_kwargs={"Geometry": geos})
-
-    multiply = nw.new_node(
-        Nodes.Math,
-        input_kwargs={0: door_width, 1: -0.5000},
-        attrs={"operation": "MULTIPLY"},
-    )
-
-    combine_xyz = nw.new_node(Nodes.CombineXYZ, input_kwargs={"X": multiply})
 
     transform = nw.new_node(
         Nodes.Transform,
@@ -1168,11 +1199,12 @@ def geometry_door_nodes(nw: NodeWrangler, **kwargs):
         attrs={"is_active_output": True},
     )
 
-
+import random
 class CabinetDoorBaseFactory(AssetFactory):
     def __init__(self, factory_seed, params={}, coarse=False):
         super(CabinetDoorBaseFactory, self).__init__(factory_seed, coarse=coarse)
         self.params = {}
+        #self.has_frame = random.choice([True, False])
 
     def get_asset_params(self, i=0):
         params = self.params.copy()
@@ -1293,19 +1325,73 @@ class CabinetDoorBaseFactory(AssetFactory):
         return params
 
     def create_asset(self, i=0, **params):
-        bpy.ops.mesh.primitive_plane_add(
-            size=1,
-            enter_editmode=False,
-            align="WORLD",
-            location=(0, 0, 0),
-            scale=(1, 1, 1),
-        )
-        obj = bpy.context.active_object
-
+        obj = butil.spawn_cube()
         obj_params = self.get_asset_params(i)
-        surface.add_geomod(
-            obj, geometry_door_nodes, apply=True, attributes=[], input_kwargs=obj_params
+        butil.modify_mesh(
+            obj,
+            "NODES",
+            node_group=geometry_door_nodes(return_name="", i=i, **obj_params),
+            ng_inputs={},
+            apply=True,
         )
+        knob = butil.spawn_cube()
+        obj_params = self.get_asset_params(i)
+        butil.modify_mesh(
+            knob,
+            "NODES",
+            node_group=geometry_door_nodes(return_name="handle", i=i, **obj_params),
+            ng_inputs={},
+            apply=True,
+        )
+        knob.rotation_euler[2] = -1.5708
+        butil.apply_transform(knob, True)
+
+        co = read_co(knob)
+        pos = (co[:,0].min() + co[:, 0].max()) / 2, (co[:,1].min() + co[:, 1].max()) / 2, (co[:,2].min() + co[:, 2].max()) / 2
+        c_x = co[:, 0].min()
+        co = read_co(obj)
+        pos_ = (co[:,0].min() + co[:, 0].max()) / 2, (co[:,1].min() + co[:, 1].max()) / 2, (co[:,2].min() + co[:, 2].max()) / 2
+        if params.get("aux_door", False):
+            obj = params["aux_door"]
+            obj.rotation_euler = (np.pi, np.pi,np.pi/2)
+            butil.apply_transform(obj, True)
+            co_aux = read_co(obj)
+            center = (co_aux[:, 0].min() + co_aux[:, 0].max()) / 2, (co_aux[:, 1].min() + co_aux[:, 1].max()) / 2, (co_aux[:, 2].min() + co_aux[:, 2].max()) / 2#(pos_[0] - center[0], pos_[1] - center[1], pos_[2] - center[2])
+            #obj.location = pos_
+            #butil.apply_transform(obj, True)
+            co_ = read_co(obj)
+            thickness = co_[:, 0].max() - co_[:, 0].min()
+            target_thickness = co[:, 0].max() - co[:, 0].min()
+            width = co_[:, 1].max() - co_[:, 1].min()
+            target_width = co[:, 1].max() - co[:, 1].min()
+            height = co_[:, 2].max() - co_[:, 2].min()
+            target_height = co[:, 2].max() - co[:, 2].min()
+            obj.scale = (target_thickness / thickness, target_width / width, target_height / height)
+            butil.apply_transform(obj, True)
+            if not obj_params["door_left_hinge"]:
+                obj.location[1] = target_width
+                butil.apply_transform(obj, True)
+            #obj.scale = (target_thickness / thickness, target_thickness / thickness, target_thickness / thickness)
+        # butil.save_blend("scene.blend", autopack=True)
+        # input()
+
+        if params.get("auxiliary_knob", False):
+            knob = params["auxiliary_knob"]
+            knob.rotation_euler = (np.pi / 2, np.pi / 2 ,np.pi/2)
+            butil.apply_transform(knob, True)
+            knob.scale = (obj_params['knob_R'] * 3, obj_params['knob_R'] * 4, obj_params['knob_R']*20)
+            butil.apply_transform(knob, True)
+            knob.location = pos
+            butil.apply_transform(knob, True)
+            co = read_co(knob)
+            c_x_k = co[:, 0].min()
+            co_board = read_co(obj)
+            thickness = co_board[:, 0].max() - co_board[:, 0].min()
+            knob.location[0] += c_x - c_x_k + thickness
+            butil.apply_transform(knob, True)
+            knob.data.materials.append(surface.shaderfunc_to_material(obj_params["knob_material"]))
+        
+        obj = join_objects([obj, knob])
         tagging.tag_system.relabel_obj(obj)
 
         if params.get("ret_params", False):

@@ -122,11 +122,11 @@ class MicrowaveFactory(AssetFactory):
         #     self.scratch.apply(assets)
         # if self.edge_wear:
         #     self.edge_wear.apply(assets)
-        material = [self.scratch, self.edge_wear]
+        material = []
         first = True
         for i in range(1, 6):
             if i == 1:
-                material = [ self.scratch, self.edge_wear]
+                material = []
                 parent_id = "world"
                 joint_info = {
                     "name": get_joint_name("fixed"),
@@ -152,6 +152,7 @@ class MicrowaveFactory(AssetFactory):
                         apply=True,
                     )
                     text = add_bevel(text, bevel_edges)
+                    co_text = read_co(text)
                 except:
                     text = butil.spawn_cube()
                     butil.modify_mesh(
@@ -161,9 +162,10 @@ class MicrowaveFactory(AssetFactory):
                         ng_inputs=self.params,
                         apply=True,
                     )
+                    co_text = read_co(text)
                 save_obj_parts_add([text], self.ps['path'], self.ps['i'], "text", first=True, use_bpy=True, parent_obj_id=parent_id, joint_info=joint_info, material=material)
             elif i == 2:
-                material = [self.shaders['Back_'], self.scratch, self.edge_wear]
+                material = None#[self.shaders['Back_']]
                 parent_id = "world"
                 joint_info = {
                     "name": get_joint_name("fixed"),
@@ -200,7 +202,7 @@ class MicrowaveFactory(AssetFactory):
                     )
                 save_obj_parts_add([body], self.ps['path'], self.ps['i'], "body", first=False, use_bpy=True, parent_obj_id=parent_id, joint_info=joint_info, material=material)
             elif i == 3:
-                material = [[self.shaders['Surface_'], "Out"], [self.shaders['BlackGlass_'], "In"], self.scratch, self.edge_wear]
+                material = None#[[self.shaders['Surface_'], "Out"], [self.shaders['BlackGlass_'], "In"]]
                 parent_id = "world"
                 joint_info = {
                     "name": get_joint_name("revolute"),
@@ -245,7 +247,7 @@ class MicrowaveFactory(AssetFactory):
                 butil.apply_transform(door, True)
                 save_obj_parts_add([door], self.ps['path'], self.ps['i'], "door", first=False, use_bpy=True, parent_obj_id=parent_id, joint_info=joint_info, material=material)
             elif i == 4:
-                material = [self.shaders['Glass_'], self.scratch, self.edge_wear]
+                material = None #[self.shaders['Glass_']]
                 parent_id = "world"
                 joint_info = {
                     "name": get_joint_name("continuous"),
@@ -283,7 +285,7 @@ class MicrowaveFactory(AssetFactory):
                     )
                 save_obj_parts_add([plate], self.ps['path'], self.ps['i'], "plate", first=False, use_bpy=True, parent_obj_id=parent_id, joint_info=joint_info, material=material)
             else:
-                material = [[self.shaders['Surface_'], "Out"], [self.shaders['BlackGlass_'], "In"], self.scratch, self.edge_wear]
+                material = None#[[self.shaders['Surface_'], "Out"], [self.shaders['BlackGlass_'], "In"]]
                 parent_id = "world"
                 joint_info = {
                     "name": get_joint_name("fixed"),
@@ -309,24 +311,35 @@ class MicrowaveFactory(AssetFactory):
                         apply=True,
                     )
                     panel = add_bevel(panel, bevel_edges)
+                    panel_co = read_co(panel)
                     rotate = butil.spawn_cylinder(radius=self.params['PanelWidth'] / 6, depth=self.params['PanelWidth'] / 18)
                     rotate.rotation_euler[1] = np.pi / 2
                     indicator = butil.spawn_cube()
                     indicator.scale = (self.params['PanelWidth'] / 36, self.params['PanelWidth'] / 36, self.params['PanelWidth'] / 6 - self.params['PanelWidth'] / 36)
                     butil.apply_transform(indicator, True)
-                    indicator.location = (self.params['Depth'] + self.params['DoorThickness'] + self.params['PanelWidth'] / 18, self.params['Width'] - self.params['PanelWidth'] / 2, self.params['Height'] * 0.4 + self.params['PanelWidth'] / 18)
+                    indicator.location = (self.params['Depth'] + self.params['DoorThickness'] + self.params['PanelWidth'] / 18, (co_text[:, 1].min() + co_text[:, 1].max()) / 2, self.params['Height'] * 0.4 + self.params['PanelWidth'] / 18)
                     butil.apply_transform(indicator, True)
                     butil.apply_transform(rotate, True)
-                    rotate.location = (self.params['Depth'] + self.params['DoorThickness'] + self.params['PanelWidth'] / 36, self.params['Width'] - self.params['PanelWidth'] / 2, self.params['Height'] * 0.4)
+                    rotate.location = (self.params['Depth'] + self.params['DoorThickness'], (co_text[:, 1].min() + co_text[:, 1].max()) / 2, self.params['Height'] * 0.4)
                     butil.apply_transform(rotate, True)
+                    butil.select_none()
+                    rotate.select_set(True)
                     bpy.context.view_layer.objects.active = rotate
+                    bpy.ops.object.mode_set(mode='EDIT')
+                    bpy.ops.mesh.bevel(
+                        offset=self.params['PanelWidth'] / 36 / 2 /8, offset_pct=0, segments=8, release_confirm=True, face_strength_mode="ALL"
+                    )
+                    bpy.ops.object.mode_set(mode='OBJECT')
+                    butil.select_none()
+                    indicator.select_set(True)
+                    bpy.context.view_layer.objects.active = indicator
                     bpy.ops.object.mode_set(mode='EDIT')
                     bpy.ops.mesh.bevel(
                         offset=self.params['PanelWidth'] / 36*0.95, offset_pct=0, segments=8, release_confirm=True, face_strength_mode="ALL"
                     )
                     bpy.ops.object.mode_set(mode='OBJECT')
                     self.shaders['Rotate_'].apply(rotate, rough=True)
-                    button_width = self.params['PanelWidth'] / 7
+                    button_width = (panel_co[:, 1].max() - panel_co[:, 1].min()) / 7
                     button_height = self.params['PanelWidth'] / 12 * (1 - self.button_lines * 0.1)
                     gap = button_width
                     rotate.location[2] += self.button_lines * (button_height)
@@ -334,12 +347,18 @@ class MicrowaveFactory(AssetFactory):
                     butil.apply_transform(rotate, True)
                     butil.apply_transform(rotate, True)
                     butil.apply_transform(indicator, True)
+                    butil.select_none()
+                    indicator.select_set(True)
+                    bpy.ops.object.modifier_add(type='SMOOTH')
+                    bpy.context.object.modifiers["Smooth"].factor = 1
+                    bpy.context.object.modifiers["Smooth"].iterations = 100
+                    bpy.ops.object.modifier_apply(modifier="Smooth")
                     buttons = []
                     for i in range(self.button_lines):
                         for j in range(3):
                             button = butil.spawn_cube()
                             button.scale = (button_height / 4, button_width, button_height)
-                            button.location = (self.params['Depth'] + self.params['DoorThickness'] + self.params['PanelWidth'] / 36, self.params['Width'] - self.params['PanelWidth'] + j * (button_width) + (j)* gap+ button_width * 1.8, self.params['Height'] * 0.15 + i * (button_height) * 1.3)
+                            button.location = (self.params['Depth'] + self.params['DoorThickness'], panel_co[:, 1].min() + j * (button_width) + (j)* gap+ button_width * 1.5, self.params['Height'] * 0.15 + i * (button_height) * 1.3)
                             butil.apply_transform(button, True)
                             bpy.context.view_layer.objects.active = button
                             bpy.ops.object.mode_set(mode='EDIT')
@@ -377,8 +396,12 @@ class MicrowaveFactory(AssetFactory):
                         ng_inputs=self.params,
                         apply=True,
                     )
-                door.location[0] += 0.02
+                #.location[0] += 0.02
                 butil.apply_transform(panel, True)
+                use_surface = np.random.choice([True, False])
+                if use_surface:
+                    panel = butil.deep_clone_obj(panel, keep_materials=False)
+                    material = [self.shaders['Surface_']]
                 save_obj_parts_add([panel], self.ps['path'], self.ps['i'], "panel", first=False, use_bpy=True, parent_obj_id=parent_id, joint_info=joint_info, material=material)
             #res = node_utils.save_geometry_new(assets, "part", i, self.params['i'], self.params['path'], first, True, material=material, parent_obj_id=parent_id, joint_info=joint_info)
             #if res:

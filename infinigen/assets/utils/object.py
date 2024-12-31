@@ -779,8 +779,9 @@ def save_whole_object_normalized(object, path=None, idx="unknown", name=None, us
         bpy.ops.wm.obj_export(
                 filepath=obj_path,
                 export_colors=True,
-                export_eval_mode="DAG_EVAL_VIEWPORT",
+                export_eval_mode="DAG_EVAL_RENDER",
                 export_selected_objects=True,
+                #export_pbr_extensions=True,
                 export_materials=True,
                 export_normals = True,
                 apply_modifiers = True
@@ -802,8 +803,6 @@ def save_whole_object_normalized(object, path=None, idx="unknown", name=None, us
                                 line = ' '.join(items)
         with open(str(obj_path).replace('.obj', '.mtl'), 'w') as f:
                         f.writelines(lines)
-        if(len(obj.material_slots) > 1):
-            obj.material_slots[0].material = obj.material_slots[1].material
         # bpy.ops.wm.usd_export(
         #     filepath=obj_path.split('.')[0] + '.usd',
         #     export_textures=True,
@@ -1080,12 +1079,12 @@ def save_obj_parts_add(
     view_layer = bpy.context.view_layer
     if isinstance(obj, list):
         for o in obj:
-            o_ = o.copy()
-            view_layer.active_layer_collection.collection.objects.link(o_)
+            o_ = butil.deep_clone_obj(o, keep_materials=True, keep_modifiers=True)
+            #view_layer.active_layer_collection.collection.objects.link(o_)
             saved_objs.append(o_)
     else:
-        obj_ = obj.copy()
-        view_layer.active_layer_collection.collection.objects.link(obj_)
+        obj_ = butil.deep_clone_obj(obj, keep_materials=True, keep_modifiers=True)
+        #view_layer.active_layer_collection.collection.objects.link(obj_)
         saved_objs.append(obj_)
     # The original render engine and world node_tree should be memorized
     # original_render_engine = bpy.context.scene.render.engine
