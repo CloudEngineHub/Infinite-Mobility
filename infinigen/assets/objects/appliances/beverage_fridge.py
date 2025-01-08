@@ -9,6 +9,7 @@ from numpy.random import randint as RI
 from numpy.random import uniform as U
 
 from infinigen.assets.material_assignments import AssetList
+from infinigen.assets.utils.decorate import read_co
 from infinigen.core import surface
 from infinigen.core.nodes import node_utils
 from infinigen.core.nodes.node_utils import save_geometry, save_geometry_new
@@ -33,6 +34,8 @@ from infinigen.assets.utils.object import (
 )
 import math
 
+from infinigen.assets.utils.auxiliary_parts import random_auxiliary
+
 
 class BeverageFridgeFactory(AssetFactory):
     def __init__(self, factory_seed, coarse=False, dimensions=[1.0, 1.0, 1.0]):
@@ -45,6 +48,8 @@ class BeverageFridgeFactory(AssetFactory):
                 self.get_material_params()
             )
         self.params.update(self.material_params)
+        self.use_aux_divider = np.random.choice([True, False], p=[0.8, 0.2])
+        self.aux_divider = random_auxiliary("divider_plate")
 
     def get_material_params(self):
         material_assignments = AssetList["BeverageFridgeFactory"]()
@@ -115,6 +120,8 @@ class BeverageFridgeFactory(AssetFactory):
         params.update({"obj": obj, "inputs": self.params})
         params['scratch'] = self.scratch
         params['edge_wear'] = self.edge_wear
+        params['use_aux_divider'] = self.use_aux_divider
+        params['aux_divider'] = self.aux_divider
         # params.update({"obj": obj})
         ng = nodegroup_beverage_fridge_geometry(preprocess=True, **params)
         butil.modify_mesh(
@@ -1981,37 +1988,18 @@ def nodegroup_beverage_fridge_geometry(
                         }
                     }
                     parent_id = "world"
-                    # for k in range(1, kwargs['inputs']['RackHAmount'] + 1):
-                    #     compare_1 = nw.new_node(
-                    #         node_type=Nodes.Compare,
-                    #         input_kwargs={"A": named_attribute_1, "B": k},
-                    #         attrs={"data_type": "INT", "operation": "EQUAL"},
-                    #     )
-                    #     separate_geometry_1 = nw.new_node(
-                    #         node_type=Nodes.SeparateGeometry,
-                    #         input_kwargs={
-                    #             "Geometry": separate_geometry.outputs["Selection"],
-                    #             "Selection": compare_1.outputs["Result"],
-                    #         },
-                    #     )
-                    #     output_geometry = separate_geometry_1
-                    #     if first_r:
-                    #         joint_info = {
-                    #             "name": get_joint_name("prismatic"),
-                    #             "type": "prismatic",
-                    #             "axis": (1, 0, 0),
-                    #             "limit": {
-                    #                 "lower": 0,
-                    #                 "upper": kwargs['inputs']['Depth'] * 0.75
-                    #             }
-                    #         }
-                    #         parent_id = "world"
-                    #     else:
-                    #         joint_info = {
-                    #             "name": get_joint_name("fixed"),
-                    #             "type": "fixed",
-                    #         }
-                    #         parent_id = ids[k - 1]
+                    def substitute(obj, **kwarg):
+                        if not kwargs['use_aux_divider']:
+                            return
+                        co = read_co(obj)
+                        sub = butil.deep_clone_obj(kwargs['aux_divider'][0])
+                        sub.rotation_euler = (np.pi / 2, 0, np.pi / 2)
+                        butil.apply_transform(sub, True)
+                        sub.scale = co[:, 0].max() - co[:, 0].min(), co[:, 1].max() - co[:, 1].min(), co[:, 2].max() - co[:, 2].min()
+                        butil.apply_transform(sub, False)
+                        sub.location = (co[:, 0].min() + co[:, 0].max()) / 2, (co[:, 1].min() + co[:, 1].max()) / 2, (co[:, 2].min() + co[:, 2].max()) / 2
+                        butil.apply_transform(sub, True)
+                        return sub
                     a = save_geometry(
                         nw,
                         separate_geometry,
@@ -2022,6 +2010,7 @@ def nodegroup_beverage_fridge_geometry(
                         joint_info=joint_info,
                         parent_obj_id=parent_id,
                         material=[kwargs['inputs']['Handle'], kwargs['scratch'], kwargs['edge_wear']],
+                        apply=substitute
                     )
                     if a:
                         first = False

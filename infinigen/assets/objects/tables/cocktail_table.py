@@ -139,11 +139,6 @@ def geometry_create_legs(nw: NodeWrangler, **kwargs):
     else:
         raise NotImplementedError
 
-    leg = nw.new_node(
-        Nodes.SetMaterial,
-        input_kwargs={"Geometry": leg, "Material": kwargs["LegMaterial"]},
-    )
-
     group_output = nw.new_node(
         Nodes.GroupOutput,
         input_kwargs={"Geometry": leg},

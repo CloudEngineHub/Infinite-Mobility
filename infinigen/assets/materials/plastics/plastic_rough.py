@@ -99,6 +99,7 @@ def shader_rough_plastic(
         roughness = uniform(0.0, 1.0)
     if seed is None:
         seed = uniform(-1000.0, 1000.0)
+        seed = 0
     if base_color is None:
         if clear:
             base_color = hsv2rgba(0, 0, log_uniform(0.02, 0.8))

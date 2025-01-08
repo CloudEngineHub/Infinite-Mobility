@@ -4,6 +4,7 @@
 # Authors: Yiming Zuo
 
 
+import numpy as np
 from infinigen.assets.objects.tables.table_top import nodegroup_wheel_cylinder, nodegroup_capped_cylinder
 from infinigen.assets.objects.tables.table_utils import (
     nodegroup_align_bottom_to_floor,
@@ -14,6 +15,7 @@ from infinigen.assets.objects.tables.table_utils import (
 )
 from infinigen.core.nodes import node_utils
 from infinigen.core.nodes.node_wrangler import Nodes, NodeWrangler
+import random
 
 
 @node_utils.to_nodegroup(
@@ -556,11 +558,21 @@ def nodegroup_chair_wheel_nocap(nw: NodeWrangler):
         },
     )
 
+    angle = -1.5708 * random.uniform(0.7, 1.0)
+    #angle = -1.5708
+    cos = round(np.cos(angle), 4)
+    sin = abs(round(np.sin(angle), 4))
+    l = nw.new_node(
+        Nodes.Math,
+        input_kwargs={0: group_input.outputs["Pole Length"], 1: sin},
+        attrs={"operation": "DIVIDE"},
+    )
+
     ngoncylinder = nw.new_node(
         nodegroup_n_gon_cylinder().name,
         input_kwargs={
             "Radius Curve": curve_line_1,
-            "Height": group_input.outputs["Pole Length"],
+            "Height": l,
             "N-gon": 4,
             "Profile Width": group_input.outputs["Pole Width"],
             "Aspect Ratio": group_input.outputs["Pole Aspect Ratio"],
@@ -568,12 +580,20 @@ def nodegroup_chair_wheel_nocap(nw: NodeWrangler):
             "Resolution": 32,
         },
     )
-
+    # z = nw.new_node(Nodes.Value,
+    #                 input_kwargs={"value": cos})
+    z = nw.new_node(Nodes.Math,
+                    input_kwargs={0: cos, 1: group_input.outputs["Pole Length"]},
+                    attrs={"operation": "MULTIPLY"})
+    trans = nw.new_node(Nodes.CombineXYZ,
+                        input_kwargs={"Z": z})
+    
     transform_3 = nw.new_node(
         Nodes.Transform,
         input_kwargs={
             "Geometry": ngoncylinder.outputs["Mesh"],
-            "Rotation": (0.0000, -1.5708, 0.0000),
+            "Rotation": (0.0000, angle, 0.0000),
+            "Translation": trans,
         },
     )
 

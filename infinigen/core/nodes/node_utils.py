@@ -221,6 +221,8 @@ def save_geometry(
     material=None,
     after_seperate=None,
     return_center=False,
+    return_co=False,
+    apply=None,
 ):
     output = nw.new_node(
         Nodes.GroupOutput,
@@ -251,14 +253,22 @@ def save_geometry(
         if return_center:
             co = read_co(new_object)
             c = [(co[:, 0].max() - co[:, 0].min()) / 2, (co[:, 1].max() - co[:, 1].min()) / 2, (co[:, 2].max() - co[:, 2].min()) / 2]
+        if return_co:
+            co = read_co(new_object)
 
         if name == 'whole':
             join_objects_save_whole([new_object], path, idx, name, join=False, use_bpy=use_bpy)
             res = True
         else:
+            if apply is not None:
+                o = apply(new_object)
+                if o is not None:
+                    new_object = o
             res = save_obj_parts_add([new_object], path, idx, name, first=first, use_bpy=True, parent_obj_id=parent_obj_id, joint_info=joint_info,material=material, before_export=after_seperate)
         if return_center:
             return res, c
+        if return_co:
+            return res, co
     #bpy.ops.export_scene.obj(filepath='./file.obj', use_selection=True)
     # 取消选择新对象
     #new_obj.select_set(False)
@@ -319,7 +329,9 @@ def save_part(obj, type, path, idx, first, parent_obj_id=None, joint_info=None, 
         count += 1
         return res
 
+store_info = {}
 def save_geometry_new(obj, name, part_idx, idx, path, first, use_bpy=False, separate=False, parent_obj_id=None, joint_info=None, material=None, apply=None, after_seperate=None, before_export=None):
+    global store_info
     butil.select_none()
     if not obj.name in bpy.context.collection.objects.keys():
         bpy.context.collection.objects.link(obj)
@@ -431,7 +443,9 @@ def save_geometry_new(obj, name, part_idx, idx, path, first, use_bpy=False, sepa
         res = True
     else:
         if apply is not None:
-            apply(new_obj)
+            res = apply(new_obj, store_info)
+            if res is not None:
+                new_obj = res
         res = save_obj_parts_add([new_obj], path, idx, name, first=first, use_bpy=True, parent_obj_id=parent_obj_id, joint_info=joint_info, material=material, before_export=before_export)
     #bpy.ops.export_scene.obj(filepath='./file.obj', use_selection=True)
     # 取消选择新对象

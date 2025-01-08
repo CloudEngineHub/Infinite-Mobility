@@ -10,6 +10,7 @@ from numpy.random import randint as RI
 from numpy.random import uniform as U
 
 from infinigen.assets.material_assignments import AssetList
+from infinigen.assets.utils.decorate import read_co
 from infinigen.core import surface
 from infinigen.core.nodes import node_utils
 from infinigen.core.nodes.node_wrangler import Nodes, NodeWrangler
@@ -23,8 +24,10 @@ from infinigen.core.util.bevelling import (
 )
 from infinigen.core.util.blender import delete
 from infinigen.core.util.math import FixedSeed
+from infinigen.assets.utils.auxiliary_parts import random_auxiliary
 
 from infinigen.assets.utils.object import (
+    add_joint,
     data2mesh,
     join_objects,
     join_objects_save_whole,
@@ -35,8 +38,13 @@ from infinigen.assets.utils.object import (
     save_obj_parts_join_objects,
     save_objects_obj,
     save_obj_parts_add,
-    get_joint_name
+    get_joint_name,
+    add_internal_bbox,
+    save_obj_parts_add
 )
+
+from numpy.random import choice
+
 
 
 
@@ -51,6 +59,11 @@ class DishwasherFactory(AssetFactory):
                 self.get_material_params()
             )
         self.params.update(self.material_params)
+        self.aux_divider = random_auxiliary("strainer")
+        self.aux_handle = random_auxiliary("handles")
+        self.use_aux_divider = choice([True, False], p=[0.8, 0.2])
+        self.use_aux_handle = choice([True, False], p=[0.8, 0.2])
+        self.control_in_door = choice([True, False], p=[0.5, 0.5])
 
     def get_material_params(self):
         material_assignments = AssetList["DishwasherFactory"]()
@@ -88,7 +101,7 @@ class DishwasherFactory(AssetFactory):
         door_rotation = 0  # Set to 0 for now
 
         rack_radius = U(0.01, 0.02) * depth
-        rack_h_amount = RI(2, 3)
+        rack_h_amount = RI(1, 4)
         brand_name = "BrandName"
 
         params = {
@@ -104,6 +117,8 @@ class DishwasherFactory(AssetFactory):
         return params
 
     def create_asset(self, **params):
+        number_per_rack = [RI(1, 4) for i in range(self.params['RackAmount'])]
+        self.number_per_rack = number_per_rack
         obj = butil.spawn_cube()
         butil.modify_mesh(
             obj,
@@ -134,6 +149,7 @@ class DishwasherFactory(AssetFactory):
         if self.edge_wear:
             self.edge_wear.apply(assets)
         first = True
+        b_offset = np.random.uniform(0.01, self.params.get("DoorThickness") / 2)
         for i in range(4, 0, -1):
             joint_info = None
             parent_id = None
@@ -156,7 +172,7 @@ class DishwasherFactory(AssetFactory):
                     ng_inputs=self.params,
                     apply=True,
                 )
-                body = add_bevel(body, bevel_edges, offset=0.01)
+                body = add_bevel(body, bevel_edges, offset=b_offset, segments=32)
                 save_obj_parts_add(body, self.ps.get("path"), self.ps.get("i"), "body", first=False, use_bpy=True, parent_obj_id=parent_id, joint_info=joint_info)
             elif i == 2:
                 parent_id = "world"
@@ -188,10 +204,38 @@ class DishwasherFactory(AssetFactory):
                     ng_inputs=self.params,
                     apply=True,
                 )
-                door = add_bevel(door, bevel_edges, offset=0.01)
-                save_obj_parts_add(door, self.ps.get("path"), self.ps.get("i"), "door", first=False, use_bpy=True, parent_obj_id=parent_id, joint_info=joint_info)
+                door = add_bevel(door, bevel_edges, offset=b_offset, segments=32)
+                co_d = read_co(door)
+                id_door = save_obj_parts_add(door, self.ps.get("path"), self.ps.get("i"), "door", first=False, use_bpy=True, parent_obj_id=parent_id, joint_info=joint_info)[0]
+                z_max = co_h[:, 2].min()
+                
             elif i == 3:
-                pass
+                parent_id = "world"
+                joint_info = {
+                    "name": get_joint_name("fixed"),
+                    "type": "fixed",
+                }
+                handle = butil.spawn_cube()
+                butil.modify_mesh(
+                    handle,
+                    "NODES",
+                    node_group=nodegroup_dishwasher_geometry(return_type_name="handle"),
+                    ng_inputs=self.params,
+                    apply=True,
+                )
+                handle = add_bevel(handle, bevel_edges, offset=0.01)
+                co = read_co(handle)
+                if self.use_aux_handle:
+                    handle_ = butil.deep_clone_obj(self.aux_handle[0])
+                    handle_.rotation_euler = np.pi / 2, 0, np.pi / 2
+                    butil.apply_transform(handle_)
+                    handle_.scale = (co[:, 0].max() - co[:, 0].min(), co[:, 1].max() - co[:, 1].min(), co[:, 2].max() - co[:, 2].min())
+                    butil.apply_transform(handle_)
+                    handle_.location = (co[:, 0].max() + co[:, 0].min()) / 2, (co[:, 1].max() + co[:, 1].min()) / 2, (co[:, 2].max() + co[:, 2].min()) / 2
+                    butil.apply_transform(handle_)
+                    handle = handle_
+                id_handle = save_obj_parts_add(handle, self.ps.get("path"), self.ps.get("i"), "door", first=False, use_bpy=True, parent_obj_id=parent_id, joint_info=joint_info)[0]
+                co_h = co
             else:
                 heater = butil.spawn_cube()
                 butil.modify_mesh(
@@ -211,7 +255,7 @@ class DishwasherFactory(AssetFactory):
                     ng_inputs=self.params,
                     apply=True,
                 )
-                heater = add_bevel(heater, bevel_edges, offset=0.01)
+                heater = add_bevel(heater, bevel_edges, offset=b_offset, segments=32)
                 save_obj_parts_add(heater, self.ps.get("path"), self.ps.get("i"), "heater", first=True, use_bpy=True, parent_obj_id=parent_id, joint_info=joint_info)
                 
             # a = node_utils.save_geometry_new(
@@ -241,6 +285,53 @@ class DishwasherFactory(AssetFactory):
                     "upper": self.params['Depth'] * 0.75,
                 }
             }
+
+            def store_bbox_and_substitute_mesh(obj, store_info):
+                co = read_co(obj)
+                obj.name = f"rack_{i}"
+                h = co[:, 2].max()
+                h_ = co[:, 2].min()
+                l = co[:, 0].max()
+                l_ = co[:, 0].min()
+                w = co[:, 1].max()
+                w_ = co[:, 1].min()
+                store_info[obj.name] = (l, l_, w, w_, h, h_)
+                if len(store_info) == 1:
+                    pass
+                else:
+                    last_box = store_info[f"rack_{i - 1}"]
+                    # last bbox is below current bbox
+                    add_internal_bbox((l, l_, w, w_, h_, last_box[-2]))
+                number = self.number_per_rack[i - 1]
+                gap = (w - w_) * 0.05 / (number + 1)
+                width = (w - w_) * 0.95 / number
+                location = [(l + l_) / 2, gap + w_ + 0.5 * width, (h + h_) / 2]
+                if self.use_aux_divider:
+                    divider = butil.deep_clone_obj(self.aux_divider[0])
+                    divider.rotation_euler = np.pi / 2, 0, np.pi / 2
+                    butil.apply_transform(divider)
+                    scale = [l - l_, w - w_, h - h_]
+                    scale[1] *= 0.95 / number
+                    divider.scale = scale
+                    butil.apply_transform(divider)
+                    #divider.location = (l + l_) / 2, gap + w_ + 0.5 * width, (h + h_) / 2
+                    #butil.apply_transform(divider)
+                    obj = divider
+                else:
+                    #obj.scale = (1, width / (w - w_), 1)
+                    obj.location = -(l + l_) / 2, -(w + w_) / 2, -(h + h_) / 2
+                    butil.apply_transform(obj, True)
+                    obj.scale = (1, width / (w - w_), 1)
+                for j in range(number - 1):
+                    o_ = butil.deep_clone_obj(obj)
+                    o_.location = location
+                    butil.apply_transform(o_, True)
+                    save_obj_parts_add(o_, self.ps.get("path"), self.ps.get("i"), "rack", first=False, use_bpy=True, parent_obj_id=parent_id, joint_info=joint_info, material=material)
+                    location[1] += (width + gap)
+                obj.location =  location
+                butil.apply_transform(obj, True)
+                return obj
+
             a = node_utils.save_geometry_new(
                 assets,
                 "rack",
@@ -252,18 +343,29 @@ class DishwasherFactory(AssetFactory):
                 False,
                 parent_obj_id=parent_id,
                 joint_info=joint_info,
-                material=material
+                material=material,
+                apply=store_bbox_and_substitute_mesh
             )
             if a:
                 first = False
+        info = node_utils.store_info
+        rack_1 = info["rack_1"]
+        add_internal_bbox((rack_1[0], rack_1[1], rack_1[2], rack_1[3], self.params['Height'] - self.params['DoorThickness'], rack_1[4]))
+        rack_last = info[f"rack_{self.params['RackAmount']}"]
+        add_internal_bbox((rack_last[0], rack_last[1], rack_last[2], rack_last[3], rack_last[-1], self.params['DoorThickness']))
+        add_joint(id_door, id_handle, {
+            "name": get_joint_name("fixed"),
+            "type": "fixed",
+        })
 
-        node_utils.save_geometry_new(assets, 'whole', 0, self.ps.get('i'), self.ps.get('path'), first, True, False, material=self.params.get('Surface'))
+        node_utils.save_geometry_new(assets, 'whole', 0, self.ps.get('i'), self.ps.get('path'), first, True, False)
 
 
 @node_utils.to_nodegroup(
     "nodegroup_dish_rack", singleton=False, type="GeometryNodeTree"
 )
 def nodegroup_dish_rack(nw: NodeWrangler):
+
     # Code generated using version 2.6.5 of the node_transpiler
 
     quadrilateral = nw.new_node("GeometryNodeCurvePrimitiveQuadrilateral")
@@ -1555,9 +1657,14 @@ def nodegroup_dishwasher_geometry(nw: NodeWrangler, preprocess: bool = False, re
         attrs={"domain": "FACE", "data_type": "INT"},
     )
 
+    if return_type_name == "handle":
+        body = nw.new_node(Nodes.RealizeInstances, [set_material_8])
+        group_output = nw.new_node(Nodes.GroupOutput, input_kwargs={"Geometry": body})
+        return 
+
     join_geometry_3 = nw.new_node(
         Nodes.JoinGeometry,
-        input_kwargs={"Geometry": [set_material_3, set_material_8, set_material_9]},
+        input_kwargs={"Geometry": [set_material_3, set_material_9]},
     )
 
     geometry_to_instance = nw.new_node(

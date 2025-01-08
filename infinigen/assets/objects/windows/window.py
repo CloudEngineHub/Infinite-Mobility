@@ -96,6 +96,8 @@ class WindowFactory(AssetFactory):
             width = U(1, 4)
             height = U(1, 4)
             frame_thickness = U(0.05, 0.15) * min(width, height)
+            #width = 16
+            #height = 16
         else:
             width, height, frame_thickness = dimensions
         frame_width = U(0.02, 0.05) * min(min(width, height), 2)
@@ -273,7 +275,7 @@ class WindowFactory(AssetFactory):
         # portal.hide_viewport = True
 
         names = ["curtain_hold", "curtain", "curtain_", "panel", "shutter", "shutter_frame"]
-        parts = [5, 2, 1, 100, 1, 1]
+        parts = [5, 2, 1, 10000, 1, 1]
         #names = ["shutter", "panel"]
         #parts = [1, 1]
         first = True
@@ -337,7 +339,9 @@ class WindowFactory(AssetFactory):
                         for i in range(1, len(joint_info)):
                             joint_info[i] = joint_info[i].copy()
                             joint_info[i]["axis"] = random.choice(([0, 1, 0], [1, 0, 0]))
-                            joint_info[i]["origin_shift"] = random.choice(([0, 0, 0], [-width / 2, 0, 0], [width / 2, 0, 0])) if joint_info[i]["axis"] == [0, 1, 0] else random.choice(([0, 0, 0], [0, -width / 2, 0], [0, width / 2, 0]))
+                            if joint_info[i]["axis"] == [1, 0, 0]:
+                                width = (self.params['Height'] - self.params['FrameWidth'] * self.params['PanelHAmount']) / self.params['PanelHAmount'] - self.params['SubFrameWidth']
+                            joint_info[i]["origin_shift"] = random.choice(([-width / 2, 0, 0], [width / 2, 0, 0])) if joint_info[i]["axis"] == [0, 1, 0] else random.choice(([0, -width / 2, 0], [0, width / 2, 0]))
                     if name == "panel" and k == 3 and self.params["OEOffset"] != 0:
                         parent_id = "world"
                         width = (self.params['Width'] - self.params['FrameWidth'] * self.params['PanelVAmount']) / self.params['PanelVAmount'] - self.params['SubFrameWidth']
@@ -373,7 +377,8 @@ class WindowFactory(AssetFactory):
                             #joint_info[i]["origin_shift"] = random.choice(([0, 0, 0], [-width / 2, 0, 0], [width / 2, 0, 0])) if joint_info[i]["axis"] == [0, 1, 0] else random.choice(([0, 0, 0], [0, -width / 2, 0], [0, width / 2, 0]))
 
                     res = save_geometry_new(obj, name, k, params.get("i", None), params.get("path", None), first, use_bpy=True, separate=True, parent_obj_id=parent_id, joint_info=joint_info, material=material)
-                    print(k, res)
+                    if name == "panel" and not res:
+                        break 
                 else:
                     if name == "curtain" and k == 1:
                         parent_id = "world"

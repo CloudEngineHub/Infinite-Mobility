@@ -5,7 +5,7 @@
 
 import bpy
 import numpy as np
-from numpy.random import choice, uniform
+from numpy.random import choice, uniform, randint
 
 from infinigen.assets.material_assignments import AssetList
 from infinigen.assets.objects.seating.chairs.seats.curvy_seats import (
@@ -31,6 +31,9 @@ from infinigen.assets.utils.object import (
     add_joint,
     get_joint_name,
 )
+from infinigen.assets.utils.auxiliary_parts import random_auxiliary
+
+import bmesh
 
 def geometry_assemble_chair(nw: NodeWrangler, **kwargs):
     # Code generated using version 2.6.4 of the node_transpiler
@@ -139,6 +142,9 @@ def geometry_assemble_chair(nw: NodeWrangler, **kwargs):
                         "Selection": compare.outputs["Result"],
                     },
                 )
+                def clear_material(obj):
+                    obj.data.materials.clear()
+                    return obj
                 if i == 1 and j <= kwargs["Leg Pole Number"]:
                     for k in range(1, 5):
                         compare_1 = nw.new_node(
@@ -163,61 +169,50 @@ def geometry_assemble_chair(nw: NodeWrangler, **kwargs):
                                 "type": "continuous",
                                 "axis": (0, 0, 1)
                             }
+                            
                         elif k == 1:
                             origin_shift = (0, 0, 0)
-                            if kwargs["Leg Pole Number"] == 3:
-                                if j == 1:
-                                    origin_shift = (0.03, 0, 0.035)
-                                if j == 3:
-                                    origin_shift = (-0.03, 0, 0.035)
-                            else:
-                                if j == 1:
-                                    origin_shift = (0.03, 0, 0.3)
-                                if j == 2:
-                                    origin_shift = (0.03, 0, 0.015)
-                                if j == 4:
-                                    origin_shift = (-0.03, 0, 0.015)
-                                if j == 5:
-                                    origin_shift = (-0.03, 0, 0.3)
                             parent_idx = last_idx + 2
                             origin_shift = origin_shift[0], origin_shift[2], origin_shift[1]
+                            angle = np.pi / kwargs['Leg Pole Number'] + (j - 1) * 2 * np.pi / kwargs['Leg Pole Number']
+                            def substitute(obj):
+                                if kwargs.get("aux_wheel", None) is not None:
+                                    wheel = butil.deep_clone_obj(kwargs['aux_wheel'])
+                                    wheel.rotation_euler = (0, 0, angle)
+                                    butil.apply_transform(wheel, True)
+                                    co = read_co(obj)
+                                    scale = co[:, 0].max() - co[:, 0].min(), co[:, 1].max() - co[:, 1].min(), co[:, 2].max() - co[:, 2].min()
+                                    wheel.scale = (scale[0], scale[1], scale[2])
+                                    butil.apply_transform(wheel, True)
+                                    wheel.location = (co[:, 0].max() - scale[0] / 2, co[:, 1].max() - scale[1] / 2, co[:, 2].max() - scale[2] / 2)
+                                    butil.apply_transform(wheel, True)
+                                    obj = wheel
+                                    return obj
+
                             joint_info = {
                                 "name": get_joint_name("continuous"),
                                 "type": "continuous",
-                                "axis": (1, 0, 0),
+                                "axis": (np.cos(angle), np.sin(angle), 0),
                                 #"origin_shift": origin_shift,
-                                "substitute_mesh_idx": 9 if kwargs['Leg Pole Number'] == 5 else 5,
+                                #"substitute_mesh_idx": 9 if kwargs['Leg Pole Number'] == 5 else 5,
                                 #"origin_shift": (0, -kwargs.get("Leg Wheel Width", 0) / 2, 0)
                             }
                             first_wheel = False
                         elif k == 4:
-                            parent_idx = 21 if kwargs['Leg Pole Number'] == 5 else 13
+                            parent_idx = 21 if kwargs['Leg Pole Number'] == 5 else 21 - 4 * (5 - kwargs['Leg Pole Number'])
                             joint_info = {
                                 "name": get_joint_name("fixed"),
                                 "type": "fixed"
                             }
+                                
                         else:
                             origin_shift = (0, 0, 0)
-                            if kwargs["Leg Pole Number"] == 3:
-                                if j == 1:
-                                    origin_shift = (0.03, 0, 0.035)
-                                if j == 3:
-                                    origin_shift = (-0.03, 0, 0.035)
-                            else:
-                                if j == 1:
-                                    origin_shift = (0.03, 0, 0.05)
-                                if j == 2:
-                                    origin_shift = (0.03, 0, 0.015)
-                                if j == 4:
-                                    origin_shift = (-0.03, 0, 0.015)
-                                if j == 5:
-                                    origin_shift = (-0.03, 0, 0.05)
                             parent_idx = last_idx + 2
                             origin_shift = origin_shift[0], origin_shift[2], origin_shift[1]
                             joint_info = {
                                 "name": get_joint_name("fixed"),
                                 "type": "fixed",
-                                "substitute_mesh_idx": 10 if kwargs['Leg Pole Number'] == 5 else 6,
+                                #"substitute_mesh_idx": 10 if kwargs['Leg Pole Number'] == 5 else 6,
                                 #"origin_shift": origin_shift
                             }
                         a = save_geometry(  
@@ -229,7 +224,8 @@ def geometry_assemble_chair(nw: NodeWrangler, **kwargs):
                             first=first,
                             joint_info=joint_info,
                             parent_obj_id=parent_idx,
-                            material=kwargs["LegMaterial"]
+                            material=kwargs["LegMaterial"],
+                            apply=substitute if k == 1 else clear_material
                         )
                         if a:
                             first = False
@@ -284,6 +280,37 @@ def geometry_assemble_chair(nw: NodeWrangler, **kwargs):
                             # bpy.context.object.modifiers["Subdivision"].levels = 2
                             # bpy.context.object.modifiers["Subdivision"].render_levels = 2
                             # bpy.ops.object.modifier_apply(modifier="Subdivision")
+                        substitute = None
+                        if kwargs.get("aux_seat", None) is not None:
+                            seat = butil.deep_clone_obj(kwargs['aux_seat'][0])
+                            add_thickness = None
+                            seat.rotation_euler = (np.pi / 2, 0, 0)
+                            butil.apply_transform(seat, True)
+                            def substitute(obj):
+                                co = read_co(obj)
+                                scale = co[:, 0].max() - co[:, 0].min(), co[:, 1].max() - co[:, 1].min(), co[:, 2].max() - co[:, 2].min()
+                                seat.scale = (scale[0], scale[1], scale[2])
+                                butil.apply_transform(seat, True)
+                                seat.location = (0, 0, co[:, 2].max() - scale[2] / 2)
+                                seat.location[2] *= 0.97
+
+                                # co = read_co(seat)                                
+                                # #id = np.argmin(co[:, 2])
+                                # min_z = co[:, 2].min()
+                                # x = []
+                                # y = []
+                                # for i in range(len(co)):
+                                #     if co[i][2] == min_z:
+                                #         x.append(co[i][0])
+                                #         y.append(co[i][1])
+                                # x = np.mean(x)
+                                # y = np.mean(y)
+                                # seat.location = (x, y, co[:, 2].max() / 2 + min_z)
+                                        
+
+                                butil.apply_transform(seat, True)
+                                obj = seat
+                                return obj
                         after_separate = add_thickness
 
                     a = save_geometry(
@@ -296,7 +323,8 @@ def geometry_assemble_chair(nw: NodeWrangler, **kwargs):
                         joint_info=joint_info,
                         parent_obj_id=parent_idx,
                         material=material,
-                        after_seperate=after_separate
+                        after_seperate=after_separate,
+                        apply=substitute if i == 0 else None
                     )
                     if a:
                         first = False
@@ -333,7 +361,21 @@ class OfficeChairFactory(AssetFactory):
                 self.get_material_params(leg_style)
             )
         self.params.update(self.material_params)
-        self.chair_fac = ChairFactory(factory_seed, coarse=coarse)
+        #self.chair_fac = ChairFactory(factory_seed, coarse=coarse)
+        self.aux_wheel = random_auxiliary("wheels")[0]
+        self.use_aux_wheel = choice([True, False], p=[0.95, 0.05])
+        #self.use_aux_wheel = False
+        if self.use_aux_wheel:
+            self.params['aux_wheel'] = self.aux_wheel
+        self.adjustable_back = choice([True, False], p=[0, 1])
+        self.use_aux_seat = choice([True, False], p=[0.8, 0.2])
+        #self.use_aux_seat = False
+        self.aux_seat = None
+        if self.use_aux_seat:
+            self.aux_seat = random_auxiliary("chair_seat_whole")
+            self.params['aux_seat'] = self.aux_seat
+        
+
 
     def get_material_params(self, leg_style):
         material_assignments = AssetList["OfficeChairFactory"](leg_style)
@@ -443,7 +485,8 @@ class OfficeChairFactory(AssetFactory):
         elif leg_style == "wheeled":
             leg_diameter = uniform(0.03, 0.05)
             leg_number = 1
-            pole_number = choice([3, 5])
+            pole_number = randint(3, 10)
+            #pole_number = 3
             joint_height = uniform(0.5, 0.8) * (z - top_thickness)
             wheel_arc_sweep_angle = uniform(120, 240)
             wheel_width = uniform(0.11, 0.15)
@@ -460,6 +503,7 @@ class OfficeChairFactory(AssetFactory):
                     "Leg Wheel Width": wheel_width,
                     "Leg Wheel Rot": wheel_rot,
                     "Leg Pole Length": pole_length,
+
                     # 'Leg Material': choice(['metal'])
                 }
             )
@@ -468,6 +512,14 @@ class OfficeChairFactory(AssetFactory):
             raise NotImplementedError
 
         return parameters, leg_style
+    @staticmethod
+    def bevel(obj, offset=0.01):
+        bpy.context.view_layer.objects.active = obj
+        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.mesh.bevel(
+            offset=offset, offset_pct=0, segments=8, release_confirm=True, face_strength_mode="ALL"
+        )
+        bpy.ops.object.mode_set(mode='OBJECT')
 
     def create_asset(self, **params):
         #params.update("wheel_width", self.wheel_width)
@@ -492,52 +544,162 @@ class OfficeChairFactory(AssetFactory):
             obj, geometry_assemble_chair, apply=True, input_kwargs=self.params
         )
         tagging.tag_system.relabel_obj(obj)
-        has_arm = choice([True, False])
+        has_arm = choice([True, False], p=[0.8, 0.2])
+        if self.use_aux_seat and self.aux_seat[1]['need_arm'] == "False":
+            has_arm = False
+        #has_arm = False
         if has_arm:
-            self.params['Top Back Relative Width'] = max(self.params['Top Back Relative Width'], self.params['Top Mid Relative Width'], self.params['Top Front Relative Width'])
+            self.params['Top Back Relative Width'] = max(self.params['Top Back Relative Width'], self.params['Top Mid Relative Width'], self.params['Top Front Relative Width']) * 1.1
             seat = bpy.data.objects['seat']
             co = read_co(seat)
             width = self.params['Top Profile Width'] * self.params['Top Back Relative Width']
-            height = self.params['Leg Height']
             y = (co[:, 1].max() + co[:, 1].min()) / 2
+            length = uniform(0.2, 0.35)
             pos = (width / 2, y, self.params['Top Height'])
             arm_l = butil.spawn_cube()
             width = uniform(0.01, 0.02)
-            length = uniform(0.2, 0.35)
-            arm_l.scale = (width, width * 3, length)
+            arm_l.scale = (width * 1.5, width * 3, length * 0.7)
             butil.apply_transform(arm_l, True)
             arm_l.location[2] = length / 2
             butil.apply_transform(arm_l, True)
             r_x = random.uniform(-0.174533, 0.174533)
             r_y = random.uniform(0, 0.174533)
-            arm_l.rotation_euler[0] = r_x
+            #arm_l.rotation_euler[0] = r_x
             arm_l.rotation_euler[1] = r_y
             butil.apply_transform(arm_l, True)
-            arm_l.location = pos
+            arm_l.location = (pos[0] + length * 0.3 * np.sin(r_y), pos[1], pos[2])
             arm_l.location[2] -= 0.03
             butil.apply_transform(arm_l, True)
+            self.bevel(arm_l)
+            co = read_co(arm_l)
+            id = np.argmax(co[:, 2])
+            vertex_l = co[id]
+            res_l = save_obj_parts_add(arm_l, params.get("path"), params.get("i"), "arm", first=False, use_bpy=True, parent_obj_id=None, material=self.params["LegMaterial"])
+
+            arm_l_ = butil.spawn_cube()
+            arm_l_.scale = (width * 1, width * 2, length * 0.3)
+            butil.apply_transform(arm_l_, True)
+            arm_l_.rotation_euler[1] = r_y
+            butil.apply_transform(arm_l_, True)
+            arm_l_.location = (pos[0] + width / 2 , pos[1], pos[2])
+            butil.apply_transform(arm_l_, True)
+            self.bevel(arm_l_)
+            res_l_ = save_obj_parts_add(arm_l_, params.get("path"), params.get("i"), "arm", first=False, use_bpy=True, parent_obj_id=0, joint_info={
+                 "name": get_joint_name("fixed"),
+                 "type": "fixed"
+            }, material=self.params["LegMaterial"])
+            add_joint(res_l_[0], res_l[0], joint_info={
+                 "name": get_joint_name("prismatic"),
+                 "type": "prismatic",
+                    "axis": (np.sin(r_y), 0, np.cos(r_y)),
+                    "limit": {
+                        "lower": -length * 0.15,
+                        "upper": 0,
+                    },
+            })
 
             arm_r = butil.spawn_cube()
-            arm_r.scale = (width, width * 3, length)
+            arm_r.scale = (width * 1.5, width * 3, length*0.7)
             butil.apply_transform(arm_r, True)
             arm_r.location[2] = length / 2
             butil.apply_transform(arm_r, True)
-            arm_r.rotation_euler[0] = r_x
+            #arm_r.rotation_euler[0] = r_x
             arm_r.rotation_euler[1] = -r_y
             butil.apply_transform(arm_r, True)
-            arm_r.location = pos
+            arm_r.location = (pos[0] - length * 0.3 * np.sin(r_y), pos[1], pos[2])
             arm_r.location[0] *= -1
             arm_r.location[2] -= 0.03
             butil.apply_transform(arm_r, True)
+            self.bevel(arm_r)
+            co = read_co(arm_r)
+            id = np.argmax(co[:, 2])
+            vertex_r = co[id]
+            res_r = save_obj_parts_add(arm_r, params.get("path"), params.get("i"), "arm", first=False, use_bpy=True, parent_obj_id=None, material=self.params["LegMaterial"])
+
+            arm_r_ = butil.spawn_cube()
+            arm_r_.scale = (width * 1, width * 2, length * 0.3)
+            butil.apply_transform(arm_r_, True)
+            arm_r_.rotation_euler[1] = -r_y
+            butil.apply_transform(arm_r_, True)
+            arm_r_.location = (-pos[0] - width / 2 , pos[1], pos[2])
+            butil.apply_transform(arm_r_, True)
+            self.bevel(arm_r_)
+            res_r_ = save_obj_parts_add(arm_r_, params.get("path"), params.get("i"), "arm", first=False, use_bpy=True, parent_obj_id=0, joint_info={
+                 "name": get_joint_name("fixed"),
+                 "type": "fixed"
+            }, material=self.params["LegMaterial"])
+
+            add_joint(res_r_[0], res_r[0], joint_info={
+                    "name": get_joint_name("prismatic"),
+                    "type": "prismatic",
+                        "axis": (-np.sin(r_y), 0, np.cos(r_y)),
+                        "limit": {
+                            "lower": -length * 0.15,
+                            "upper": 0,
+                        },
+                })
             
             base = butil.spawn_cylinder(self.params['Top Profile Width'] * self.params['Top Back Relative Width'] / 2 * 0.7, 0.02)
             base.location[2] = pos[2]
             base.location[2] -= 0.03
             stretcher = butil.spawn_cube()
-            stretcher.scale = (self.params['Top Profile Width'] * self.params['Top Back Relative Width'], width * 1.5,0.02)
+            #stretcher.rotation_euler[1] = np.pi / 2
+            #butil.apply_transform(stretcher, True)
+            stretcher.scale = (self.params['Top Profile Width'] * self.params['Top Back Relative Width'] * 1, width * 2,0.03)
             stretcher.location = base.location
             butil.apply_transform(stretcher, True)
             butil.apply_transform(base, True)
+            stretcher_ = butil.spawn_cylinder()
+            stretcher_.rotation_euler[1] = np.pi / 2
+            butil.apply_transform(stretcher_, True)
+            stretcher_.scale = (self.params['Top Profile Width'] * self.params['Top Back Relative Width'] *0.1, 0.02 ,0.02)
+            butil.apply_transform(stretcher_, True)
+            stretcher_.location[2] = pos[2] - 0.03
+            stretcher_.location[0] = self.params['Top Profile Width'] * self.params['Top Back Relative Width'] * 0.45
+            butil.apply_transform(stretcher_, True)
+            res_s_ = save_obj_parts_add(stretcher_, params.get("path"), params.get("i"), "arm", first=False, use_bpy=True, parent_obj_id=0, joint_info={
+                 "name": get_joint_name("revolute_prismatic"),
+                 "type": "revolute_prismatic",
+                    "axis": (1, 0, 0),
+                    "limit": {
+                        "lower": -np.pi / 18,
+                        "upper": np.pi / 18,
+                        "lower_1": 0,
+                        "upper_1": self.params['Top Profile Width'] * self.params['Top Back Relative Width'] * 0.1
+                    },
+
+            }, material=self.params["LegMaterial"])
+            add_joint(res_s_[0], res_l_[0], joint_info={
+                    "name": get_joint_name("fixed"),
+                    "type": "fixed",
+                })
+
+            stretcher__ = butil.spawn_cylinder()
+            stretcher__.rotation_euler[1] = np.pi / 2
+            butil.apply_transform(stretcher__, True)
+            stretcher__.scale = (self.params['Top Profile Width'] * self.params['Top Back Relative Width'] *0.1, 0.02 ,0.02)
+            butil.apply_transform(stretcher__, True)
+            stretcher__.location[2] = pos[2] - 0.03
+            stretcher__.location[0] = -self.params['Top Profile Width'] * self.params['Top Back Relative Width'] * 0.45
+            butil.apply_transform(stretcher__, True)
+            res_s__ = save_obj_parts_add(stretcher__, params.get("path"), params.get("i"), "arm", first=False, use_bpy=True, parent_obj_id=0, joint_info={
+                 "name": get_joint_name("revolute_prismatic"),
+                 "type": "revolute_prismatic",
+                    "axis": (1, 0, 0),
+                    "limit": {
+                        "lower": -np.pi / 18,
+                        "upper": np.pi / 18,
+                        "lower_1": -self.params['Top Profile Width'] * self.params['Top Back Relative Width'] * 0.1,
+                        "upper_1": 0
+                    },
+
+            }, material=self.params["LegMaterial"])
+            add_joint(res_s__[0], res_r_[0], joint_info={
+                    "name": get_joint_name("fixed"),
+                    "type": "fixed",
+                })
+
+
 
             co = read_co(arm_l)
             h = co[:, 2].max()
@@ -554,10 +716,18 @@ class OfficeChairFactory(AssetFactory):
             handle = bpy.data.objects['handle.001']
             handle.scale = (width * 4, width * 15, width * 2)
             butil.apply_transform(handle, True)
-            # save_obj_parts_add(handle, params.get("path"), params.get("i"), "arm", first=False, use_bpy=True, parent_obj_id=0, joint_info={
-            #     "name": get_joint_name("fixed"),
-            #     "type": "fixed"
-            # })
+            co = read_co(handle)
+            center = (co[:, 0].max() + co[:, 0].min()) / 2, (co[:, 1].max() + co[:, 1].min()) / 2, (co[:, 2].max() + co[:, 2].min()) / 2
+            save_obj_parts_add(handle, params.get("path"), params.get("i"), "arm", first=False, use_bpy=True, parent_obj_id=res_l[0], joint_info={
+                "name": get_joint_name("revolute"),
+                "type": "revolute",
+                "axis": (1, 0, 0),
+                "origin_shift": (vertex_l[0] - center[0], vertex_l[1] - center[1], vertex_l[2] - center[2]),
+                "limit": {
+                    "lower": -np.pi / 18,
+                    "upper": np.pi / 18
+                }
+            }, material=self.params["LegMaterial"])
 
             bpy.ops.object.metaball_add(type='PLANE', radius=0.5, enter_editmode=False, align='WORLD', location=(-w, d, h))
             handle_ = bpy.context.object
@@ -565,25 +735,38 @@ class OfficeChairFactory(AssetFactory):
             bpy.ops.object.convert(target='MESH')
             handle_ = bpy.data.objects['handle_.001']
             handle_.scale = (width * 4, width * 15, width * 2)
-            butil.apply_transform(handle, True)
-
-            arm_l = join_objects([arm_l, base, stretcher, arm_r])
-            co = read_co(arm_l)
-            for i in range(len(co)):
-                if co[i, 2] <  self.params['Top Height'] - 0.03:
-                    co[i, 2] = self.params['Top Height'] - 0.03
-            write_co(arm_l, co)
-            bpy.context.view_layer.objects.active = arm_l
-            bpy.ops.object.mode_set(mode='EDIT')
-            bpy.ops.mesh.bevel(
-                offset=0.01, offset_pct=0, segments=8, release_confirm=True, face_strength_mode="ALL"
-            )
-            bpy.ops.object.mode_set(mode='OBJECT')
-            arm_l = join_objects([arm_l, handle, handle_])
-            save_obj_parts_add(arm_l, params.get("path"), params.get("i"), "arm", first=False, use_bpy=True, parent_obj_id=0, joint_info={
-                "name": get_joint_name("fixed"),
-                "type": "fixed"
+            butil.apply_transform(handle_, True)
+            co = read_co(handle_)
+            center = (co[:, 0].max() + co[:, 0].min()) / 2, (co[:, 1].max() + co[:, 1].min()) / 2, (co[:, 2].max() + co[:, 2].min()) / 2
+            save_obj_parts_add(handle_, params.get("path"), params.get("i"), "arm", first=False, use_bpy=True, parent_obj_id=res_r[0], joint_info={
+                "name": get_joint_name("revolute"),
+                "type": "revolute",
+                "axis": (1, 0, 0),
+                "origin_shift": (vertex_r[0] - center[0], vertex_r[1] - center[1], vertex_r[2] - center[2]),
+                "limit": {
+                    "lower": -np.pi / 18,
+                    "upper": np.pi / 18
+                }
             }, material=self.params["LegMaterial"])
+
+            #arm_l = join_objects([arm_l, base, stretcher, arm_r])
+            #co = read_co(arm_l)
+            # for i in range(len(co)):
+            #     if co[i, 2] <  self.params['Top Height'] - 0.03:
+            #         co[i, 2] = self.params['Top Height'] - 0.03
+            #write_co(arm_l, co)
+            base = join_objects([base, stretcher])
+            self.bevel(base, 0.002)
+            save_obj_parts_add(base, params.get("path"), params.get("i"), "arm", first=False, use_bpy=True, parent_obj_id=0, joint_info={
+                 "name": get_joint_name("fixed"),
+                 "type": "fixed"
+            }, material=self.params["LegMaterial"])
+            
+            #arm_l = join_objects([arm_l, handle, handle_])
+            # save_obj_parts_add(arm_l, params.get("path"), params.get("i"), "arm", first=False, use_bpy=True, parent_obj_id=0, joint_info={
+            #     "name": get_joint_name("fixed"),
+            #     "type": "fixed"
+            # }, material=self.params["LegMaterial"])
         
         join_objects_save_whole(obj, self.params.get("path"), self.params.get("i"), "whole", use_bpy=True, join=False)
 

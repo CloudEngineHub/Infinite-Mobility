@@ -354,11 +354,14 @@ def office_chair_materials(leg_style=None):
         "top": TextureAssignments(
             [
                 fabrics.shader_leather,
-                wood.shader_wood,
+                fabrics.shader_fabric,
+                fabrics.shader_coarse_knit_fabric,
+                fabrics.shader_fine_knit_fabric,
                 shader_rough_plastic,
-                #glass_volume.shader_glass_volume,
+                glass_volume.shader_glass_volume,
+                plastic.shader_translucent_plastic
             ],
-            [1.0, 1.0, 1.0],
+            [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
         ),
         "leg": TextureAssignments([wood.shader_wood, *metal_shaders], [1.0] + probs),
         "wear_tear": [procedural_scratch, procedural_edge_wear],

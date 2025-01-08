@@ -6,6 +6,7 @@ import math
 import os
 import json
 import random
+import mathutils
 
 
 def main(id, catagory):
@@ -14,8 +15,8 @@ def main(id, catagory):
     if True:
         sapien.render.set_camera_shader_dir("rt")
         sapien.render.set_viewer_shader_dir("rt")
-        sapien.render.set_ray_tracing_samples_per_pixel(64)  # change to 256 for less noise
-        sapien.render.set_ray_tracing_denoiser("oidn") # change to "optix" or "oidn"
+        sapien.render.set_ray_tracing_samples_per_pixel(256)  # change to 256 for less noise
+        #sapien.render.set_ray_tracing_denoiser("oidn") # change to "optix" or "oidn"
 
 
     
@@ -54,6 +55,16 @@ def main(id, catagory):
     viewer.window.set_camera_parameters(near=0.05, far=100, fovy=1)
     near, far = 0.1, 100
     width, height = 640, 480
+    camera = scene.add_camera(
+        name="camera",
+        width=680,
+        height=680,
+        fovy=1,
+        near=0.1,
+        far=100,
+    )
+    q = mathutils.Euler((0.0, -np.arctan2(2, 12), 3.14)).to_quaternion()
+    camera.set_entity_pose(sapien.Pose([2, 0, 0], q))
 
     # Compute the camera pose by specifying forward(x), left(y) and up(z)
     cam_pos = np.array([-2, -2, 3])
@@ -338,9 +349,14 @@ def main(id, catagory):
         rgba_img = (rgba * 255).clip(0, 255).astype("uint8")
         rgba_pil = Image.fromarray(rgba_img)
         rgba_pil.save(f"pics/screenshot{step}.png")
+        # camera.take_picture()
+        # rgba = camera.get_picture("Color")  # [H, W, 4]
+        # rgba_img = (rgba * 255).clip(0, 255).astype("uint8")
+        # rgba_pil = Image.fromarray(rgba_img)
+        # rgba_pil.save(f"pics/screenshot{step}.png")
         step += 1
         print(step)
-        if step == 300:
+        if step == 130:
             break
         #print(scene.get_contacts())
         #print(step)
@@ -351,7 +367,7 @@ def main(id, catagory):
 
 
 if __name__ == "__main__":
-    number = 100
+    number = 10
     catagory = "OfficeChairFactory"
     for i in range(number):
         print(f"#########################################################################start {i} object##########################################################################")

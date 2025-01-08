@@ -94,6 +94,7 @@ import math
 
 robot_tree = {}
 root = None
+internal_bbox = None
 
 uuid = 0
 def get_uuid():
@@ -106,6 +107,14 @@ def get_joint_name(type):
 
 def get_link_name(name):
     return f"link_{name}_{get_uuid()}"
+
+
+# bbox here is a list of 6 values, [x, x_, y, y_, z, z_] where x, x_ are the x coordinates of the left and right faces, y, y_ are the y coordinates of the front and back faces, z, z_ are the z coordinates of the top and bottom faces
+def add_internal_bbox(bbox):
+    global internal_bbox
+    if internal_bbox is None:
+        internal_bbox = []
+    internal_bbox.append(bbox)
 
 def center(obj):
     return (Vector(obj.bound_box[0]) + Vector(obj.bound_box[-2])) * obj.scale / 2.0
@@ -591,6 +600,7 @@ saved_objs = []
 def save_whole_object_normalized(object, path=None, idx="unknown", name=None, use_bpy=False):
     global saved_objs
     global robot_tree, root
+    global internal_bbox
     big_obj = join_objects(saved_objs)
     save_obj_parts_add([big_obj], path, idx, name, first=False, use_bpy=True, parent_obj_id="")
     if idx == "unknown":
@@ -999,9 +1009,12 @@ def save_whole_object_normalized(object, path=None, idx="unknown", name=None, us
     shutil.copytree(os.path.join(path, idx, "objs"), os.path.join(path, idx, path, idx, "objs"))
     shutil.rmtree(os.path.join(path, idx, "objs"))
     modify_mtl(os.path.join(path, idx))
+    if internal_bbox is not None:
+        with open(os.path.join(path, idx, "bbox.txt"), 'w') as f:
+            for box in internal_bbox:
+                f.write(f"{box[0]} {box[1]} {box[2]} {box[3]} {box[4]} {box[5]}\n")
 
     #usdutils.save()
-
     #robot.show()
     robot_tree = {}
     butil.select_none()

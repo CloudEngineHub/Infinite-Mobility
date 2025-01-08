@@ -7,6 +7,10 @@ from infinigen.core.util.blender import deep_clone_obj
 ALL_AUXILIARY_CATAGORY = [
     "handles",
     "drawers",
+    "wheels",
+    "chair_seat_whole",
+    "divider_plate",
+    "strainer",
 ]
 
 AUXILIARY_PATH = "/home/pjlab/datasets/parts"
@@ -32,7 +36,7 @@ def parse_description(path):
     with open(path, "r") as f:
         content = f.read().split(" ")
         for i in range(0, len(content), 2):
-            res[content[i]] = content[i + 1]
+            res[content[i].strip('\n')] = content[i + 1].strip('\n')
     return res
 
 

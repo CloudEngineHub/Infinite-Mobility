@@ -12,12 +12,18 @@ from infinigen.assets.objects.seating.chairs.seats.round_seats import (
     generate_round_seats,
 )
 from infinigen.assets.objects.tables.cocktail_table import geometry_create_legs
+from infinigen.assets.utils.decorate import read_co
 from infinigen.assets.utils.object import add_joint, get_joint_name, save_file_path, save_obj_parts_add
 from infinigen.core import surface, tagging
 from infinigen.core.nodes.node_wrangler import Nodes, NodeWrangler
 from infinigen.core.placement.factory import AssetFactory
 from infinigen.core.util.math import FixedSeed
 from infinigen.core.nodes.node_utils import save_geometry
+from infinigen.core.util import blender as butil
+from infinigen.assets.utils.auxiliary_parts import random_auxiliary
+import random
+
+import numpy as np
 
 
 
@@ -148,59 +154,45 @@ def geometry_assemble_chair(nw: NodeWrangler, **kwargs):
                             }
                         elif k == 1:
                             origin_shift = (0, 0, 0)
-                            if kwargs["Leg Pole Number"] == 3:
-                                if j == 1:
-                                    origin_shift = (0.03, 0, 0.035)
-                                if j == 3:
-                                    origin_shift = (-0.03, 0, 0.035)
-                            else:
-                                if j == 1:
-                                    origin_shift = (0.03, 0, 0.3)
-                                if j == 2:
-                                    origin_shift = (0.03, 0, 0.015)
-                                if j == 4:
-                                    origin_shift = (-0.03, 0, 0.015)
-                                if j == 5:
-                                    origin_shift = (-0.03, 0, 0.3)
                             parent_idx = last_idx + 2
                             origin_shift = origin_shift[0], origin_shift[2], origin_shift[1]
+                            angle = np.pi / kwargs['Leg Pole Number'] + (j - 1) * 2 * np.pi / kwargs['Leg Pole Number']
+                            def substitute(obj):
+                                if kwargs.get("aux_wheel", None) is not None:
+                                    wheel = butil.deep_clone_obj(kwargs['aux_wheel'])
+                                    wheel.rotation_euler = (0, 0, angle)
+                                    butil.apply_transform(wheel, True)
+                                    co = read_co(obj)
+                                    scale = co[:, 0].max() - co[:, 0].min(), co[:, 1].max() - co[:, 1].min(), co[:, 2].max() - co[:, 2].min()
+                                    wheel.scale = (scale[0], scale[1], scale[2])
+                                    butil.apply_transform(wheel, True)
+                                    wheel.location = (co[:, 0].max() - scale[0] / 2, co[:, 1].max() - scale[1] / 2, co[:, 2].max() - scale[2] / 2)
+                                    butil.apply_transform(wheel, True)
+                                    obj = wheel
+                                    return obj
                             joint_info = {
                                 "name": get_joint_name("continuous"),
                                 "type": "continuous",
-                                "axis": (1, 0, 0),
+                                "axis": (np.cos(angle), np.sin(angle), 0),
                                 #"origin_shift": origin_shift,
-                                "substitute_mesh_idx": 11 if kwargs['Leg Pole Number'] == 5 else 7,##
+                                #"substitute_mesh_idx": 11 if kwargs['Leg Pole Number'] == 5 else 7,##
                                 #"origin_shift": (0, -kwargs.get("Leg Wheel Width", 0) / 2, 0)
                             }
                             first_wheel = False
                         elif k == 4:
-                            parent_idx = 23 if kwargs['Leg Pole Number'] == 5 else 15##
+                            parent_idx = 23 if kwargs['Leg Pole Number'] == 5 else 23 - 4 * (5 - kwargs['Leg Pole Number'])##
                             joint_info = {
                                 "name": get_joint_name("fixed"),
                                 "type": "fixed"
                             }
                         else:
                             origin_shift = (0, 0, 0)
-                            if kwargs["Leg Pole Number"] == 3:
-                                if j == 1:
-                                    origin_shift = (0.03, 0, 0.035)
-                                if j == 3:
-                                    origin_shift = (-0.03, 0, 0.035)
-                            else:
-                                if j == 1:
-                                    origin_shift = (0.03, 0, 0.05)
-                                if j == 2:
-                                    origin_shift = (0.03, 0, 0.015)
-                                if j == 4:
-                                    origin_shift = (-0.03, 0, 0.015)
-                                if j == 5:
-                                    origin_shift = (-0.03, 0, 0.05)
                             parent_idx = last_idx + 2
                             origin_shift = origin_shift[0], origin_shift[2], origin_shift[1]
                             joint_info = {
                                 "name": get_joint_name("fixed"),
                                 "type": "fixed",
-                                "substitute_mesh_idx": 12 if kwargs['Leg Pole Number'] == 5 else 8, ####
+                                #"substitute_mesh_idx": 12 if kwargs['Leg Pole Number'] == 5 else 8, ####
                                 #"origin_shift": origin_shift
                             }
                         a = save_geometry(  
@@ -212,7 +204,8 @@ def geometry_assemble_chair(nw: NodeWrangler, **kwargs):
                             first=first,
                             joint_info=joint_info,
                             parent_obj_id=parent_idx,
-                            material=kwargs["LegMaterial"]
+                            material=kwargs["LegMaterial"],
+                            apply=substitute if k == 1 else None
                         )
                         if a:
                             first = False
@@ -288,6 +281,10 @@ class BarChairFactory(AssetFactory):
             )
 
         self.params.update(self.material_params)
+        self.aux_wheel = random_auxiliary("wheels")[0]
+        self.use_aux_wheel = choice([True, False], p=[0.95, 0.05])
+        if self.use_aux_wheel:
+            self.params['aux_wheel'] = self.aux_wheel
 
     def get_material_params(self, leg_style):
         material_assignments = AssetList["BarChairFactory"](leg_style=leg_style)
@@ -386,7 +383,7 @@ class BarChairFactory(AssetFactory):
         elif leg_style == "wheeled":
             leg_diameter = uniform(0.03, 0.05)
             leg_number = 1
-            pole_number = choice([3, 5])
+            pole_number = random.randint(3, 10)
             joint_height = uniform(0.5, 0.8) * (z - top_thickness)
             wheel_arc_sweep_angle = uniform(120, 240)
             wheel_width = uniform(0.11, 0.15)
