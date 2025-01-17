@@ -212,7 +212,7 @@ class MicrowaveFactory(AssetFactory):
                         "lower": -1.5708,
                         "upper": 0,
                     },
-                    "origin_shift": (-self.params['DoorThickness'] / 2, -(self.params['Width'] - self.params['PanelWidth']) *(0.52), 0),
+                    "origin_shift": (-self.params['DoorThickness'] / 2, -(self.params['Width'] - self.params['PanelWidth']) *(0.49), 0),
                 }
                 try: 
                     door = butil.spawn_cube()
@@ -243,7 +243,7 @@ class MicrowaveFactory(AssetFactory):
                         ng_inputs=self.params,
                         apply=True,
                     )
-                door.location[0] += 0.02
+                #door.location[0] += 0.02
                 butil.apply_transform(door, True)
                 save_obj_parts_add([door], self.ps['path'], self.ps['i'], "door", first=False, use_bpy=True, parent_obj_id=parent_id, joint_info=joint_info, material=material)
             elif i == 4:
@@ -372,7 +372,7 @@ class MicrowaveFactory(AssetFactory):
                                 "type": "prismatic",
                                 "axis": (1, 0, 0),
                                 "limit": {
-                                    "lower": -button_height / 4,
+                                    "lower": -button_height / 8,
                                     "upper": 0,
                                 },
                             }, material=material)

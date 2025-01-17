@@ -83,13 +83,13 @@ def shader_lampshade(nw: NodeWrangler):
         attrs={"is_active_output": True},
     )
 
-
+import numpy as np
 def shader_black(nw: NodeWrangler):
     # Code generated using version 2.6.5 of the node_transpiler
 
     principled_bsdf = nw.new_node(
         Nodes.PrincipledBSDF,
-        input_kwargs={"Base Color": (0.0039, 0.0039, 0.0039, 1.0000)},
+        input_kwargs={"Base Color": (np.random.uniform(0, 1), np.random.uniform(0, 1), np.random.uniform(0, 1), 1.0000)},
     )
 
     material_output = nw.new_node(

@@ -252,7 +252,7 @@ def ceiling_light_materials():
 
 def lamp_materials():
     return {
-        "black_material": TextureAssignments([lamp_shaders.shader_black], [1.0]),
+        "black_material": TextureAssignments([lamp_shaders.shader_black, wood.shader_wood], [1.0, 1.0]),
         "metal": TextureAssignments([lamp_shaders.shader_metal], [1.0]),
         "lampshade": TextureAssignments([lamp_shaders.shader_lampshade], [1.0]),
         "wear_tear": [procedural_scratch, procedural_edge_wear],
@@ -320,7 +320,16 @@ def bar_chair_materials(leg_style=None):
     else:
         probs = [1.0 / len(metal_shaders)] * len(metal_shaders)
     return {
-        "seat": TextureAssignments([fabrics.shader_leather], [1.0]),
+        "seat": TextureAssignments([
+                fabrics.shader_leather,
+                fabrics.shader_fabric,
+                fabrics.shader_coarse_knit_fabric,
+                fabrics.shader_fine_knit_fabric,
+                shader_rough_plastic,
+                glass_volume.shader_glass_volume,
+                plastic.shader_translucent_plastic
+            ],
+            [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]),
         "leg": TextureAssignments([wood.shader_wood, *metal_shaders], [1.0] + probs),
         "wear_tear": [procedural_scratch, procedural_edge_wear],
         "wear_tear_prob": [DEFAULT_SCRATCH_PROB, 0.0],

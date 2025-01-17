@@ -96,9 +96,9 @@ class OvenFactory(AssetFactory):
 
         panel_height = U(0.2, 0.4) * height
         panel_thickness = U(0.15, 0.25) * depth
-        botton_amount = RI(1, 3) * 2
-        botton_radius = U(0.05, 0.1) * width
-        botton_thickness = U(0.02, 0.04) * depth
+        botton_amount = RI(1, 4) * 2
+        botton_radius = U(0.05, 0.1) * width / botton_amount * 2
+        botton_thickness = U(0.02, 0.04) * depth / botton_amount * 2
         heat_radius_ratio = U(0.1, 0.2)
         brand_name = generate_text()
 
@@ -366,6 +366,9 @@ class OvenFactory(AssetFactory):
                 if i == 4:
                     p_id = a[0] 
         parent_id = p_id
+
+        min_b = 100
+        max_b = -1
         for i in range(1, self.params['BottonAmount'] + 1):
             joint_info = {
                 "name": get_joint_name("revolute"),
@@ -376,7 +379,12 @@ class OvenFactory(AssetFactory):
                     "upper": np.pi / 4,
                 },
             }
-            a = node_utils.save_geometry_new(assets, "button", i, self.params.get("i"), self.params.get("path"), first, True, False, material = [self.params['WhiteMetal'], self.scratch, self.edge_wear], parent_obj_id=parent_id, joint_info=joint_info)
+            def get_co(obj, _):
+                nonlocal min_b, max_b
+                co = read_co(obj)
+                min_b = min(min_b, np.min(co[:, 1]))
+                max_b = max(max_b, np.max(co[:, 1]))
+            a = node_utils.save_geometry_new(assets, "button", i, self.params.get("i"), self.params.get("path"), first, True, False, material = [self.params['WhiteMetal'], self.scratch, self.edge_wear], parent_obj_id=parent_id, joint_info=joint_info, apply=get_co)
             if a:
                 first = False
                 break
@@ -398,7 +406,39 @@ class OvenFactory(AssetFactory):
                     "upper": np.pi / 4,
                 },
             }
+            co_ = read_co(saved_obj)
+            min_b = min(min_b, np.min(co_[:, 1]))
+            max_b = max(max_b, np.max(co_[:, 1]))
             save_obj_parts_add([saved_obj], self.params.get("path"), self.params.get("i"), "botton", first=False, use_bpy=True, material=[self.params['WhiteMetal'], self.scratch, self.edge_wear], joint_info=joint_info, parent_obj_id=parent_id)
+        button_scale = self.params['BottonRadius'] * np.random.uniform(0.5, 1.2)
+        button_gap = button_scale * 0.5
+        button_number = int((max_b - min_b - button_scale) / (button_scale + button_gap))
+        real_gap = (max_b - min_b - button_number * button_scale) / (button_number - 1)
+        button_thickness = np.random.uniform(0.003, 0.005)
+        x = co_[:, 0].min() + button_thickness / 2
+        z = co_[:, 2].min() - button_scale
+        for number in range(button_number):
+            shape = np.random.choice(['square', 'circle'])
+            if shape == 'square':
+                button = butil.spawn_cube()
+            elif shape == 'circle':
+                button = butil.spawn_cylinder()
+                button.rotation_euler = (0, np.pi / 2, 0)
+                butil.apply_transform(button, True)
+                button.scale = (1, 0.5, 0.5)
+                butil.apply_transform(button, True)
+            button.scale = (button_thickness, button_scale, button_scale * 0.5)
+            button.location = (x, min_b + button_scale / 2 + number * (button_scale + real_gap),z)
+            butil.apply_transform(button, True)
+            save_obj_parts_add([button], self.params.get("path"), self.params.get("i"), "button", first=False, use_bpy=True, material=[self.params['WhiteMetal'], self.scratch, self.edge_wear], parent_obj_id=parent_id, joint_info={
+                "name": get_joint_name("prismatic"),
+                "type": "prismatic",
+                "axis": [1, 0, 0],
+                "limit":{
+                    "lower": -button_thickness * 0.9,
+                    "upper": 0
+                }
+            })
         for i in range(1, self.params['BottonAmount'] + 1):
             joint_info = {
                 "name": get_joint_name("fixed"),

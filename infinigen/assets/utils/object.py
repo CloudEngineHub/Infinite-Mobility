@@ -791,7 +791,7 @@ def save_whole_object_normalized(object, path=None, idx="unknown", name=None, us
                 export_colors=True,
                 export_eval_mode="DAG_EVAL_RENDER",
                 export_selected_objects=True,
-                #export_pbr_extensions=True,
+                export_pbr_extensions=True,
                 export_materials=True,
                 export_normals = True,
                 apply_modifiers = True
@@ -859,7 +859,7 @@ def save_whole_object_normalized(object, path=None, idx="unknown", name=None, us
             if os.path.isfile(os.path.join(path, idx, "objs", f"{mesh_idx}.png")):
                 texture = urdfpy.Texture(filename=os.path.join(path, idx, "objs", f"{mesh_idx}.png"))
                 material = urdfpy.Material(name=get_link_name("material"), texture=texture)
-            collision = [urdfpy.Collision(name="temp", origin=None, geometry=urdfpy.Geometry(mesh=urdfpy.Mesh(filename=os.path.join(path, idx, "objs", f"{mesh_idx}",f"{mesh_idx}.obj"))))]
+            collision = None#[urdfpy.Collision(name="temp", origin=None, geometry=urdfpy.Geometry(mesh=urdfpy.Mesh(filename=os.path.join(path, idx, "objs", f"{mesh_idx}",f"{mesh_idx}.obj"))))]
             l = urdfpy.Link(f'l_{link}', visuals=[urdfpy.Visual(material=material, geometry=urdfpy.Geometry(mesh=urdfpy.Mesh(filename=os.path.join(path, idx, "objs",f"{mesh_idx}", f"{mesh_idx}.obj"))))], collisions=collision, inertial=None)
             links[f"l_{link}"] = l
             #usdutils.add_mesh(os.path.join(path, idx, "objs", f"{link}", f"{link}.usd"), f"l_{link}", origins[link])
@@ -892,7 +892,7 @@ def save_whole_object_normalized(object, path=None, idx="unknown", name=None, us
                 texture = urdfpy.Texture(filename=os.path.join(path, idx, "objs", f"{mesh_idx}.png"))
                 material = urdfpy.Material(name=get_link_name("material"), texture=texture)
             if parent != "world":
-                collision = [urdfpy.Collision(name="temp", origin=None, geometry=urdfpy.Geometry(mesh=urdfpy.Mesh(filename=os.path.join(path, idx, "objs", f"{mesh_idx}",f"{mesh_idx}.obj"))))]
+                collision = None#[urdfpy.Collision(name="temp", origin=None, geometry=urdfpy.Geometry(mesh=urdfpy.Mesh(filename=os.path.join(path, idx, "objs", f"{mesh_idx}",f"{mesh_idx}.obj"))))]
             else:
                 collision = None
             p = urdfpy.Link(f'l_{parent}', visuals=[urdfpy.Visual(material=material, geometry=urdfpy.Geometry(mesh=urdfpy.Mesh(filename=os.path.join(path, idx, "objs",f"{mesh_idx}",  f"{mesh_idx}.obj"))))], collisions=collision, inertial=None)

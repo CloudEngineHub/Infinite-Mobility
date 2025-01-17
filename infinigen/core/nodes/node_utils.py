@@ -262,7 +262,10 @@ def save_geometry(
         else:
             if apply is not None:
                 o = apply(new_object)
-                if o is not None:
+                if isinstance(o, dict):
+                    new_object = o["object"]
+                    first = o["first"]
+                elif isinstance(o, bpy.types.Object):
                     new_object = o
             res = save_obj_parts_add([new_object], path, idx, name, first=first, use_bpy=True, parent_obj_id=parent_obj_id, joint_info=joint_info,material=material, before_export=after_seperate)
         if return_center:

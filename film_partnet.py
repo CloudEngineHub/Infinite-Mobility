@@ -6,12 +6,79 @@ import math
 import os
 import json
 import random
+import urdfpy
+from PIL import ImageDraw, ImageFont
+
+
+def iter_tree(r, urdf_path, tree, links, reset_material=True):
+    p_name = r.name
+    if len(r.visuals) >= 1:
+        for v in r.visuals:
+            g = v.geometry
+            m = g.mesh
+            f = m.filename
+            path = urdf_path.replace('mobility_no_collision.urdf', f)
+            path_ = path.replace('.obj', '.mtl_')
+            path = path.replace('.obj', '.mtl')
+            print(path, path_)
+            if not reset_material and os.path.exists(path):
+                os.rename(path, path_)
+            elif reset_material and os.path.exists(path_):
+                os.rename(path_, path)
+                
+    for j in tree.joints:
+        if j.parent == p_name:
+            c_name = j.child
+            for l in links:
+                if l.name == c_name:
+                    iter_tree(l, urdf_path, tree, links, reset_material)
+
+
+def find_all_objs_in_urdf(path, reset_material=True):
+    tree = urdfpy.URDF.load(path)
+    r = tree.base_link
+    links = tree.links
+    iter_tree(r, path, tree, links, reset_material)
+
+def generate_text_image(image):
+    # 创建绘图对象
+    draw = ImageDraw.Draw(image)
+    # 选择字体和大小
+    font = ImageFont.truetype('/home/pjlab/下载/经典宋体简/res.ttf', 72)
+    # 添加文字到图片上
+    draw.text((20, 20), '椅子', font=font, fill=(0, 0, 0))
+
+def add_noise_to_joint(joint):
+    scale = 0.03
+    if joint.type == "fixed":
+        return
+    
+    pos_in_child = joint.get_pose_in_child()
+    pos_in_parent = joint.get_pose_in_parent()
+    limit = joint.get_limits()
+    limit = limit[0]
+    if len(limit) == 0:
+        return
+    if np.isinf(limit[0]) and np.isinf(limit[1]):
+        pass
+    else:
+        if not np.isinf(limit[0]):
+            limit[0] += random.uniform(-0.1, 0.1)
+        if not np.isinf(limit[1]):
+            limit[1] += random.uniform(-0.1, 0.1)
+        joint.set_limits([limit])
+    print(pos_in_child.p, pos_in_parent.p)
+    print(pos_in_child.q, pos_in_parent.q)
+    
+    #if not joint.type == "prismatic":
+    joint.set_pose_in_child(sapien.Pose([pos_in_child.p[0] + random.uniform(-scale, scale), pos_in_child.p[1] + random.uniform(-scale, scale), pos_in_child.p[2] + random.uniform(-scale, scale)], 
+                                            [pos_in_child.q[0] + random.uniform(-scale, scale), pos_in_child.q[1] + random.uniform(-scale, scale), pos_in_child.q[2] + random.uniform(-scale, scale), pos_in_child.q[3] + random.uniform(-scale, scale)]))
 
 
 def main(id, catagory):
     #engine.set_log_level('warning')
 
-    if True:
+    if False:
         sapien.render.set_camera_shader_dir("rt")
         sapien.render.set_viewer_shader_dir("rt")
         sapien.render.set_ray_tracing_samples_per_pixel(64)  # change to 256 for less noise
@@ -30,7 +97,7 @@ def main(id, catagory):
     # sapien.physx.set_scene_config(scene_config)
 
     # NOTE: How to build (rigid bodies) is elaborated in create_actors.py
-    scene.add_ground(altitude=-10, render_half_size=[200, 200])  # Add a ground
+    #scene.add_ground(altitude=-10, render_half_size=[200, 200])  # Add a ground
 
     # Add some lights so that you can observe the scene
     scene.set_ambient_light([0.5, 0.5, 0.5])
@@ -47,9 +114,16 @@ def main(id, catagory):
     # The coordinate frame in Sapien is: x(forward), y(left), z(upward)
     # The principle axis of the camera is the x-axis
     #viewer.set_camera_xyz(x=18, y=-20, z=19)
-    viewer.set_camera_xyz(x=5, y=0, z=1)
+    # viewer.set_camera_xyz(x=-5, y=0, z=1)
+    # #viewer.set_camera_xyz(x=0.5, y=0, z=0.2)
+    # # The rotation of the free camera is represented as [roll(x), pitch(-y), yaw(-z)]
+    # # The camera now looks at the origin
+    # viewer.set_camera_rpy(r=0, p=-np.arctan2(2, 12), y= 0)
+    #viewer.set_camera_xyz(x=-3, y=-0.5, z=1)
+    viewer.set_camera_xyz(x=2.5, y=0, z=0.5)
     # The rotation of the free camera is represented as [roll(x), pitch(-y), yaw(-z)]
     # The camera now looks at the origin
+    #viewer.set_camera_rpy(r=0, p=-np.arctan2(2, 6), y= - 0.2 )
     viewer.set_camera_rpy(r=0, p=-np.arctan2(2, 12), y= 3.14)
     viewer.window.set_camera_parameters(near=0.05, far=100, fovy=1)
     near, far = 0.1, 100
@@ -95,8 +169,16 @@ def main(id, catagory):
     #     c = i % 10
     #     robot.set_root_pose(sapien.Pose([-10 + 2* c, -10  + 2 * r, 0], [1, 0, 0, 0]))
     #     robots.append(robot)
-    robots.append(loader.load(f"{dir}/{objs[id]}/mobility.urdf"))
+    find_all_objs_in_urdf(f"{dir}/{objs[id]}/mobility_no_collision.urdf", False)
+    robots.append(loader.load(f"{dir}/{objs[id]}/mobility_no_collision.urdf"))
+    #find_all_objs_in_urdf(f"{dir}/{objs[id]}/mobility_no_collision.urdf", True)
     robots[0].set_root_pose(sapien.Pose([0, 0, 0], [1, 0, 0, 0]))
+    r = robots[0]
+    for j in robots[0].get_joints():
+        add_noise_to_joint(j)
+    ls = r.get_links()
+    # for l in ls:
+    #     l.collision_shapes = []
     #robot = loader.load("/home/pjlab/projects/infinigen_sep_part_urdf/outputs/OfficeChairFactory/0/scene.urdf")
     #robot.set_root_pose(sapien.Pose([0, 0, 0], [1, 0, 0, 0]))
     all_poses = []
@@ -119,7 +201,10 @@ def main(id, catagory):
             limit = limit[0]
             lower = limit[0]
             upper = limit[1]
-            steps.append(0.03)
+            if np.isinf(lower) and np.isinf(upper):
+                lower = 0
+                upper = np.pi * 2
+            steps.append((upper - lower) * 2 / 200)
             valid_joints[valid_idx] = joint.name
             valid_joints_rev[joint.name] = valid_idx
             # if not math.isinf(upper) and not math.isinf(lower):
@@ -223,6 +308,7 @@ def main(id, catagory):
                         #     pos -= steps[valid_idx]
                         #     poses[valid_idx] = pos
                         valid_idx += 1
+                    print(poses)
                     robot.set_qpos(poses)
                     all_poses[i] = poses
                     all_steps[i] = steps
@@ -337,24 +423,35 @@ def main(id, catagory):
         rgba = viewer.window.get_picture("Color")
         rgba_img = (rgba * 255).clip(0, 255).astype("uint8")
         rgba_pil = Image.fromarray(rgba_img)
-        rgba_pil.save(f"pics/screenshot{step}.png")
+        generate_text_image(rgba_pil)
+        rgba_pil.save(f"pics_/screenshot{step}.png")
         step += 1
         print(step)
         if step == 300:
             break
         #print(scene.get_contacts())
         #print(step)
-    os.system(f"ffmpeg -r 30 -i pics/screenshot%d.png ./pics/gifs/{catagory}_{objs[id]}.gif")
-    os.system(f"gifsicle -O3 ./pics/gifs/{catagory}_{objs[id]}.gif -o ./pics/gifs/{catagory}_{objs[id]}.gif")
+    os.system("ffmpeg -r 30 -i ./pics_/screenshot%d.png -vf palettegen ./pics_/palette.png")
+    os.system(f"ffmpeg -r 30 -i ./pics_/screenshot%d.png -i ./pics_/palette.png -lavfi paletteuse ./pics_/gifs_/{catagory}_{id}.gif")
+    os.system("rm ./pics_/palette.png")
     viewer.close()
+    return True
 
 
 
 if __name__ == "__main__":
     catagory = 'chair'
+    max_number = 11
     json_path = f'./partnet_catagory_json/{catagory}.json'
     res = json.load(open(json_path))
+    # main(40, catagory)
+    # main(41, catagory)
+    # main(42, catagory)
+    # exit(0)
+    starting_number = 69
+    res = res[:max_number]
     for i in range(len(res)):
+        i += starting_number
         print(f"#########################################################################start {i} object##########################################################################")
         try:
             main(i, catagory)

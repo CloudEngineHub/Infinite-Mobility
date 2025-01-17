@@ -34,10 +34,10 @@ from infinigen.assets.utils.object import (
 from infinigen.assets.utils.auxiliary_parts import random_auxiliary
 
 import bmesh
-
+co_seat = None
 def geometry_assemble_chair(nw: NodeWrangler, **kwargs):
     # Code generated using version 2.6.4 of the node_transpiler
-
+    global co_seat
     generateseat = nw.new_node(
         generate_curvy_seats().name,
         input_kwargs={
@@ -80,6 +80,10 @@ def geometry_assemble_chair(nw: NodeWrangler, **kwargs):
         "wheeled": kwargs.get("Leg Pole Number", 0) + 2
     }
     parts = [3, parts_legs[kwargs["Leg Style"]]]
+    if kwargs.get("aux_back", None) is not None and kwargs.get("aux_seat_whole", None) is None:
+        seat_idx = 1
+    else:
+        seat_idx = 0
 
     first = True
     last_idx = None
@@ -200,6 +204,7 @@ def geometry_assemble_chair(nw: NodeWrangler, **kwargs):
                             first_wheel = False
                         elif k == 4:
                             parent_idx = 21 if kwargs['Leg Pole Number'] == 5 else 21 - 4 * (5 - kwargs['Leg Pole Number'])
+                            parent_idx += seat_idx
                             joint_info = {
                                 "name": get_joint_name("fixed"),
                                 "type": "fixed"
@@ -243,15 +248,13 @@ def geometry_assemble_chair(nw: NodeWrangler, **kwargs):
                             "type": "prismatic",
                             "axis": (0, 0, 1),
                             "limit": {
-                                "lower": -(kwargs['Top Height'] - kwargs['Leg Joint Height']) * 0.7,
+                                "lower": (kwargs["Leg Joint Height"] - (kwargs['Height'] - kwargs['Top Thickness'])) * 0.8,
                                 "upper": 0,
-                                "lower_1": -0.2,
-                                "upper_1": 0
                             },
-                            "axis_1": (0, 0, 1),
                         }
                     if i == 0:
                         def add_thickness(obj):
+                            global co_seat
                             bpy.ops.object.make_single_user(type='SELECTED_OBJECTS', 
                                 object=True, 
                                 obdata=True, 
@@ -273,6 +276,7 @@ def geometry_assemble_chair(nw: NodeWrangler, **kwargs):
                             bpy.context.object.modifiers["Smooth"].iterations = 100
                             bpy.ops.object.modifier_apply(modifier="Smooth")
                             obj.name = "seat"
+                            co_seat = read_co(obj)
 
                             # print("1111")
                             # input()
@@ -281,36 +285,62 @@ def geometry_assemble_chair(nw: NodeWrangler, **kwargs):
                             # bpy.context.object.modifiers["Subdivision"].render_levels = 2
                             # bpy.ops.object.modifier_apply(modifier="Subdivision")
                         substitute = None
-                        if kwargs.get("aux_seat", None) is not None:
-                            seat = butil.deep_clone_obj(kwargs['aux_seat'][0])
+                        if kwargs.get("aux_seat_whole", None) is not None:
+                            seat = butil.deep_clone_obj(kwargs['aux_seat_whole'][0])
                             add_thickness = None
                             seat.rotation_euler = (np.pi / 2, 0, 0)
                             butil.apply_transform(seat, True)
                             def substitute(obj):
+                                global co_seat
                                 co = read_co(obj)
+                                co_seat = co
                                 scale = co[:, 0].max() - co[:, 0].min(), co[:, 1].max() - co[:, 1].min(), co[:, 2].max() - co[:, 2].min()
                                 seat.scale = (scale[0], scale[1], scale[2])
                                 butil.apply_transform(seat, True)
                                 seat.location = (0, 0, co[:, 2].max() - scale[2] / 2)
-                                seat.location[2] *= 0.97
-
-                                # co = read_co(seat)                                
-                                # #id = np.argmin(co[:, 2])
-                                # min_z = co[:, 2].min()
-                                # x = []
-                                # y = []
-                                # for i in range(len(co)):
-                                #     if co[i][2] == min_z:
-                                #         x.append(co[i][0])
-                                #         y.append(co[i][1])
-                                # x = np.mean(x)
-                                # y = np.mean(y)
-                                # seat.location = (x, y, co[:, 2].max() / 2 + min_z)
-                                        
-
+                                seat.location[2] *= 0.99
                                 butil.apply_transform(seat, True)
                                 obj = seat
                                 return obj
+                        elif kwargs.get("aux_back", None) is not None:
+                            back = butil.deep_clone_obj(kwargs['aux_back'][0])
+                            seat = butil.deep_clone_obj(kwargs['aux_seat'][0])
+                            add_thickness = None
+                            seat.rotation_euler = (np.pi / 2, 0, 0)
+                            butil.apply_transform(seat, True)
+                            back.rotation_euler = (np.pi / 2, 0, 0)
+                            butil.apply_transform(back, True)
+                            def substitute(obj):
+                                global co_seat
+                                co = read_co(obj)
+                                co_seat = co
+                                scale = co[:, 0].max() - co[:, 0].min(), co[:, 1].max() - co[:, 1].min(), co[:, 2].max() - co[:, 2].min()
+                                seat.scale = (scale[0], scale[1], scale[2] * uniform(0.05, 0.1))
+                                scale_h = seat.scale[2]
+                                butil.apply_transform(seat, True)
+                                seat.location = (0, 0, co[:, 2].min() * 1.03)
+                                butil.apply_transform(seat, True)
+                                #co_seat_ = read_co(seat)
+                                back.scale = (scale[0], scale[1] * uniform(0.1, 0.2), scale[2] - scale_h)
+                                back_h = back.scale[2]
+                                butil.apply_transform(back, True)
+                                co_s = read_co(seat)
+                                back.location = (0, co_s[:, 1].max(), co[:, 2].min() + back_h / 2)
+                                butil.apply_transform(back, True)
+                                co_b = read_co(back)
+                                save_obj_parts_add(back, kwargs.get("path", None), kwargs.get("i", "unknown"), "back", first=True, use_bpy=True, material=kwargs["TopMaterial"], parent_obj_id=1, joint_info={
+                                    "name": get_joint_name("revolute"),
+                                    "type": "revolute",
+                                    "axis": (1, 0, 0),
+                                    "origin_shift": (0,  - (co_b[:, 1].max() - co_b[:, 1].min()) / 2,  - (co_b[:, 2].max() - co_b[:, 2].min()) / 2),
+                                    "limit":{
+                                        "lower": -np.pi / 10,
+                                        "upper": 0
+                                    }
+                                })
+                                first = False
+                                obj = seat
+                                return {"object": obj, "first": first}
                         after_separate = add_thickness
 
                     a = save_geometry(
@@ -330,10 +360,12 @@ def geometry_assemble_chair(nw: NodeWrangler, **kwargs):
                         first = False
                         last_idx = a[0]
     
-    add_joint(last_idx, 0, {
+    add_joint(last_idx, seat_idx, {
         "name": get_joint_name("continuous"),
         "type" :    "continuous",
-        "axis": (0, 0, 1)})
+        "axis": (0, 0, 1),#(0, 0, 1)
+        #"origin_shift": (uniform(-0.2, 0.2), uniform(-0.2, 0.2), 0),
+        })
     
     # save_geometry(
     #     nw,
@@ -368,12 +400,22 @@ class OfficeChairFactory(AssetFactory):
         if self.use_aux_wheel:
             self.params['aux_wheel'] = self.aux_wheel
         self.adjustable_back = choice([True, False], p=[0, 1])
-        self.use_aux_seat = choice([True, False], p=[0.8, 0.2])
-        #self.use_aux_seat = False
+        self.use_aux_seat = choice([True, False], p=[0.7, 0.3])
+        self.use_aux_back_and_seat = choice([True, False], p=[0.5, 0.5])
         self.aux_seat = None
         if self.use_aux_seat:
             self.aux_seat = random_auxiliary("chair_seat_whole")
+            self.params['aux_seat_whole'] = self.aux_seat
+        elif self.use_aux_back_and_seat:
+            self.aux_seat = random_auxiliary("chair_seat")
             self.params['aux_seat'] = self.aux_seat
+            self.aux_back = random_auxiliary("chair_back")
+            self.params['aux_back'] = self.aux_back
+            
+        self.use_aux_whole_arm = choice([True, False], p=[0.2, 0.8])
+        if self.use_aux_whole_arm:
+            self.params['aux_whole_arm'] = random_auxiliary("chair_arm_whole")[0]
+
         
 
 
@@ -486,7 +528,7 @@ class OfficeChairFactory(AssetFactory):
             leg_diameter = uniform(0.03, 0.05)
             leg_number = 1
             pole_number = randint(3, 10)
-            #pole_number = 3
+            #pole_number = 2
             joint_height = uniform(0.5, 0.8) * (z - top_thickness)
             wheel_arc_sweep_angle = uniform(120, 240)
             wheel_width = uniform(0.11, 0.15)
@@ -522,6 +564,7 @@ class OfficeChairFactory(AssetFactory):
         bpy.ops.object.mode_set(mode='OBJECT')
 
     def create_asset(self, **params):
+        global co_seat
         #params.update("wheel_width", self.wheel_width)
         bpy.ops.mesh.primitive_plane_add(
             size=2,
@@ -548,6 +591,25 @@ class OfficeChairFactory(AssetFactory):
         if self.use_aux_seat and self.aux_seat[1]['need_arm'] == "False":
             has_arm = False
         #has_arm = False
+        if self.use_aux_back_and_seat and not self.use_aux_seat:
+            seat_idx = 1
+        else:
+            seat_idx = 0
+        if self.use_aux_whole_arm and has_arm:
+            has_arm = False
+            arm = butil.deep_clone_obj(self.params['aux_whole_arm'])
+            arm.rotation_euler = (np.pi / 2, 0, 0)
+            butil.apply_transform(arm, True)
+            scale = co_seat[:, 0].max() - co_seat[:, 0].min(), co_seat[:, 1].max() - co_seat[:, 1].min(), co_seat[:, 2].max() - co_seat[:, 2].min()
+            arm.scale = (scale[0], scale[1]* uniform(0.8, 1), scale[2] * uniform(0.2, 0.5))
+            scale_h = arm.scale[2]
+            butil.apply_transform(arm, True)
+            arm.location = (0, 0, co_seat[:, 2].min() * 1.02 + scale_h / 2)
+            butil.apply_transform(arm, True)
+            save_obj_parts_add(arm, params.get("path"), params.get("i"), "arm", first=False, use_bpy=True, parent_obj_id=seat_idx, material=self.params["LegMaterial"], joint_info={
+                 "name": get_joint_name("fixed"),
+                 "type": "fixed"
+            })
         if has_arm:
             self.params['Top Back Relative Width'] = max(self.params['Top Back Relative Width'], self.params['Top Mid Relative Width'], self.params['Top Front Relative Width']) * 1.1
             seat = bpy.data.objects['seat']
@@ -584,7 +646,7 @@ class OfficeChairFactory(AssetFactory):
             arm_l_.location = (pos[0] + width / 2 , pos[1], pos[2])
             butil.apply_transform(arm_l_, True)
             self.bevel(arm_l_)
-            res_l_ = save_obj_parts_add(arm_l_, params.get("path"), params.get("i"), "arm", first=False, use_bpy=True, parent_obj_id=0, joint_info={
+            res_l_ = save_obj_parts_add(arm_l_, params.get("path"), params.get("i"), "arm", first=False, use_bpy=True, parent_obj_id=seat_idx, joint_info={
                  "name": get_joint_name("fixed"),
                  "type": "fixed"
             }, material=self.params["LegMaterial"])
@@ -624,7 +686,7 @@ class OfficeChairFactory(AssetFactory):
             arm_r_.location = (-pos[0] - width / 2 , pos[1], pos[2])
             butil.apply_transform(arm_r_, True)
             self.bevel(arm_r_)
-            res_r_ = save_obj_parts_add(arm_r_, params.get("path"), params.get("i"), "arm", first=False, use_bpy=True, parent_obj_id=0, joint_info={
+            res_r_ = save_obj_parts_add(arm_r_, params.get("path"), params.get("i"), "arm", first=False, use_bpy=True, parent_obj_id=seat_idx, joint_info={
                  "name": get_joint_name("fixed"),
                  "type": "fixed"
             }, material=self.params["LegMaterial"])
@@ -657,7 +719,7 @@ class OfficeChairFactory(AssetFactory):
             stretcher_.location[2] = pos[2] - 0.03
             stretcher_.location[0] = self.params['Top Profile Width'] * self.params['Top Back Relative Width'] * 0.45
             butil.apply_transform(stretcher_, True)
-            res_s_ = save_obj_parts_add(stretcher_, params.get("path"), params.get("i"), "arm", first=False, use_bpy=True, parent_obj_id=0, joint_info={
+            res_s_ = save_obj_parts_add(stretcher_, params.get("path"), params.get("i"), "arm", first=False, use_bpy=True, parent_obj_id=seat_idx, joint_info={
                  "name": get_joint_name("revolute_prismatic"),
                  "type": "revolute_prismatic",
                     "axis": (1, 0, 0),
@@ -682,7 +744,7 @@ class OfficeChairFactory(AssetFactory):
             stretcher__.location[2] = pos[2] - 0.03
             stretcher__.location[0] = -self.params['Top Profile Width'] * self.params['Top Back Relative Width'] * 0.45
             butil.apply_transform(stretcher__, True)
-            res_s__ = save_obj_parts_add(stretcher__, params.get("path"), params.get("i"), "arm", first=False, use_bpy=True, parent_obj_id=0, joint_info={
+            res_s__ = save_obj_parts_add(stretcher__, params.get("path"), params.get("i"), "arm", first=False, use_bpy=True, parent_obj_id=seat_idx, joint_info={
                  "name": get_joint_name("revolute_prismatic"),
                  "type": "revolute_prismatic",
                     "axis": (1, 0, 0),
@@ -757,7 +819,7 @@ class OfficeChairFactory(AssetFactory):
             #write_co(arm_l, co)
             base = join_objects([base, stretcher])
             self.bevel(base, 0.002)
-            save_obj_parts_add(base, params.get("path"), params.get("i"), "arm", first=False, use_bpy=True, parent_obj_id=0, joint_info={
+            save_obj_parts_add(base, params.get("path"), params.get("i"), "arm", first=False, use_bpy=True, parent_obj_id=seat_idx, joint_info={
                  "name": get_joint_name("fixed"),
                  "type": "fixed"
             }, material=self.params["LegMaterial"])

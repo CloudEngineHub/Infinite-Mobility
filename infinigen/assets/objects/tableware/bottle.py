@@ -221,7 +221,7 @@ class BottleFactory(AssetFactory):
             }
         })
         obj = join_objects([bottle, wrap, cap])
-        #join_objects_save_whole([obj], params.get("path", None), params.get("i", "unknown"), "bottle_whole", join=False, use_bpy=True)
+        join_objects_save_whole([obj], params.get("path", None), params.get("i", "unknown"), "bottle_whole", join=False, use_bpy=True)
         #save_obj_parts_add([obj], params.get("path", None), params.get("i", "unknown"), "bottle_whole", first=False, use_bpy=True)
         return obj
 

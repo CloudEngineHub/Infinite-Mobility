@@ -252,11 +252,11 @@ class KitchenCabinetBaseFactory(AssetFactory):
             normal_wood_params = shader_shelves_wood_sampler()
             if params["frame_material"] == "white":
                 if randomness:
-                    params["frame_material"] = lambda x: shader_shelves_white(
-                        x, **white_wood_params
+                    params["frame_material"] = lambda x: shader_shelves_wood(
+                        x, **normal_wood_params
                     )
                 else:
-                    params["frame_material"] = shader_shelves_white
+                    params["frame_material"] = shader_shelves_wood
             elif params["frame_material"] == "black_wood":
                 if randomness:
                     params["frame_material"] = lambda x: shader_shelves_black_wood(
@@ -278,11 +278,11 @@ class KitchenCabinetBaseFactory(AssetFactory):
 
             if params["board_material"] == "white":
                 if randomness:
-                    params["board_material"] = lambda x: shader_shelves_white(
-                        x, **white_wood_params
+                    params["board_material"] = lambda x: shader_shelves_wood(
+                        x, **normal_wood_params
                     )
                 else:
-                    params["board_material"] = shader_shelves_white
+                    params["board_material"] = shader_shelves_wood
             elif params["board_material"] == "black_wood":
                 if randomness:
                     params["board_material"] = lambda x: shader_shelves_black_wood(
@@ -496,7 +496,7 @@ class KitchenCabinetBaseFactory(AssetFactory):
         global target
         target = 0
         first = True
-        for i in range(10 * len(components)):
+        for i in range(100 * len(components)):
             bpy.ops.mesh.primitive_plane_add(
                 size=1,
                 enter_editmode=False,
@@ -560,6 +560,8 @@ class KitchenCabinetBaseFactory(AssetFactory):
             save_obj_parts_add(obj_, params.get("path", None), idx_, use_bpy=True, first=first, parent_obj_id=parent_id, joint_info=joint_info)
             first = False
         first =True
+        bevel_upper = uniform(0, 30)
+        segments = int(uniform(10, 30))
         for i, c in enumerate(components):
             if c[1] == "door":
                 butil.delete(c[2][:-2])
@@ -567,6 +569,15 @@ class KitchenCabinetBaseFactory(AssetFactory):
                 butil.delete([x[0] for x in c[2]])
             c[0].location = (0, cabinet_params[i], 0)
             butil.apply_transform(c[0], loc=True)
+            butil.select_none()
+            c[0].select_set(True)
+            bpy.context.view_layer.objects.active = c[0]
+            bpy.ops.object.modifier_add(type='BEVEL')
+            #bpy.context.object.modifiers["Bevel"].width = bevel_upper
+            bpy.context.object.modifiers["Bevel"].offset_type = 'PERCENT'
+            bpy.context.object.modifiers["Bevel"].width_pct = bevel_upper
+            bpy.context.object.modifiers["Bevel"].segments = segments
+            bpy.ops.object.modifier_apply(modifier="Bevel")
             save_obj_parts_add(c[0], params.get("path", None), idx_, use_bpy=True, first=False)
             first =False
             join_objs.append(c[0])
@@ -591,6 +602,7 @@ class KitchenCabinetFactory(KitchenCabinetBaseFactory):
         params = dict()
         if self.dimensions is None:
             dimensions = (uniform(0.25, 0.35), uniform(1.0, 4.0), uniform(0.5, 1.3))
+            #dimensions = (uniform(0.25, 0.35), uniform(1.0, 4.0), uniform(30, 35))
             self.dimensions = dimensions
         else:
             dimensions = self.dimensions

@@ -60,7 +60,7 @@ def to_colonical(obj):
 
 
 
-dir_path = "/home/pjlab/datasets/parts/chair_arm_whole/4"
+dir_path = "/home/pjlab/datasets/parts/knob_handle/1"
 parts = os.listdir(dir_path)
 paths = [f"{dir_path}/{part}" for part in parts if part.endswith('obj')]
 objs = []

@@ -63,7 +63,7 @@ class DishwasherFactory(AssetFactory):
         self.aux_handle = random_auxiliary("handles")
         self.use_aux_divider = choice([True, False], p=[0.8, 0.2])
         self.use_aux_handle = choice([True, False], p=[0.8, 0.2])
-        self.control_in_door = choice([True, False], p=[0.5, 0.5])
+        self.control_on_door = choice([True, False], p=[0.5, 0.5])
 
     def get_material_params(self):
         material_assignments = AssetList["DishwasherFactory"]()

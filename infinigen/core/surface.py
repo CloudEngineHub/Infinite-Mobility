@@ -201,6 +201,11 @@ def eval_argument(nw, argument, default_value=1.0, **kwargs):
         return argument
     else:
         raise ValueError(f"surface.eval_argument couldnt parse {argument}")
+    
+def ng_to_material(name, ng):
+    material = bpy.data.materials.new(name=name)
+    material.use_nodes = True
+    material.node_tree.nodes = ng
 
 
 def shaderfunc_to_material(shader_func, *args, name=None, **kwargs):

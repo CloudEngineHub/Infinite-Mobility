@@ -15,7 +15,7 @@ from numpy.random import uniform as U
 from infinigen.assets.lighting.indoor_lights import PointLampFactory
 from infinigen.assets.material_assignments import AssetList
 from infinigen.assets.utils.decorate import read_co, write_co
-from infinigen.assets.utils.object import get_joint_name, join_objects_save_whole, save_obj_parts_add
+from infinigen.assets.utils.object import get_joint_name, join_objects, join_objects_save_whole, save_obj_parts_add
 from infinigen.core import surface
 from infinigen.core.nodes import node_utils
 from infinigen.core.nodes.node_utils import save_geometry, save_geometry_new
@@ -23,6 +23,7 @@ from infinigen.core.nodes.node_wrangler import Nodes, NodeWrangler
 from infinigen.core.placement.factory import AssetFactory
 from infinigen.core.util import blender as butil
 from infinigen.core.util.math import FixedSeed
+from infinigen.assets.objects.lamp.utils import create_curve
 
 
 class LampFactory(AssetFactory):
@@ -88,7 +89,25 @@ class LampFactory(AssetFactory):
             },
         }
         with FixedSeed(factory_seed):
-            self.params = self.sample_parameters(dimensions)
+            self.support_type = np.random.choice(["round", "straight line"])
+            self.params = self.sample_parameters(dimensions, use_default=False)
+            self.straight_desk_lamp = np.random.choice([True, False], p=[0.2, 0.8])
+            self.h = self.params["CurvePoint3"][2]
+            self.support_distance = self.h * np.random.uniform(0.4, 0.6)
+            self.is_chain_style_light = np.random.choice([True, False], p=[0.5, 0.5])
+            #self.is_chain_style_light = True
+            #self.straight_desk_lamp = False
+            if self.lamp_type == "DeskLamp" and not self.straight_desk_lamp and not self.is_chain_style_light:
+                self.params['ReverseLamp'] = False
+                self.params['HeadTopRadius'] *= 0.7
+                self.params['HeadBotRadius'] *= 0.7
+                self.params['ShadeHeight'] *= 0.5
+                self.head_pos = -0.2 * np.random.uniform(0.2, 1)
+            if self.lamp_type == "DeskLamp" and not self.straight_desk_lamp and self.is_chain_style_light:
+                self.chain_segments = np.random.randint(2, 4)
+                self.params['ReverseLamp'] = False
+                #self.chain_length = self.h * np.random.uniform(0.2, 0.3)
+
             self.material_params, self.scratch, self.edge_wear = (
                 self.get_material_params()
             )
@@ -157,6 +176,7 @@ class LampFactory(AssetFactory):
             #     reverse_lamp = False
 
             params = {
+                "StandHeight": 0.3,
                 "StandRadius": stand_radius,
                 "BaseRadius": base_radius,
                 "BaseHeight": base_height,
@@ -213,6 +233,21 @@ class LampFactory(AssetFactory):
                     "type": "fixed"
                 }
                 if name == "bulb":
+                    if self.lamp_type == "DeskLamp" and not self.straight_desk_lamp and not self.is_chain_style_light:
+                        part.location = (self.support_distance, 0, self.head_pos)
+                        butil.apply_transform(part, True)
+                        co = read_co(part)
+                        center = ((co[:, 0].min() + co[:, 0].max()) / 2, (co[:, 1].min() + co[:, 1].max()) / 2, (co[:, 2].max() + co[:, 2].min()) / 2)
+                        part.location = (-center[0], -center[1], -co[:, 2].min())
+                        butil.apply_transform(part, True)
+                        part.rotation_euler = (0, np.pi, 0)
+                        butil.apply_transform(part, True)
+                        part.location = (self.support_distance, 0, self.h + self.head_pos)
+                        butil.apply_transform(part, True)
+                    elif self.lamp_type == "DeskLamp" and not self.straight_desk_lamp and self.is_chain_style_light:
+                        part.location = (0, 0, (self.h * 0.3 + self.params['StandRadius']) * self.chain_segments)
+                        butil.apply_transform(part, True)
+
                     parent_id = 1
                     joint_info = {
                         "name": get_joint_name("revolute_prismatic"),
@@ -222,24 +257,43 @@ class LampFactory(AssetFactory):
                         "limit": {
                             "lower": -np.pi,
                             "upper": np.pi,
-                            "lower_1": 0,
-                            "upper_1": 0.3
+                            "lower_1": -0.1 if self.lamp_type == "DeskLamp" and not self.straight_desk_lamp  else 0,
+                            "upper_1": 0 if self.lamp_type == "DeskLamp" and not self.straight_desk_lamp  else 0.1
                         }
                     }   
                 if name == "bulb_rack" and j == 1:
                     parent_id = 8
+                    if self.lamp_type == "DeskLamp" and not self.straight_desk_lamp and not self.is_chain_style_light:
+                        part.location = (self.support_distance, 0, self.head_pos)
+                        butil.apply_transform(part, True)
+                    elif self.lamp_type == "DeskLamp" and not self.straight_desk_lamp and self.is_chain_style_light:
+                        part.location = (0, 0, (self.h * 0.3 + self.params['StandRadius']) * self.chain_segments)
+                        butil.apply_transform(part, True)
+                        parent_id = 8 + 2 * self.chain_segments
                     joint_info = {
                         "name": get_joint_name("continuous"),
                         "type": "continuous",
                         "axis": [0, 0, 1]
                     }
                 elif name == "bulb_rack":
+                    if self.lamp_type == "DeskLamp" and not self.straight_desk_lamp and not self.is_chain_style_light:
+                        part.location = (self.support_distance, 0, self.head_pos)
+                        butil.apply_transform(part, True)
+                    elif self.lamp_type == "DeskLamp" and not self.straight_desk_lamp and self.is_chain_style_light:
+                        part.location = (0, 0, (self.h * 0.3 + self.params['StandRadius']) * self.chain_segments)
+                        butil.apply_transform(part, True)
                     parent_id = 1
                     joint_info = {
                         "name": get_joint_name("fixed"),
                         "type": "fixed"
                     }
                 if name == "lamp_head":
+                    if self.lamp_type == "DeskLamp" and not self.straight_desk_lamp and not self.is_chain_style_light:
+                        part.location = (self.support_distance, 0,self.head_pos)
+                        butil.apply_transform(part, True)
+                    elif self.lamp_type == "DeskLamp" and not self.straight_desk_lamp and self.is_chain_style_light:
+                        part.location = (0, 0, (self.h * 0.3 + self.params['StandRadius']) * self.chain_segments)
+                        butil.apply_transform(part, True)
                     parent_id = 1
                     joint_info = {
                         "name": get_joint_name("continuous"),
@@ -268,7 +322,69 @@ class LampFactory(AssetFactory):
                             "upper_1": 0
                         }
                     }
-                    save_obj_parts_add([part], params.get("path", None), i, name, first=first, use_bpy=True, material=[self.scratch, self.edge_wear], parent_obj_id=parent_id, joint_info=joint_info)
+                    res = save_obj_parts_add([part], params.get("path", None), i, name, first=first, use_bpy=True, material=[self.scratch, self.edge_wear], parent_obj_id=parent_id, joint_info=joint_info)
+                    if self.lamp_type == "DeskLamp" and not self.straight_desk_lamp and not self.is_chain_style_light:
+                        pts = [
+                            [0.0, 0.0, -0.2],
+                            [0.0, 0.0, 0.0],
+                            [self.support_distance * 0.25, 0, self.support_distance * np.random.uniform(0.6, 1.6) * 0.25],
+                            [self.support_distance * 0.5, 0, self.support_distance * np.random.uniform(0.6, 1.6) * 0.5],
+                            [self.support_distance * 0.75, 0, self.support_distance * np.random.uniform(0.6, 1.6) * 0.25],
+                            [self.support_distance, 0, 0],
+                            [self.support_distance, 0, self.head_pos],
+                        ]
+                        bpy.ops.curve.simple(align='WORLD', location=(0, 0, 0), rotation=(0, 0, 0), Simple_Type='Circle', Simple_sides=4, use_cyclic_u=True, edit_mode=False, Simple_radius=self.params['StandRadius'])
+                        curve = bpy.context.object
+                        curve.name = 'c'
+                        create_curve('support', 'c', pts, [], [1,1, 1,0,0,0,0,0,0,0,0,1, 1, 1], False)
+                        obj = bpy.data.objects['support']
+                        obj.location = (0, 0, high)
+                        butil.apply_transform(obj, True)
+                        joint_info = {
+                            "name": get_joint_name("fixed"),
+                            "type": "fixed",
+                            "axis": [0, 0, 1]
+                        }
+                        res = save_obj_parts_add([obj], params.get("path", None), i, 'support', first=False, use_bpy=True, material=[self.scratch, self.edge_wear, self.params['BlackMaterial']], parent_obj_id=res[0], joint_info=joint_info)
+                    elif self.lamp_type == "DeskLamp" and not self.straight_desk_lamp and self.is_chain_style_light:
+                        for s in range(self.chain_segments):
+                            seg = butil.deep_clone_obj(part, keep_materials=True)
+                            c_l = butil.spawn_cube()
+                            c_l.scale = (0.005, self.params['StandRadius'] * 2, self.params['StandRadius'] * 6)
+                            c_l.location = (-self.params['StandRadius'], 0, self.h + self.params['StandRadius'] + s * (self.h * 0.3 + 2 * self.params['StandRadius']))
+                            butil.apply_transform(c_l, True)
+                            c_r = butil.spawn_cube()
+                            c_r.scale = (0.005, self.params['StandRadius'] * 2, self.params['StandRadius'] * 6)
+                            c_r.location = (self.params['StandRadius'], 0, self.h + self.params['StandRadius'] + s * (self.h * 0.3 + 2 * self.params['StandRadius']))
+                            butil.apply_transform(c_r, True)
+                            connector = join_objects([c_l, c_r])
+                            seg.location = (0, 0, self.h * 0.3 + self.params['StandRadius'] + s * (self.h * 0.3 + 2 * self.params['StandRadius']))
+                            butil.apply_transform(seg, True)
+                            parent_id = 8  if s == 0 else res[0]
+                            joint_info = {
+                                "name": get_joint_name("revolute"),
+                                "type": "revolute",
+                                "axis": (1, 0, 0),
+                                "limit": {
+                                    "lower": -np.pi / 2,
+                                    "upper": np.pi / 2
+                                },
+                                "origin_shift": (0, 0, -2 * self.params['StandRadius'])
+                            }
+                            c = save_obj_parts_add([connector], params.get("path", None), i, 'connector', first=False, use_bpy=True, material=[self.scratch, self.edge_wear, self.params['BlackMaterial']], parent_obj_id=parent_id, joint_info=joint_info)
+                            parent_id = c[0]
+                            joint_info = {
+                                "name": get_joint_name("revolute"),
+                                "type": "revolute",
+                                "axis": (1, 0, 0),
+                                "limit": {
+                                    "lower": -np.pi / 2,
+                                    "upper": np.pi / 2
+                                },
+                                "origin_shift": (0, 0, self.params['StandRadius'] - 0.15 * self.h)
+                            }
+                            res = save_obj_parts_add([seg], params.get("path", None), i, name, first=False, use_bpy=True, material=[self.scratch, self.edge_wear], parent_obj_id=parent_id, joint_info=joint_info)
+
                     self.params['StandRadius'] *= 1.2
                     part = butil.spawn_cube()
                     butil.modify_mesh(
@@ -288,6 +404,23 @@ class LampFactory(AssetFactory):
                         "type": "continuous",
                         "axis": [0, 0, 1]
                     }
+                    parent_id = "world"
+                    pin = butil.spawn_cylinder()
+                    pin.rotation_euler = (0, np.pi / 2, 0)
+                    butil.apply_transform(pin, True)
+                    pin.scale = (self.params['StandRadius'] * 1.2 * 1.1 / 2, self.params['StandRadius'] * 0.2, self.params['StandRadius'] * 0.2)
+                    butil.apply_transform(pin, True)
+                    pin.location = (- self.params['StandRadius'] * 1.2 * 1.1 / 2, 0, co[:, 2].max() * np.random.uniform(0.7, 0.9))
+                    butil.apply_transform(pin, True)
+                    save_obj_parts_add([pin], params.get("path", None), i, 'pin', first=False, use_bpy=True, material=[self.scratch, self.edge_wear, self.params['BlackMaterial']], parent_obj_id=res[0] + 2, joint_info={
+                        "name": get_joint_name("prismatic"),
+                        "type": "prismatic",
+                        "axis": [1, 0, 0],
+                        "limit": {
+                            "lower": 0,
+                            "upper": 0.08 * self.params['StandRadius'] * 1.2
+                        }
+                    })
                 a = save_obj_parts_add([part], params.get("path", None), i, name, first=first, use_bpy=True, material=[self.scratch, self.edge_wear], parent_obj_id=parent_id, joint_info=joint_info)
                 first = False
         join_objects_save_whole([obj], params.get("path", None), i, join=False, use_bpy=True)
@@ -1009,6 +1142,7 @@ def nodegroup_lamp_geometry(nw: NodeWrangler, preprocess: bool = False, return_n
                     kwargs["inputs"]["BaseRadius"],
                 ),
                 ("NodeSocketFloat", "BaseHeight", kwargs["inputs"]["BaseHeight"]),
+                ("NodeSocketFloat", "StandHeight", kwargs["inputs"]["StandHeight"]),
                 ("NodeSocketFloat", "ShadeHeight", kwargs["inputs"]["ShadeHeight"]),
                 ("NodeSocketFloat", "HeadTopRadius", kwargs["inputs"]["HeadTopRadius"]),
                 ("NodeSocketFloat", "HeadBotRadius", kwargs["inputs"]["HeadBotRadius"]),
@@ -1046,6 +1180,7 @@ def nodegroup_lamp_geometry(nw: NodeWrangler, preprocess: bool = False, return_n
                 ("NodeSocketFloatDistance", "BaseRadius", 0.1000),
                 ("NodeSocketFloat", "BaseHeight", 0.0200),
                 ("NodeSocketFloat", "ShadeHeight", 0.0000),
+                ("NodeSocketFloat", "StandHeight", 1),
                 ("NodeSocketFloat", "HeadTopRadius", 0.3000),
                 ("NodeSocketFloat", "HeadBotRadius", 0.5000),
                 ("NodeSocketBool", "ReverseLamp", True),

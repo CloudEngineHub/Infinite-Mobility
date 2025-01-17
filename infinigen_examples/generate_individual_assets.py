@@ -378,6 +378,7 @@ def load_obj_and_render(obj_path, args):
             sky_texture = [n for n in nodes if n.name.startswith("Sky Texture")][-1]
             sky_texture.sun_elevation = np.deg2rad(args.elevation)
             sky_texture.sun_rotation = np.pi * 0.75
+    butil.save_blend("./outputs/scene.blend", autopack=True)
 
     bpy.ops.mesh.primitive_plane_add(location=(0, 0, 0), size=100)
     bpy.ops.mesh.primitive_plane_add(location=(10, 10, 0), size=100, rotation=(-np.pi / 2, 0, 0))

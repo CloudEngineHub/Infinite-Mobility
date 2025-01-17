@@ -75,12 +75,12 @@ def main():
 
     loader = scene.create_urdf_loader()
     robots = []
-    for i in range(10):
+    for i in range(100):
          try:
-             robot = loader.load(f"/home/pjlab/projects/infinigen_sep_part_urdf/outputs/DishwasherFactory/{i}/scene.urdf")
+             robot = loader.load(f"/home/pjlab/projects/infinigen_sep_part_urdf/outputs/OfficeChairFactory/{i}/scene.urdf")
              r = i / 10
              c = i % 10
-             robot.set_root_pose(sapien.Pose([-20 + 4* c, -20  + 4 * r, 0], [1, 0, 0, 0]))
+             robot.set_root_pose(sapien.Pose([-10 + 2* c, -10  + 2 * r, 0], [1, 0, 0, 0]))
              robots.append(robot)
          except:
              pass
@@ -108,7 +108,10 @@ def main():
             limit = limit[0]
             lower = limit[0]
             upper = limit[1]
-            steps.append(0.03)
+            if np.isinf(lower) and np.isinf(upper):
+                lower = 0
+                upper = np.pi * 2
+            steps.append((upper - lower) * 2 / 300)
             valid_joints[valid_idx] = joint.name
             valid_joints_rev[joint.name] = valid_idx
             # if not math.isinf(upper) and not math.isinf(lower):
@@ -126,6 +129,8 @@ def main():
         mode = "joint by joint"
     else:
         mode = "all joints"
+    #print(robots[0].)
+    #input()
 
 
     mode = "all joints"
@@ -149,9 +154,9 @@ def main():
     joint_dependency = {}
 
     considered_joints = ['joint_revolute_9', 'joint_prismatic_6', 'joint_prismatic_7', 'joint_prismatic_8']
-    print(valid_joints)
+    #print(valid_joints)
     considered_joints = [name for name in valid_joints.values() if 'prismatic' in name and 'lr' not in name]
-    print(considered_joints)
+    #print(considered_joints)
     considered_joints = []
 
     while not viewer.closed:
@@ -212,7 +217,8 @@ def main():
                         #     pos -= steps[valid_idx]
                         #     poses[valid_idx] = pos
                         valid_idx += 1
-                    #robot.set_qpos(poses)
+                    #print(len(poses))
+                    robot.set_qpos(poses[:robot.dof])
                     all_poses[i] = poses
                     all_steps[i] = steps
             else:

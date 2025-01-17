@@ -9,8 +9,11 @@ ALL_AUXILIARY_CATAGORY = [
     "drawers",
     "wheels",
     "chair_seat_whole",
+    "chair_arm_whole",
     "divider_plate",
     "strainer",
+    "chair_back",
+    "chair_seat",
 ]
 
 AUXILIARY_PATH = "/home/pjlab/datasets/parts"
@@ -55,7 +58,7 @@ def sample_auxiliary(catagory, id):
     if os.path.exists(f"{AUXILIARY_PATH}/{catagory}/{id}/whole/whole/whole.txt"):
         des = parse_description(f"{AUXILIARY_PATH}/{catagory}/{id}/whole/whole/whole.txt")
     obj = bpy.context.object
-    LOADED_AUXILIARY[f"{catagory}_{id}"] = deep_clone_obj(obj)
+    LOADED_AUXILIARY[f"{catagory}_{id}"] = deep_clone_obj(obj, keep_materials=False, keep_modifiers=False)
     return obj, des
     #return None
 

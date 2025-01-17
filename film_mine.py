@@ -1,4 +1,5 @@
 from PIL import Image
+import urdfpy
 import sapien as sapien
 from sapien.utils import Viewer
 import numpy as np
@@ -8,15 +9,80 @@ import json
 import random
 import mathutils
 
+from PIL import Image, ImageDraw, ImageFont
+
+def iter_tree(r, urdf_path, tree, links, reset_material=True):
+    p_name = r.name
+    if len(r.visuals) >= 1:
+        for v in r.visuals:
+            g = v.geometry
+            m = g.mesh
+            f = m.filename
+            path = urdf_path.replace('scene.urdf', f)
+            path_ = path.replace('.obj', '.mtl_')
+            path = path.replace('.obj', '.mtl')
+            if not reset_material and os.path.exists(path):
+                os.rename(path, path_)
+            elif reset_material and os.path.exists(path_):
+                os.rename(path_, path)
+                
+    for j in tree.joints:
+        if j.parent == p_name:
+            c_name = j.child
+            for l in links:
+                if l.name == c_name:
+                    iter_tree(l, urdf_path, tree, links, reset_material)
+
+
+def find_all_objs_in_urdf(path, reset_material=True):
+    tree = urdfpy.URDF.load(path)
+    r = tree.base_link
+    links = tree.links
+    iter_tree(r, path, tree, links, reset_material)
+
+def generate_text_image(image):
+    # 创建绘图对象
+    draw = ImageDraw.Draw(image)
+    # 选择字体和大小
+    font = ImageFont.truetype('/home/pjlab/下载/经典宋体简/res.ttf', 72)
+    # 添加文字到图片上
+    draw.text((20, 20), '椅子', font=font, fill=(0, 0, 0))
+
+
+def add_noise_to_joint(joint):
+    scale = 0.03
+    if joint.type == "fixed":
+        return
+    
+    pos_in_child = joint.get_pose_in_child()
+    pos_in_parent = joint.get_pose_in_parent()
+    limit = joint.get_limits()
+    limit = limit[0]
+    if len(limit) == 0:
+        return
+    if np.isinf(limit[0]) and np.isinf(limit[1]):
+        pass
+    else:
+        if not np.isinf(limit[0]):
+            limit[0] += random.uniform(-0.1, 0.1)
+        if not np.isinf(limit[1]):
+            limit[1] += random.uniform(-0.1, 0.1)
+        joint.set_limits([limit])
+    
+    #if not joint.type == "prismatic":
+    joint.set_pose_in_child(sapien.Pose([pos_in_child.p[0] + random.uniform(-scale, scale), pos_in_child.p[1] + random.uniform(-scale, scale), pos_in_child.p[2] + random.uniform(-scale, scale)], 
+                                            [pos_in_child.q[0] + random.uniform(-scale, scale), pos_in_child.q[1] + random.uniform(-scale, scale), pos_in_child.q[2] + random.uniform(-scale, scale), pos_in_child.q[3] + random.uniform(-scale, scale)]))
+    #joint.set_pose_in_parent(sapien.Pose([pos_in_parent.p[0] + random.uniform(-0.1, 0.1), pos_in_parent.p[1] + random.uniform(-0.1, 0.1), pos_in_parent.p[2] + random.uniform(-0.1, 0.1)], pos_in_parent.q))
+
 
 def main(id, catagory):
     #engine.set_log_level('warning')
 
-    if True:
+    if False:
         sapien.render.set_camera_shader_dir("rt")
         sapien.render.set_viewer_shader_dir("rt")
-        sapien.render.set_ray_tracing_samples_per_pixel(256)  # change to 256 for less noise
-        #sapien.render.set_ray_tracing_denoiser("oidn") # change to "optix" or "oidn"
+        #sapien.render.set_ray_tracing_samples_per_pixel(16)  # change to 256 for less noise
+        sapien.render.set_ray_tracing_denoiser("optix") # change to "optix" or "oidn"
 
 
     
@@ -31,7 +97,7 @@ def main(id, catagory):
     # sapien.physx.set_scene_config(scene_config)
 
     # NOTE: How to build (rigid bodies) is elaborated in create_actors.py
-    scene.add_ground(altitude=-10, render_half_size=[200, 200])  # Add a ground
+    #scene.add_ground(altitude=-10, render_half_size=[200, 200])  # Add a ground
 
     # Add some lights so that you can observe the scene
     scene.set_ambient_light([0.5, 0.5, 0.5])
@@ -49,8 +115,10 @@ def main(id, catagory):
     # The principle axis of the camera is the x-axis
     #viewer.set_camera_xyz(x=18, y=-20, z=19)
     viewer.set_camera_xyz(x=2, y=0, z=1)
-    # The rotation of the free camera is represented as [roll(x), pitch(-y), yaw(-z)]
-    # The camera now looks at the origin
+    # viewer.set_camera_xyz(x=2, y=0.7, z=1)
+    # # The rotation of the free camera is represented as [roll(x), pitch(-y), yaw(-z)]
+    # # The camera now looks at the origin
+    # viewer.set_camera_rpy(r=0, p=-np.arctan2(2, 3), y= 3.14 - 0.2)
     viewer.set_camera_rpy(r=0, p=-np.arctan2(2, 12), y= 3.14)
     viewer.window.set_camera_parameters(near=0.05, far=100, fovy=1)
     near, far = 0.1, 100
@@ -106,8 +174,12 @@ def main(id, catagory):
     #     c = i % 10
     #     robot.set_root_pose(sapien.Pose([-10 + 2* c, -10  + 2 * r, 0], [1, 0, 0, 0]))
     #     robots.append(robot)
+    find_all_objs_in_urdf(f"/home/pjlab/projects/infinigen_sep_part_urdf/outputs/{catagory}/{id}/scene.urdf", False)
     robots.append(loader.load(f"./outputs/{catagory}/{id}/scene.urdf"))
+    #find_all_objs_in_urdf(f"/home/pjlab/projects/infinigen_sep_part_urdf/outputs/{catagory}/{id}/scene.urdf", True)
     robots[0].set_root_pose(sapien.Pose([0, 0, 0], [1, 0, 0, 0]))
+    for j in robots[0].get_joints():
+        add_noise_to_joint(j)
     #robot = loader.load("/home/pjlab/projects/infinigen_sep_part_urdf/outputs/OfficeChairFactory/0/scene.urdf")
     #robot.set_root_pose(sapien.Pose([0, 0, 0], [1, 0, 0, 0]))
     all_poses = []
@@ -124,13 +196,17 @@ def main(id, catagory):
                 continue
             all_childs.append(joint.child_link.entity.name)
             limit = joint.get_limits()
-            print(joint.type, limit)
+            #print(joint.type, limit)
             if len(limit) == 0:
                 continue
             limit = limit[0]
             lower = limit[0]
             upper = limit[1]
-            steps.append(0.03)
+            #print(joint.pose_in_child, joint.pose_in_parent)
+            if np.isinf(lower) and np.isinf(upper):
+                lower = 0
+                upper = np.pi * 2
+            steps.append((upper - lower) * 2 / 200)
             valid_joints[valid_idx] = joint.name
             valid_joints_rev[joint.name] = valid_idx
             # if not math.isinf(upper) and not math.isinf(lower):
@@ -348,7 +424,9 @@ def main(id, catagory):
         rgba = viewer.window.get_picture("Color")
         rgba_img = (rgba * 255).clip(0, 255).astype("uint8")
         rgba_pil = Image.fromarray(rgba_img)
+        generate_text_image(rgba_pil)
         rgba_pil.save(f"pics/screenshot{step}.png")
+        
         # camera.take_picture()
         # rgba = camera.get_picture("Color")  # [H, W, 4]
         # rgba_img = (rgba * 255).clip(0, 255).astype("uint8")
@@ -356,21 +434,28 @@ def main(id, catagory):
         # rgba_pil.save(f"pics/screenshot{step}.png")
         step += 1
         print(step)
-        if step == 130:
+        if step == 300:
             break
         #print(scene.get_contacts())
         #print(step)
-    os.system(f"ffmpeg -r 30 -i pics/screenshot%d.png ./pics/gifs/{catagory}_{id}.gif")
-    os.system(f"gifsicle -O3 ./pics/gifs/{catagory}_{id}.gif -o ./pics/gifs/{catagory}_{id}.gif")
+    os.system("ffmpeg -r 30 -i ./pics/screenshot%d.png -vf palettegen ./pics/palette.png")
+    os.system(f"ffmpeg -r 30 -i ./pics/screenshot%d.png -i ./pics/palette.png -lavfi paletteuse ./pics/gifs/{catagory}_{id}.gif")
+    os.system("rm ./pics/palette.png")
+
+    #os.system(f"gifsicle -O3 ./pics/gifs/{catagory}_{id}.gif -o ./pics/gifs/{catagory}_{id}.gif")
     viewer.close()
 
 
 
 if __name__ == "__main__":
     number = 10
+    start_number = 70
     catagory = "OfficeChairFactory"
+    #main(4, catagory)
+    #main(9, catagory)
     for i in range(number):
         print(f"#########################################################################start {i} object##########################################################################")
+        i += start_number
         try:
             main(i, catagory)
         except Exception as e:

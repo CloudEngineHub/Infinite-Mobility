@@ -711,6 +711,7 @@ def run_blender_export(
                 export_colors=True,
                 export_eval_mode="DAG_EVAL_RENDER",
                 export_selected_objects=individual_export,
+                export_pbr_extensions=True,
                 export_materials=True,
                 export_normals = True,
                 apply_modifiers = True
