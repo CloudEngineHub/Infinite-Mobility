@@ -14,6 +14,7 @@ from numpy.random import uniform as U
 
 from infinigen.assets.lighting.indoor_lights import PointLampFactory
 from infinigen.assets.material_assignments import AssetList
+from infinigen.assets.utils.auxiliary_parts import random_auxiliary
 from infinigen.assets.utils.decorate import read_co, write_co
 from infinigen.assets.utils.object import get_joint_name, join_objects, join_objects_save_whole, save_obj_parts_add
 from infinigen.core import surface
@@ -32,7 +33,7 @@ class LampFactory(AssetFactory):
         factory_seed,
         coarse=False,
         dimensions=[1.0, 1.0, 1.0],
-        lamp_type="FloorLamp",
+        lamp_type=np.random.choice(["DeskLamp", "FloorLamp"], p=[0.7, 0.3]),
     ):
         super(LampFactory, self).__init__(factory_seed, coarse=coarse)
 
@@ -90,7 +91,7 @@ class LampFactory(AssetFactory):
         }
         with FixedSeed(factory_seed):
             self.support_type = np.random.choice(["round", "straight line"])
-            self.params = self.sample_parameters(dimensions, use_default=False)
+            self.params = self.sample_parameters(dimensions, use_default=np.random.choice([True, False], p=[0.1, 0.9]))
             self.straight_desk_lamp = np.random.choice([True, False], p=[0.2, 0.8])
             self.h = self.params["CurvePoint3"][2]
             self.support_distance = self.h * np.random.uniform(0.4, 0.6)
@@ -113,6 +114,11 @@ class LampFactory(AssetFactory):
             )
 
         self.params.update(self.material_params)
+        self.use_aux_shade = np.random.choice([True, False], p=[0.7, 0.3])
+        self.use_aux_shade = True
+        if self.use_aux_shade:
+            self.aux_shade = random_auxiliary("lamp_shade")
+
 
     def get_material_params(self):
         material_assignments = AssetList["LampFactory"]()
@@ -214,6 +220,7 @@ class LampFactory(AssetFactory):
         names = ["bulb", "bulb_rack", "lamp_head", "lamp"]
         parts = [1, 5, 1, 3, 3]
         first = True
+        idx_fix = 0
         for k, name in enumerate(names):
             for j in range(1, parts[k] + 1):
                 params = self.ps
@@ -233,6 +240,9 @@ class LampFactory(AssetFactory):
                     "type": "fixed"
                 }
                 if name == "bulb":
+                    if self.use_aux_shade and self.aux_shade[1].get("need_bulb", False) and self.aux_shade[1]["need_bulb"] == "False":
+                        idx_fix = -1
+                        continue
                     if self.lamp_type == "DeskLamp" and not self.straight_desk_lamp and not self.is_chain_style_light:
                         part.location = (self.support_distance, 0, self.head_pos)
                         butil.apply_transform(part, True)
@@ -248,7 +258,7 @@ class LampFactory(AssetFactory):
                         part.location = (0, 0, (self.h * 0.3 + self.params['StandRadius']) * self.chain_segments)
                         butil.apply_transform(part, True)
 
-                    parent_id = 1
+                    parent_id = 1 + idx_fix
                     joint_info = {
                         "name": get_joint_name("revolute_prismatic"),
                         "type": "revolute_prismatic",
@@ -262,19 +272,20 @@ class LampFactory(AssetFactory):
                         }
                     }   
                 if name == "bulb_rack" and j == 1:
-                    parent_id = 8
+                    parent_id = 8 + idx_fix
                     if self.lamp_type == "DeskLamp" and not self.straight_desk_lamp and not self.is_chain_style_light:
                         part.location = (self.support_distance, 0, self.head_pos)
                         butil.apply_transform(part, True)
                     elif self.lamp_type == "DeskLamp" and not self.straight_desk_lamp and self.is_chain_style_light:
                         part.location = (0, 0, (self.h * 0.3 + self.params['StandRadius']) * self.chain_segments)
                         butil.apply_transform(part, True)
-                        parent_id = 8 + 2 * self.chain_segments
+                        parent_id = 8 + 2 * self.chain_segments + idx_fix
                     joint_info = {
                         "name": get_joint_name("continuous"),
                         "type": "continuous",
                         "axis": [0, 0, 1]
                     }
+                    co_rack = read_co(part)
                 elif name == "bulb_rack":
                     if self.lamp_type == "DeskLamp" and not self.straight_desk_lamp and not self.is_chain_style_light:
                         part.location = (self.support_distance, 0, self.head_pos)
@@ -282,7 +293,7 @@ class LampFactory(AssetFactory):
                     elif self.lamp_type == "DeskLamp" and not self.straight_desk_lamp and self.is_chain_style_light:
                         part.location = (0, 0, (self.h * 0.3 + self.params['StandRadius']) * self.chain_segments)
                         butil.apply_transform(part, True)
-                    parent_id = 1
+                    parent_id = 1 + idx_fix
                     joint_info = {
                         "name": get_joint_name("fixed"),
                         "type": "fixed"
@@ -294,12 +305,27 @@ class LampFactory(AssetFactory):
                     elif self.lamp_type == "DeskLamp" and not self.straight_desk_lamp and self.is_chain_style_light:
                         part.location = (0, 0, (self.h * 0.3 + self.params['StandRadius']) * self.chain_segments)
                         butil.apply_transform(part, True)
-                    parent_id = 1
+                    parent_id = 1 + idx_fix
                     joint_info = {
                         "name": get_joint_name("continuous"),
                         "type": "continuous",
                         "axis": [0, 0, 1]
                     }
+                    if self.use_aux_shade:
+                        shade = self.aux_shade[0]
+                        co_shade = read_co(shade)
+                        co_part = read_co(part)
+                        shade.rotation_euler = (np.pi / 2, 0, np.pi / 2)
+                        butil.apply_transform(shade, True)
+                        scale = co_part[:, 0].max() - co_part[:, 0].min(), co_part[:, 1].max() - co_part[:, 1].min() , co_part[:, 2].max() - co_part[:, 2].min()
+                        shade.scale = scale
+                        butil.apply_transform(shade, True)
+                        if self.params['ReverseLamp']:
+                            shade.rotation_euler = (0, np.pi, 0)
+                            butil.apply_transform(shade, True)
+                        shade.location = (co_part[:, 0].max() + co_part[:, 0].min()) / 2, (co_part[:, 1].max() + co_part[:, 1].min()) / 2, (co_part[:, 2].max() + co_part[:, 2].min()) / 2
+                        butil.apply_transform(shade, True)
+                        part = shade
                 # for leg, seperate it into 2 parts, upper one is slim, lower one is thick
                 if name == "lamp" and j == 2:
                     co = read_co(part)
@@ -360,14 +386,14 @@ class LampFactory(AssetFactory):
                             connector = join_objects([c_l, c_r])
                             seg.location = (0, 0, self.h * 0.3 + self.params['StandRadius'] + s * (self.h * 0.3 + 2 * self.params['StandRadius']))
                             butil.apply_transform(seg, True)
-                            parent_id = 8  if s == 0 else res[0]
+                            parent_id = 8 + idx_fix  if s == 0 else res[0]
                             joint_info = {
                                 "name": get_joint_name("revolute"),
                                 "type": "revolute",
                                 "axis": (1, 0, 0),
                                 "limit": {
-                                    "lower": -np.pi / 2,
-                                    "upper": np.pi / 2
+                                    "lower": -np.pi / 6,
+                                    "upper": np.pi / 6
                                 },
                                 "origin_shift": (0, 0, -2 * self.params['StandRadius'])
                             }

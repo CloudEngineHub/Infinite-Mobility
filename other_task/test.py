@@ -1,111 +1,19 @@
-from inspect import signature
 import bpy
 import addon_utils
 addon_utils.enable("add_curve_extra_objects")
 import copy
 from math import radians, pi
 import mathutils
+#import torch
 import numpy as np
 import bmesh
 import math
-from utils import *
-#import torch
+from mathutils import Vector, Quaternion
+import itertools
 
+USE_MINIMUM_FACE=True
+AVERAGE_EDGE_LENGTH=None
 
-"""
-Reorder the coordinates so that the xyz is prioritized first, with the lowest x first
-"""
-
-def sort_coordinates(coords):
-    min_index = 0
-    
-    # find the min coord
-    coords = list(coords)
-    for i in range(1, len(coords)):
-        if coords[i][0] < coords[min_index][0]:
-            min_index = i
-        elif coords[i][0] == coords[min_index][0]:
-            if coords[i][1] < coords[min_index][1]:
-                min_index = i
-            elif coords[i][1] == coords[min_index][1]:
-                if coords[i][2] < coords[min_index][2]:
-                    min_index = i
-    list_new = coords[min_index:] + coords[:min_index]
-    points_new = np.array(list_new)
-    
-    return points_new
- 
-"""
-Reorder the coordinates for non-closed graphics so that the xyz is prioritized first, with the lowest x first
-"""
-def sort_coordinates_endpoint(points):
-    points = list(points)
-    start = points[0]
-    end = points[-1]
-
-    need_reverse = False
-    if start[0]>end[0]:
-        need_reverse = True
-    elif start[0]==end[0]:
-        if start[1]>end[1]:
-            need_reverse = True
-        elif start[1]==end[1]:
-            if start[2]>end[2]:
-                need_reverse = True
-    if need_reverse:
-        points.reverse()
-    points_new = np.array(points)
-
-    return points_new
-"""
-fill caps to mesh
-"""
-def make_caps(name,type="start"):
-    bpy.context.view_layer.objects.active = bpy.data.objects[name]
-    bpy.ops.object.mode_set(mode = 'EDIT')
-
-    object = bpy.data.objects[name]
-    mesh = bmesh.from_edit_mesh(object.data) 
-    mesh.verts.ensure_lookup_table()
-    
-    
-    if type=="start":
-        for i in range(len(mesh.verts)):
-            if mesh.verts[i].is_boundary and i<len(mesh.verts)/2:
-                mesh.verts[i].select=True
-        bpy.ops.mesh.edge_face_add()
-    elif type=="end":
-        for i in range(len(mesh.verts)):
-            if mesh.verts[i].is_boundary and i>len(mesh.verts)/2:
-                mesh.verts[i].select=True
-        bpy.ops.mesh.edge_face_add()
-    
-    bpy.context.view_layer.objects.active = bpy.data.objects[name]
-    bpy.ops.object.mode_set(mode = 'OBJECT')
-
-
-
-def find_circle(points):
-    """
-    Calculate the center (cx, cy) and radius r of the circle passing through three points.
-    Returns (cx, cy, r).
-    """
-    x1,y1 = points[0][0],points[0][1]
-    x2,y2 = points[1][0],points[1][1]
-    x3,y3 = points[2][0],points[2][1]
-    D = 2 * (x1 * (y2 - y3) + x2 * (y3 - y1) + x3 * (y1 - y2))
-    cx = ((x1**2 + y1**2) * (y2 - y3) + (x2**2 + y2**2) * (y3 - y1) + (x3**2 + y3**2) * (y1 - y2)) / (D+1e-10)
-    cy = ((x1**2 + y1**2) * (x3 - x2) + (x2**2 + y2**2) * (x1 - x3) + (x3**2 + y3**2) * (x2 - x1)) / (D+1e-10)
-    r = math.sqrt((cx - x1)**2 + (cy - y1)**2)
-    return cx, cy, r
-
-def calculate_angle(x1, y1, x2, y2):
-    """
-    Calculate the angle in radians between the positive x-axis and the line from (x1, y1) to (x2, y2).
-    """
-    dx = x2 - x1
-    dy = y2 - y1
-    return math.atan2(dy, dx)
 
 """
 Delete all objects in the scene
@@ -118,225 +26,7 @@ def delete_all():
         bpy.ops.wm.read_homefile()
         bpy.ops.object.select_all(action='SELECT')
         bpy.ops.object.delete()
-"""
-Create primitive object
-"""
-def create_primitive(name, primitive_type="cube", location=None, scale=None, rotation=None, rotation_mode='XYZ', **kwargs):
-    getattr(bpy.ops.mesh, f"primitive_{primitive_type}_add")(**kwargs)
-    primitive = bpy.context.object
-    primitive.name = name
-    if location:
-        primitive.location = location
-    if scale:
-        primitive.scale = scale
-    if rotation:
-        if rotation_mode=='XYZ':
-            primitive.rotation_euler = [angle * pi for angle in rotation]
-        elif rotation_mode=='QUATERNION':
-            primitive.rotation_mode = 'QUATERNION'
-            primitive.rotation_quaternion = rotation
-        elif rotation_mode=='MATRIX':
-            mat = np.eye(4)
-            rotation = np.array(rotation).reshape([3,3])
-            mat[:3,:3] = rotation
-            bpy.context.view_layer.update()
-            world_matrix = torch.tensor(bpy.data.objects[name].matrix_world)
-            scale_now = world_matrix.norm(dim=0)[:3]
-            scale_matrix = torch.eye(4)
-            scale_matrix[0,0],scale_matrix[1,1],scale_matrix[2,2] =scale_now[0],scale_now[1],scale_now[2]
-            scale_matrix_inv = scale_matrix.clone()
-            for i in range(3):
-                #对角矩阵取逆，如果对角线上元素为0，则还保持为0
-                if scale_matrix_inv[i,i]>1e-10:
-                    scale_matrix_inv[i,i]=1.0 / scale_matrix_inv[i,i]
-            mat = scale_matrix_inv@torch.tensor(mat,dtype=torch.float32)@scale_matrix
-            mat = mathutils.Matrix(np.array(mat))
-            bpy.data.objects[name].matrix_world = bpy.data.objects[name].matrix_world@mat
 
-    return primitive
-
-"""
-Perform a Boolean operation on both objects and delete the second object
-"""
-def boolean_operation(name1, name2, operation="UNION"):
-    bpy.data.objects[name1].modifiers.new("Boolean", "BOOLEAN")
-    bpy.data.objects[name1].modifiers["Boolean"].object = bpy.data.objects[name2]
-    bpy.data.objects[name1].modifiers["Boolean"].operation = operation
-    bpy.context.view_layer.objects.active = bpy.data.objects[name1]
-    bpy.ops.object.modifier_apply(modifier="Boolean")
-    bpy.data.objects.remove(bpy.data.objects[name2], do_unlink=True)
-    
-
-"""
-Create a BEZIER curve
-"""
-def create_curve(name, control_points=[], resolution=12):
-    coords = control_points
-
-    curveData = bpy.data.curves.new(name, type='CURVE')
-    curveData.dimensions = '3D'
-    curveData.resolution_u = resolution
-
-    bezierSpline = curveData.splines.new('BEZIER')
-    bezierSpline.bezier_points.add(len(coords) - 1) 
-
-    for i, coord in enumerate(coords):
-        x, y, z = coord
-        bezier_point = bezierSpline.bezier_points[i]
-        bezier_point.co = (x, y, z)
-        bezier_point.handle_left_type = 'AUTO'
-        bezier_point.handle_right_type = 'AUTO'
-
-    curveOB = bpy.data.objects.new(name, curveData)
-
-    scn = bpy.context.scene.collection
-    scn.objects.link(curveOB)
-    points_sorted = sort_coordinates(control_points)
-    
-    return {"name":name, "points":points_sorted - points_sorted[0]}
-
-
-
-"""
-Creates a U-shaped (opening up) Bezier curve
-"""
-def create_symmetric_curve(name, control_points=[], resolution=12):
-    copy.deepcopy(control_points)
-    coords = []
-    for point in control_points[::-1]:
-        x, y, z = point
-        coords.append((-x, y, z))
-    for point in control_points[1:]:
-        coords.append(point)
-
-    curveData = bpy.data.curves.new(name, type='CURVE')
-    curveData.dimensions = '3D'
-    curveData.resolution_u = resolution
-
-    bezierSpline = curveData.splines.new('BEZIER')
-    bezierSpline.bezier_points.add(len(coords) - 1) 
-
-    for i, coord in enumerate(coords):
-        x, y, z = coord
-        bezier_point = bezierSpline.bezier_points[i]
-        bezier_point.co = (x, y, z)
-        bezier_point.handle_left_type = 'AUTO'
-        bezier_point.handle_right_type = 'AUTO'
-
-    curveOB = bpy.data.objects.new(name, curveData)
-
-    scn = bpy.context.scene.collection
-    scn.objects.link(curveOB)
-    
-    return curveOB
-
-
-"""
-Creates a symmetrically closed Bezier curve
-"""
-def create_closed_sym_curve(name, control_points=[], resolution=12):
-    coords = copy.deepcopy(control_points)
-    for points in control_points[1:][::-1]:
-        x, y, z = points
-        coords.append((-x, y, z))
-
-    curveData = bpy.data.curves.new(name, type='CURVE')
-    curveData.dimensions = '3D'
-    curveData.resolution_u = resolution
-
-    bezierSpline = curveData.splines.new('BEZIER')
-    bezierSpline.bezier_points.add(len(coords) - 1) 
-    bezierSpline.use_cyclic_u = True
-
-    for i, coord in enumerate(coords):
-        x, y, z = coord
-        bezier_point = bezierSpline.bezier_points[i]
-        bezier_point.co = (x, y, z)
-        bezier_point.handle_left_type = 'AUTO'
-        bezier_point.handle_right_type = 'AUTO'
-
-    curveOB = bpy.data.objects.new(name, curveData)
-
-    scn = bpy.context.scene.collection
-    scn.objects.link(curveOB)
-    
-    return curveOB
-
-"""
-Apply rotation to curve
-"""
-def curve_rotation(curve_name, radius=0.3, move=None, rotate=None):
-    ng = bpy.data.node_groups.new('nodeGroupRotation', 'GeometryNodeTree')
-
-    inNode = ng.nodes.new('NodeGroupInput')
-    outNode = ng.nodes.new('NodeGroupOutput')
-    c2mNode = ng.nodes.new('GeometryNodeCurveToMesh')
-    transNode = ng.nodes.new('GeometryNodeTransform')
-    circNode = ng.nodes.new('GeometryNodeCurvePrimitiveCircle')
-    realNode = ng.nodes.new('GeometryNodeRealizeInstances')
-
-    ng.interface.new_socket(name='Geometry', in_out='INPUT', socket_type='NodeSocketGeometry')
-    ng.interface.new_socket(name='Geometry', in_out='OUTPUT', socket_type='NodeSocketGeometry')
-
-
-    ng.links.new(circNode.outputs['Curve'], c2mNode.inputs['Curve'])
-    ng.links.new(inNode.outputs['Geometry'], transNode.inputs['Geometry'])
-    ng.links.new(transNode.outputs['Geometry'], c2mNode.inputs['Profile Curve'])
-    ng.links.new(c2mNode.outputs['Mesh'], realNode.inputs['Geometry'])
-    ng.links.new(realNode.outputs['Geometry'], outNode.inputs['Geometry'])
-
-    circNode.inputs['Radius'].default_value = radius if radius > 0 else 1
-    transNode.inputs['Translation'].default_value = (0 if radius > 0 else -1, 0, 0)
-    transNode.inputs['Rotation'].default_value = (pi * 0.5, 0, 0)
-
-    modifier = bpy.data.objects[curve_name].modifiers.new('nodeGroupRotation', "NODES")
-    modifier.node_group = ng
-
-    if rotate!= None:
-        bpy.data.objects[curve_name].rotation_euler = [angle * pi for angle in rotate]
-    if move != None:
-        bpy.data.objects[curve_name].location = move
-    
-
-
-"""
-Translation along curve
-"""
-def along_curve_translation(curve_name, profile_radius=0.3, fill_caps=False,move=None, rotation=None):
-    ng = bpy.data.node_groups.new('nodeGroupTranslation', 'GeometryNodeTree')
-
-    inNode   = ng.nodes.new('NodeGroupInput')
-    outNode  = ng.nodes.new('NodeGroupOutput')
-    c2mNode  = ng.nodes.new('GeometryNodeCurveToMesh')
-    circNode = ng.nodes.new('GeometryNodeCurvePrimitiveCircle')
-
-    ng.interface.new_socket(name='Geometry', in_out='INPUT', socket_type='NodeSocketGeometry')
-    ng.interface.new_socket(name='Geometry', in_out='OUTPUT', socket_type='NodeSocketGeometry')
-
-    ng.links.new(circNode.outputs['Curve'], c2mNode.inputs['Profile Curve'])
-    ng.links.new(inNode.outputs['Geometry'], c2mNode.inputs['Curve'])
-    ng.links.new(c2mNode.outputs['Mesh'], outNode.inputs['Geometry'])
-
-    c2mNode.inputs['Fill Caps'].default_value = fill_caps
-    circNode.inputs['Radius'].default_value = profile_radius
-
-    modifier = bpy.data.objects[curve_name].modifiers.new('nodeGroupRotation', "NODES")
-    modifier.node_group = ng
-
-    if rotation!= None:
-        bpy.data.objects[curve_name].rotation_euler = [angle * pi for angle in rotation]
-    if move != None:
-        bpy.data.objects[curve_name].location = move
-    
-    
-"""
-Add thickness to the face
-"""
-def solidify(name, thickness):
-    bpy.data.objects[name].modifiers.new("Solidify", "SOLIDIFY")
-    bpy.data.objects[name].modifiers["Solidify"].thickness = thickness
-    bpy.context.view_layer.objects.active = bpy.data.objects[name]
-    bpy.ops.object.modifier_apply(modifier="Solidify")
 
 """
 Change the center of the object
@@ -345,6 +35,23 @@ def change_origin(name, location):
     bpy.context.scene.cursor.location = location
     bpy.context.view_layer.objects.active = bpy.data.objects[name]
     bpy.ops.object.origin_set(type='ORIGIN_CURSOR', center='MEDIAN')
+
+"""
+Make sure the normal of the mesh is all facing outward or inside
+"""
+def recalculate_normals(name,inside=False):
+    obj = bpy.data.objects[name]
+    bpy.ops.object.select_all(action='DESELECT')
+    obj.select_set(True)
+    bpy.context.view_layer.objects.active = obj
+    # go edit mode
+    bpy.ops.object.mode_set(mode='EDIT')
+    # select al faces
+    bpy.ops.mesh.select_all(action='SELECT')
+    # recalculate outside normals 
+    bpy.ops.mesh.normals_make_consistent(inside=inside)
+    # go object mode again
+    bpy.ops.object.editmode_toggle()
 
 """
 Extract the mesh points and polygons from the model generated by Blender
@@ -391,27 +98,293 @@ def get_faces():
 
     return verts_all,faces_all
 
-    
 
 """
-Create a rectangle with coordinates
+fill caps to mesh
 """
-def create_rectangle_by_points(name,points,type = 'rectangle_points'):
-    
-    points = np.array(points)
-    cx,cy = points[:,0].mean(), points[:,1].mean()
-    width = 2*np.abs(cx - points[0][0])
-    length = 2*np.abs(cy - points[0][1])
-    
-    
-    if type == "rectangle_points":
-        bpy.ops.curve.simple(align='WORLD',location=(cx, cy, 0),Simple_Type='Rectangle', Simple_width=width,shape='3D', Simple_length=length, use_cyclic_u=True)
-    elif type == "rectangle_open_points":
-        bpy.ops.curve.simple(align='WORLD',location=(cx, cy, 0),Simple_Type='Rectangle', Simple_width=width,shape='3D', Simple_length=length, use_cyclic_u=False)
-     
-    curve = bpy.context.object
-    curve.name = name
+def make_caps(name,type="start"):
+    bpy.context.view_layer.objects.active = bpy.data.objects[name]
+    bpy.ops.object.mode_set(mode = 'EDIT')
 
+    object = bpy.data.objects[name]
+    mesh = bmesh.from_edit_mesh(object.data) 
+    mesh.verts.ensure_lookup_table()
+    
+    
+    if type=="start":
+        for i in range(len(mesh.verts)):
+            if mesh.verts[i].is_boundary and i<len(mesh.verts)/2:
+                mesh.verts[i].select=True
+        bpy.ops.mesh.edge_face_add()
+    elif type=="end":
+        for i in range(len(mesh.verts)):
+            if mesh.verts[i].is_boundary and i>len(mesh.verts)/2:
+                mesh.verts[i].select=True
+        bpy.ops.mesh.edge_face_add()
+    
+    bpy.context.view_layer.objects.active = bpy.data.objects[name]
+    bpy.ops.object.mode_set(mode = 'OBJECT')
+
+
+"""
+Add thickness to the face
+"""
+def solidify(name, thickness):
+    bpy.data.objects[name].modifiers.new("Solidify", "SOLIDIFY")
+    bpy.data.objects[name].modifiers["Solidify"].thickness = thickness
+    bpy.context.view_layer.objects.active = bpy.data.objects[name]
+    bpy.ops.object.modifier_apply(modifier="Solidify")
+
+"""
+Creates a translational object of a line trajectory
+"""
+def create_curve(name, profile_name=None,control_points=[],points_radius=[],handle_type=[],closed=False, center="POINT",thickness=None, fill_caps="none",flip_normals=False, resolution=24):
+    if isinstance(name, str):
+        type_dict={0:"AUTO", 1:"VECTOR", 2:"ALIGNED", 3:"FREE"}
+
+        control_points = np.array(control_points).tolist()
+        control_points_tmp = copy.deepcopy(control_points)
+        #统计手柄坐标的数量与真实控制点的数量
+        num_handle_co = handle_type.count(3)
+        num_control_points = len(control_points) - num_handle_co
+
+        curveData = bpy.data.curves.new(name, type='CURVE')
+        curveData.dimensions = '3D'
+        curveData.resolution_u = resolution
+
+        bezierSpline = curveData.splines.new('BEZIER')
+        bezierSpline.bezier_points.add(num_control_points - 1) 
+        bezierSpline.use_cyclic_u = closed
+
+        for i in range(num_control_points):
+            bezier_point = bezierSpline.bezier_points[i]
+            bezier_point.handle_left_type = type_dict[handle_type[2*i]]
+            if type_dict[handle_type[2*i]]=="FREE":
+                bezier_point.handle_left = control_points.pop(0)
+            bezier_point.co = control_points.pop(0)
+            bezier_point.handle_right_type = type_dict[handle_type[2*i+1]]
+            if type_dict[handle_type[2*i+1]]=="FREE":
+                bezier_point.handle_right = control_points.pop(0)
+            bezier_point.radius = points_radius[i] if len(points_radius)!=0 else 1.0
+        
+        assert len(control_points)==0, "cannot create curve"
+        curveOB = bpy.data.objects.new(name, curveData)
+
+        if profile_name != None:
+            curveData.bevel_mode = "OBJECT"
+            if fill_caps=="both":
+                curveData.use_fill_caps = True
+            else:
+                curveData.use_fill_caps = False
+            curveData.splines[0].use_smooth = False
+            curveData.bevel_object = bpy.data.objects[profile_name]
+
+            scn = bpy.context.scene.collection
+            scn.objects.link(curveOB)
+
+            bpy.context.view_layer.objects.active = bpy.data.objects[name]
+            bpy.ops.object.mode_set(mode = 'OBJECT')
+            bpy.data.objects[name].select_set(True)
+            bpy.ops.object.convert(target='MESH')
+            bpy.data.objects.remove(bpy.data.objects[profile_name], do_unlink=True)
+            bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_VOLUME', center='MEDIAN')
+            
+            if fill_caps in ["start","end"]:
+                make_caps(name,fill_caps)
+            
+            if flip_normals:
+                recalculate_normals(name,inside=True)
+            else:
+                recalculate_normals(name,inside=False)
+            
+            if thickness>1e-10:
+                solidify(name,thickness)
+            
+            weld(name,1e-5)
+
+            return curveOB
+        else:
+            scn = bpy.context.scene.collection
+            scn.objects.link(curveOB)
+            if center=="MEDIAN":
+                bpy.data.objects[name].select_set(True)
+                bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='MEDIAN')
+            points=np.array(control_points_tmp)
+            return {"name":name, "points":points, "handle_type":handle_type, "closed":closed, "center":center}
+    else:
+        if profile_name==None:
+            if isinstance(profile_name, str):
+                profile_name = [profile_name]*len(name)
+            if isinstance(points_radius[0], float) or isinstance(points_radius[0], int):
+                points_radius = [points_radius]*len(name)
+            if isinstance(handle_type[0], int):
+                handle_type = [handle_type]*len(name)
+            if isinstance(closed, bool):
+                closed = [closed]*len(name)
+            if isinstance(center, str):
+                center = [center]*len(name)
+            for i in range(len(name)):
+                create_curve(name=name[i], control_points=control_points[i], points_radius=points_radius[i], handle_type=handle_type[i], closed=closed[i], center=center[i], thickness=thickness, fill_caps=fill_caps, flip_normals=flip_normals, resolution=resolution)
+            points = np.array(copy.deepcopy(control_points))
+            return {"name":name, "points":points, "handle_type":handle_type, "closed":closed, "center":center}
+            
+
+
+def find_circle(points):
+    """
+    Calculate the center (cx, cy) and radius r of the circle passing through three points.
+    Returns (cx, cy, r).
+    """
+    x1,y1 = points[0][0],points[0][1]
+    x2,y2 = points[1][0],points[1][1]
+    x3,y3 = points[2][0],points[2][1]
+    D = 2 * (x1 * (y2 - y3) + x2 * (y3 - y1) + x3 * (y1 - y2))
+    cx = ((x1**2 + y1**2) * (y2 - y3) + (x2**2 + y2**2) * (y3 - y1) + (x3**2 + y3**2) * (y1 - y2)) / (D+1e-10)
+    cy = ((x1**2 + y1**2) * (x3 - x2) + (x2**2 + y2**2) * (x1 - x3) + (x3**2 + y3**2) * (x2 - x1)) / (D+1e-10)
+    r = math.sqrt((cx - x1)**2 + (cy - y1)**2)
+    return cx, cy, r
+
+def calculate_angle(x1, y1, x2, y2):
+    """
+    Calculate the angle in radians between the positive x-axis and the line from (x1, y1) to (x2, y2).
+    """
+    dx = x2 - x1
+    dy = y2 - y1
+    return math.atan2(dy, dx)
+
+"""
+Create primitive object
+"""
+def create_primitive(name, primitive_type="cube", location=None, scale=None, rotation=None, rotation_mode='QUATERNION', **kwargs):
+    getattr(bpy.ops.mesh, f"primitive_{primitive_type}_add")(**kwargs)
+    primitive = bpy.context.object
+    primitive.name = name
+    if location:
+        primitive.location = location
+    if scale:
+        primitive.scale = scale
+    if rotation:
+        if rotation_mode=='XYZ':
+            primitive.rotation_euler = [angle * pi for angle in rotation]
+        elif rotation_mode=='QUATERNION':
+            primitive.rotation_mode = 'QUATERNION'
+            primitive.rotation_quaternion = rotation
+        elif rotation_mode=='MATRIX':
+            mat = np.eye(4)
+            rotation = np.array(rotation).reshape([3,3])
+            mat[:3,:3] = rotation
+            bpy.context.view_layer.update()
+            world_matrix = torch.tensor(bpy.data.objects[name].matrix_world)
+            scale_now = world_matrix.norm(dim=0)[:3]
+            scale_matrix = torch.eye(4)
+            scale_matrix[0,0],scale_matrix[1,1],scale_matrix[2,2] =scale_now[0],scale_now[1],scale_now[2]
+            scale_matrix_inv = scale_matrix.clone()
+            for i in range(3):
+                #对角矩阵取逆，如果对角线上元素为0，则还保持为0
+                if scale_matrix_inv[i,i]>1e-10:
+                    scale_matrix_inv[i,i]=1.0 / scale_matrix_inv[i,i]
+            mat = scale_matrix_inv@torch.tensor(mat,dtype=torch.float32)@scale_matrix
+            mat = mathutils.Matrix(np.array(mat))
+            bpy.data.objects[name].matrix_world = bpy.data.objects[name].matrix_world@mat
+
+    return primitive
+
+"""
+Create primitive object
+"""
+def create_polygon(name: list[str] | str, sides: list[int] | int=3, location: list[list[float]] | list[float]=[0., 0., 0.], profile_name=None, rotation: list[list[float]]=[1., 0., 0., 0.], radius: list[float] | float=1., scale: list[list[float]] | list[float]=[1., 1., 1.], resolution: list[int] | int=12, center="MEDIAN", thickness=None, fill_caps="none"):
+    """
+    Create a regular polygon with given sides number and return the object's name and parameters
+    Args:
+        name (list[str] | str): Name(s) of the polygon object(s)
+        sides (list[int] | int): Number of sides for the polygon(s), default is 3
+        location (list[list[float]] | list[float]): Location(s) of the polygon(s), default is [0,0,0]
+        profile_name (str, optional): Name of the profile object for the bevel. None means no bevel
+        rotation (list[list[float]]): Rotation quaternion(s) of the polygon(s), default is [1,0,0,0] 
+        radius (list[float] | float): Radius(es) of the polygon(s), default is 1.0
+        scale (list[list[float]] | list[float]): Scale factor(s) for the polygon(s), default is [1,1,1]
+        center (str): Center type, either "MEDIAN" or "POINT", default is "MEDIAN"
+        thickness (float, optional): Thickness of the polygon if solidify is needed
+        fill_caps (str): Type of cap filling - "none", "start", "end" or "both", default is "none"
+        resolution (int): Resolution of the curve, default is 24
+    Returns:
+        dict: Dictionary containing polygon parameters (name, radius, center)
+    """
+    location = location.copy()
+    rotation = rotation.copy()
+    scale = scale.copy()
+    if not isinstance(name, list):
+        name = [name]
+    if not isinstance(location[0], list):
+        location = [location]
+    # Name and location must have same length and each polygon needs unique name/location
+    assert len(name) == len(location)
+
+    # Convert single values to lists if needed
+    if not isinstance(rotation[0], list):
+        rotation = [rotation] * len(name)
+    if not isinstance(radius, list):
+        radius = [radius] * len(name)
+    if not isinstance(scale[0], list):
+        scale = [scale] * len(name)
+    if not isinstance(sides, list):
+        sides = [sides] * len(name)
+
+    if profile_name is None:  
+        # Create each polygon separately
+        for i in range(len(name)):
+            bpy.ops.curve.simple(align='WORLD', location=location[i], rotation=[0, 0, 0], Simple_Type='Polygon', shape='3D', Simple_sides=sides[i], Simple_radius=radius[i], outputType='BEZIER', use_cyclic_u=True, edit_mode=False)
+            curve = bpy.context.object
+            curve.name = name[i]   
+            curve.rotation_mode = 'QUATERNION'
+            curve.rotation_quaternion = rotation[i]
+            if center=="POINT":
+                curve.location = [radius[i],0,0]
+                bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+            curveData = curve.data
+            curveData.dimensions = '3D'
+            bpy.data.objects[name[i]].scale = scale[i]
+            
+        return {"name":name[i], "radius":radius[i], "center":center}
+    else:
+        assert len(name) == 1
+        i = 0
+        name = name[i]
+        bpy.ops.curve.simple(align='WORLD', location=location[i], rotation=[0,0,0], Simple_Type='Polygon',shape='3D',Simple_sides=sides[i],Simple_radius=radius[i], outputType='BEZIER', use_cyclic_u=True, edit_mode=False)
+        curve = bpy.context.object
+        curve.rotation_mode = 'QUATERNION'
+        curve.rotation_quaternion = rotation[i]
+        curve.name = name 
+        curveData = bpy.data.objects[name].data
+        curveData.resolution_u = 24
+        curveData.bevel_mode = "OBJECT"
+        if fill_caps == "both":
+            curveData.use_fill_caps = True
+        else:
+            curveData.use_fill_caps = False
+        curveData.bevel_object = bpy.data.objects[profile_name]
+
+        bpy.context.view_layer.objects.active = bpy.data.objects[name]
+        bpy.ops.object.mode_set(mode = 'OBJECT')
+        bpy.data.objects[name].select_set(True)
+        bpy.ops.object.convert(target='MESH')
+        bpy.data.objects.remove(bpy.data.objects[profile_name], do_unlink=True)
+        bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_VOLUME', center='MEDIAN')
+        if fill_caps in ["start","end"]:
+            make_caps(name,fill_caps)
+        solidify(name,thickness)
+
+"""
+Perform a Boolean operation on both objects and delete the second object
+"""
+def boolean_operation(name1, name2, operation="UNION"):
+    bpy.data.objects[name1].modifiers.new("Boolean", "BOOLEAN")
+    bpy.data.objects[name1].modifiers["Boolean"].object = bpy.data.objects[name2]
+    bpy.data.objects[name1].modifiers["Boolean"].operation = operation
+    bpy.context.view_layer.objects.active = bpy.data.objects[name1]
+    bpy.ops.object.modifier_apply(modifier="Boolean")
+    bpy.data.objects.remove(bpy.data.objects[name2], do_unlink=True)
+    
 
 """
 The arc turns to the Bézier control point, and the arc angle is an acute angle
@@ -469,13 +442,12 @@ def get_bezier_points_by_angles(start_angle,end_angle,r,cx,cy):
     return points_list   
 
 
-
 """
 Draw a Bezier arc based on the three 3D coordinates on the arc
 """
-def create_bezier_arc_by_3Dpoints(name,points,center="POINT",points_radius=[1.0,1.0],closed=False):
+def create_arc_by_3Dpoints(name,profile_name=None,control_points=[],center="POINT",points_radius=[1.0,1.0],closed=False,thickness=None,fill_caps='none'):
     
-    points = copy.deepcopy(points)
+    points = copy.deepcopy(control_points)
     p1, p2, p3 = np.array(points[0]), np.array(points[1]), np.array(points[2])
     n = np.cross((p1-p2),(p1-p3))
     x_axis = p1-p2
@@ -542,64 +514,52 @@ def create_bezier_arc_by_3Dpoints(name,points,center="POINT",points_radius=[1.0,
         if i<num_cycle-1:
             bezierSpline.bezier_points[i].handle_right = control_points[i*3+1]
             bezierSpline.bezier_points[i+1].handle_left = control_points[i*3+2]
-                
-    if closed:
-        bezierSpline.use_cyclic_u = True
+
+    bezierSpline.use_cyclic_u = closed
     curveOB = bpy.data.objects.new(name, curveData)
-    scn = bpy.context.scene.collection
-    scn.objects.link(curveOB)
-    if center=="MEDIAN":
+    
+    if profile_name==None:
+
+        scn = bpy.context.scene.collection
+        scn.objects.link(curveOB)
+        if center=="MEDIAN":
+            bpy.context.view_layer.objects.active = bpy.data.objects[name]
+            bpy.ops.object.mode_set(mode = 'OBJECT')
+            bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='MEDIAN')
+
+    else:
+        curveData.bevel_mode = "OBJECT"
+        if fill_caps=="both":
+            curveData.use_fill_caps = True
+        else:
+            curveData.use_fill_caps = False
+        curveData.splines[0].use_smooth = False
+        curveData.bevel_object = bpy.data.objects[profile_name]
+
+        scn = bpy.context.scene.collection
+        scn.objects.link(curveOB)
+
+        bpy.context.view_layer.objects.active = bpy.data.objects[name]
+        bpy.ops.object.mode_set(mode = 'OBJECT')
         bpy.data.objects[name].select_set(True)
-        bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='MEDIAN')
-    
-"""
-Draw a Bézier circle based on three 3D coordinates on the circle
-"""
-def create_bezier_circle_by_3Dpoints(name,points):
-    
-    p1, p2, p3 = np.array(points[0]), np.array(points[1]), np.array(points[2])
-    n = np.cross((p1-p2),(p1-p3))
-    x_axis = (p1-p2)
-    y_axis = np.cross((p1-p2),n)
-    z_axis = np.cross(x_axis,y_axis)
-    x_axis/=np.linalg.norm(x_axis)
-    y_axis/=np.linalg.norm(y_axis)
-    z_axis/=np.linalg.norm(z_axis)
-    
-    point3D_to_xyplane=np.array([x_axis,y_axis,z_axis])
-    xyplane_to_point3D = point3D_to_xyplane.T
-
-    p1_xy = point3D_to_xyplane@np.array(p1)
-    p2_xy = point3D_to_xyplane@np.array(p2)
-    p3_xy = point3D_to_xyplane@np.array(p3)
-    
-    points = np.array([p1_xy,p2_xy,p3_xy])
-    
-    points_z = points[0][2]
-    points_2D = points[:,:2]
-    
-    cx,cy,r = find_circle(points_2D)
-    points = create_circle_points(r, cx,cy)
-    
-    points[:,2] = points_z
+        bpy.ops.object.convert(target='MESH')
+        bpy.data.objects.remove(bpy.data.objects[profile_name], do_unlink=True)
+        bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_VOLUME', center='MEDIAN')
         
-    curve = bpy.context.object
-    curve.name = name
-    splines = curve.data.splines[0]
-    
-    curve.data.dimensions = '3D'
-    
-    for i in range(4):
-        splines.bezier_points[i].co = xyplane_to_point3D@points[3*i].T
-        splines.bezier_points[i].handle_right = xyplane_to_point3D@points[3*i+2].T
-        splines.bezier_points[i].handle_left = xyplane_to_point3D@points[3*i+1].T
+        if fill_caps in ["start","end"]:
+            make_caps(name,fill_caps)
+            
+        if thickness>1e-10:
+            solidify(name,thickness)
+        
 
-
+        return curveOB
 """
 Creates an arc and returns three control points
 """
-def create_arc_points(name, radius, start_angle, end_angle,location=[0,0,0],rotation=[0,0,0],center="POINT",sort_point=False ):
+def create_arc_points(name, radius, start_angle, end_angle,location=[0,0,0],rotation=[0,0,0],center="POINT"):
     bpy.ops.curve.simple(align='WORLD', location=location, rotation=rotation, Simple_Type='Arc',Simple_sides=3,Simple_radius=radius,Simple_startangle=start_angle, Simple_endangle=end_angle, outputType='BEZIER', use_cyclic_u=False)
+    
     curve = bpy.context.object
     curve.name = name
     curveData = curve.data
@@ -612,91 +572,176 @@ def create_arc_points(name, radius, start_angle, end_angle,location=[0,0,0],rota
     end = mat @ np.array(list(curveData.splines[0].bezier_points[4].co) + [1])
     
     points = np.array([front[:3],middle[:3],end[:3]])
-    if sort_point:
-        points = sort_coordinates(points)
     
     return {"name":name, "points":points - points[0],"center":center}
 
-"""
-Creates a rectangle and returns four control points
-"""
-def create_rectangle_points(name, width, length, location=[0,0,0],rotation=[0,0,0],closed=True,sort_point=False):
-    bpy.ops.curve.simple(align='WORLD',location=location, rotation=rotation,Simple_Type='Rectangle', Simple_width=width,shape='3D', Simple_length=length, use_cyclic_u=closed)
-    curve = bpy.context.object
-    curve.name = name
-    curveData = curve.data
-    
-    curveData.dimensions = '3D'
-    mat = np.array(bpy.data.objects[name].matrix_world)
 
-    points = []
-    for i in range(4):
-        point = mat @ np.array(list(curveData.splines[0].bezier_points[i].co) + [1])
-        points.append(point[:3])
-    points = np.array(points)
-    if sort_point:
-        points = sort_coordinates(points)
-    
-    return {"name":name, "points":points - points[0]}
 
-"""
-Creates a circle and returns three control points
-"""
-def create_circle_points(name, radius, location=[0,0,0],rotation=[0,0,0],sort_point=False ):
-    bpy.ops.curve.simple(align='WORLD', location=location, rotation=rotation, Simple_Type='Circle',shape='3D',Simple_sides=6,Simple_radius=radius, outputType='BEZIER', use_cyclic_u=True)
-    curve = bpy.context.object
-    curve.name = name
-    curveData = curve.data
-    
-    curveData.dimensions = '3D'
-    mat = np.array(bpy.data.objects[name].matrix_world)
+def add_simple_deform_modifier(name, mode='BEND', angle=0., origin=(0, 0, 0), rotation=Quaternion([1, 0, 0, 0]), axis='Z'):
+    """
+    向指定对象添加一个简单变形修改器并应用之，然后删除用作变形起点的Empty对象。
 
-    front = mat @ np.array(list(curveData.splines[0].bezier_points[0].co) + [1])
-    middle = mat @ np.array(list(curveData.splines[0].bezier_points[2].co) + [1])
-    end = mat @ np.array(list(curveData.splines[0].bezier_points[4].co) + [1])
-    
-    points = [front[:3],middle[:3],end[:3]]
-    points = np.array(points)
-    if sort_point:
-        points = sort_coordinates(points)
-    
-    return {"name":name, "points":points - points[0]}
+    :param obj_name: 要添加修改器的对象名称
+    :param mode: 变形模式，默认是 'BEND'（其他选项包括 'TAPER', 'TWIST', 'SQUEEZE')
+    :param angle: 弯曲角度（以弧度表示，但归一化到 -1~1)
+    :param origin: 弯曲起点的坐标（需要一个空对象作为起点）
+    :param axis: 弯曲轴，默认是 'Z'（选项有 'X', 'Y', 'Z')
+    """
+    origin = origin.copy()
+    rotation = rotation.copy()
+    if isinstance(rotation[-1], list):
+        rotation = Quaternion(rotation[-1])
+    else:
+        rotation = Quaternion(rotation)
+    if isinstance(origin[-1], list):
+        origin = origin[-1]
+    # 获取对象
+    obj = bpy.data.objects.get(name)
+    if obj is None:
+        raise ValueError(f"未找到名为 '{name}' 的对象")
+
+    # 确保在对象模式下
+    if bpy.context.object and bpy.context.object.mode != 'OBJECT':
+        bpy.ops.object.mode_set(mode='OBJECT')
+
+    # 将目标对象设为活动对象并选中
+    bpy.context.view_layer.objects.active = obj
+    for o in bpy.context.selected_objects:
+        o.select_set(False)
+    obj.select_set(True)
+
+    # 创建简单变形修改器
+    modifier = obj.modifiers.new(name="SimpleDeform", type='SIMPLE_DEFORM')
+    modifier.deform_method = mode
+    modifier.deform_axis = axis
+    modifier.angle = angle * pi
+
+    # 创建一个空对象作为变形的起点
+    bpy.ops.object.empty_add(type='PLAIN_AXES', location=origin)
+    empty = bpy.context.active_object
+    empty.name = f"{name}_DeformOrigin"
+    empty.rotation_mode = 'QUATERNION'
+    empty.rotation_quaternion = rotation
+
+    # 设置修改器的起点
+    modifier.origin = empty
+
+    # 再次确保活动对象为目标对象并选中
+    bpy.context.view_layer.objects.active = obj
+    for o in bpy.context.selected_objects:
+        o.select_set(False)
+    obj.select_set(True)
+
+    # 应用修改器
+    try:
+        bpy.ops.object.modifier_apply(modifier=modifier.name)
+    except RuntimeError as e:
+        raise RuntimeError(f"应用修改器时出错: {e}")
+
+    # 删除 Empty 对象
+    # 由于上面创建时我们已经命名了empty，此时可以直接访问
+    for o in bpy.context.selected_objects:
+        o.select_set(False)
+    empty.select_set(True)
+    bpy.context.view_layer.objects.active = empty
+    bpy.ops.object.delete()
 
 """
 create an circle and return radius
 """
-def create_circle(name, radius,center="MEDIAN"):
-    bpy.ops.curve.simple(align='WORLD', location=[0,0,0], rotation=[0,0,0], Simple_Type='Circle',shape='3D',Simple_sides=4,Simple_radius=radius, outputType='BEZIER', use_cyclic_u=True,edit_mode=False)
-    curve = bpy.context.object
-    curve.name = name
-    if center=="POINT":
-        curve.location = [radius,0,0]
-        bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+def create_circle(name: list[str] | str, location: list[list[float]] | list[float]=[0., 0., 0.], profile_name=None, rotation: list[list[float]]=[1., 0., 0., 0.], radius: list[float] | float=1., scale: list[list[float]] | list[float]=[1., 1., 1.], use_minimum_face=USE_MINIMUM_FACE, average_edge_length=AVERAGE_EDGE_LENGTH, resolution: list[int] | int=32, bend_angle: list[float] | float=0., center="MEDIAN", thickness=None, fill_caps="none"):
+    """
+    Create a circle object or multiple circle objects.
+    Args:
+        name (list[str] | str): Name or list of names for circle objects.
+        location (list[list[float]] | list[float]): Location or list of locations for circle objects. 
+        profile_name (str, optional): Name of profile object. If None, generates each circle separately.
+        rotation (list[list[float]], optional): List of rotations for circle objects. Defaults to [1., 0., 0., 0.].
+        radius (list[float] | float, optional): List of radii or single radius value. Defaults to 1..
+        scale (list[list[float]] | list[float], optional): List of scales or single scale value. Defaults to [1., 1., 1.].
+        bend_angle (list[float] | float, optional): List of bend angles or single bend angle. Defaults to 0.. Values normalized to -1~1.
+        center (str, optional): Center type for circle objects. Defaults to "MEDIAN".
+        thickness (float, optional): Thickness of circle objects.
+        fill_caps (str, optional): End cap fill type for circle objects. Defaults to "none".
+        resolution (list[int] | int): Resolution of the circle. Higher values create smoother circles.
+    """
+    location = location.copy()
+    rotation = rotation.copy()
+    scale = scale.copy()
+    if not isinstance(name, list):
+        name = [name]
+    if not isinstance(location[0], list):
+        location = [location]
+    # name和location长度相同, 且每个圆必须有不同的name和location
+    assert len(name) == len(location)
 
-    curveData = curve.data
+    # rotation, radius, scale, bend_angle可以均为同一个值
+    if not isinstance(rotation[0], list):
+        rotation = [rotation] * len(name)
+    if not isinstance(radius, list):
+        radius = [radius] * len(name)
+    if not isinstance(scale[0], list):
+        scale = [scale] * len(name)
+    if not isinstance(bend_angle, list):
+        bend_angle = [bend_angle] * len(name)
     
-    curveData.dimensions = '3D'
+    # 确定分辨率
+    if use_minimum_face:
+        resolution = 32
+    elif not average_edge_length is None:
+        resolution = (np.array(radius) * 2 * pi / average_edge_length).tolist()
+    
+    if not isinstance(resolution, list):
+        resolution = [resolution] * len(name)
+
+    if profile_name is None:  
+        # 单独生成每个圆
+        for i in range(len(name)):
+            bpy.ops.curve.simple(align='WORLD', location=location[i], rotation=[0,0,0], Simple_Type='Circle',shape='3D',Simple_sides=4,Simple_radius=radius[i], outputType='BEZIER', use_cyclic_u=True, edit_mode=False)
+            curve = bpy.context.object
+            curve.name = name[i]   
+            curve.rotation_mode = 'QUATERNION'
+            curve.rotation_quaternion = rotation[i]
+            if center=="POINT":
+                curve.location = [radius[i],0,0]
+                bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+            curveData = curve.data
+            curveData.dimensions = '3D'
+            bpy.data.objects[name[i]].scale = scale[i]
+            curveData.resolution_u = (resolution[i] + 2) // 4
+            # 如果需要bend，则转换为mesh对象
+            if bend_angle[i] != 0.:
+                bpy.ops.object.convert(target='MESH')
+                add_simple_deform_modifier(name[i], mode='BEND', origin=location[i], angle=bend_angle[i])
         
-    return {"name":name, "radius":radius, "center":center}
+        return {"name":name[i], "radius":radius[i], "center":center}
+    else:
+        assert len(name) == 1
+        i = 0
+        name = name[i]
+        bpy.ops.curve.simple(align='WORLD', location=location[i], rotation=[0,0,0], Simple_Type='Circle',shape='3D',Simple_sides=4,Simple_radius=radius[i], outputType='BEZIER', use_cyclic_u=True, edit_mode=False)
+        curve = bpy.context.object
+        curve.rotation_mode = 'QUATERNION'
+        curve.rotation_quaternion = rotation[i]
+        curve.name = name 
+        curveData = bpy.data.objects[name].data
+        curveData.resolution_u = 24
+        curveData.bevel_mode = "OBJECT"
+        if fill_caps == "both":
+            curveData.use_fill_caps = True
+        else:
+            curveData.use_fill_caps = False
+        curveData.bevel_object = bpy.data.objects[profile_name]
 
-"""
-create a rectangle and return param
-"""
-def create_rectangle(name, width, length, rotation_rad=0,center="MEDIAN",closed=True):
-    bpy.ops.curve.simple(align='WORLD',location=[0,0,0], rotation=[0,0,0],Simple_Type='Rectangle', Simple_width=width,shape='3D', Simple_length=length, use_cyclic_u=closed,edit_mode=False)
-    curve = bpy.context.object
-    curve.name = name
-    curveData = curve.data
-    
-    curveData.dimensions = '3D'
-    if center=="POINT":
-        curve.location=[width/2,length/2,0]
-        bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
-    curve.rotation_euler=[0,0,rotation_rad*pi]
-    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
-    
-    return {"name":name, "width":width,"length":length,"rotation_rad":rotation_rad,"center":center}
-
+        bpy.context.view_layer.objects.active = bpy.data.objects[name]
+        bpy.ops.object.mode_set(mode = 'OBJECT')
+        bpy.data.objects[name].select_set(True)
+        bpy.ops.object.convert(target='MESH')
+        bpy.data.objects.remove(bpy.data.objects[profile_name], do_unlink=True)
+        bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_VOLUME', center='MEDIAN')
+        if fill_caps in ["start","end"]:
+            make_caps(name,fill_caps)
+        solidify(name,thickness)
 
 """
 create an oval and return param
@@ -718,752 +763,155 @@ def create_oval(name, a,b,rotation_rad=0,center="MEDIAN"):
 """
 Creates a generic quad and returns four control points
 """
-def create_quad(name, control_points,center="POINT", resolution=12,sort_point=False):
-    
-    control_points = copy.deepcopy(control_points)
-    curveData = bpy.data.curves.new(name, type='CURVE')
-    curveData.dimensions = '3D'
-    curveData.resolution_u = resolution
+def create_quad(name, control_points,center="POINT", resolution=12):
+    if isinstance(name, str):
+        control_points = copy.deepcopy(control_points)
+        curveData = bpy.data.curves.new(name, type='CURVE')
+        curveData.dimensions = '3D'
+        curveData.resolution_u = resolution
 
-    bezierSpline = curveData.splines.new('BEZIER')
-    bezierSpline.bezier_points.add(len(control_points) - 1) 
-    bezierSpline.use_cyclic_u = True
+        bezierSpline = curveData.splines.new('BEZIER')
+        bezierSpline.bezier_points.add(len(control_points) - 1) 
+        bezierSpline.use_cyclic_u = True
 
-    for i, coord in enumerate(control_points):
-        x, y, z = coord
-        bezier_point = bezierSpline.bezier_points[i]
-        bezier_point.co = (x, y, z)
-        bezier_point.handle_left_type = 'VECTOR'
-        bezier_point.handle_right_type = 'VECTOR'
+        for i, coord in enumerate(control_points):
+            x, y, z = coord
+            bezier_point = bezierSpline.bezier_points[i]
+            bezier_point.co = (x, y, z)
+            bezier_point.handle_left_type = 'VECTOR'
+            bezier_point.handle_right_type = 'VECTOR'
 
-    curveOB = bpy.data.objects.new(name, curveData)
+        curveOB = bpy.data.objects.new(name, curveData)
 
-    scn = bpy.context.scene.collection
-    scn.objects.link(curveOB)
-    if center=="MEDIAN":
-        bpy.data.objects[name].select_set(True)
-        bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='MEDIAN')
-    points = np.array(control_points)
-    if sort_point:
-        points = np.array(sort_coordinates(points))    
-    
-    return {"name":name,"points":points - points[0],"center":center}
+        scn = bpy.context.scene.collection
+        scn.objects.link(curveOB)
+        if center=="MEDIAN":
+            bpy.data.objects[name].select_set(True)
+            bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='MEDIAN')
+        points = np.array(control_points)
+        
+        return {"name":name,"points":points - points[0],"center":center}
     #return {"name":name,"points":points_sorted - points_sorted[0]}
+    else:
+        points = []
+        for i in range(len(name)):
+            points.append(create_quad(name[i], control_points[i],center=center,resolution=resolution)['points'])
+        return {"name":name,"points":control_points,"center":center}
 
-"""
-Creates a closed curve and returns four control points
-"""
-def create_closed_curve(name, control_points,center="POINT", resolution=12,sort_point=False):
-    
-    control_points = copy.deepcopy(control_points)
-    curveData = bpy.data.curves.new(name, type='CURVE')
-    curveData.dimensions = '3D'
-    curveData.resolution_u = resolution
-
-    bezierSpline = curveData.splines.new('BEZIER')
-    bezierSpline.bezier_points.add(len(control_points) - 1) 
-    bezierSpline.use_cyclic_u = True
-
-    for i, coord in enumerate(control_points):
-        x, y, z = coord
-        bezier_point = bezierSpline.bezier_points[i]
-        bezier_point.co = (x, y, z)
-        bezier_point.handle_left_type = 'AUTO'
-        bezier_point.handle_right_type = 'AUTO'
-
-    curveOB = bpy.data.objects.new(name, curveData)
-
-    scn = bpy.context.scene.collection
-    scn.objects.link(curveOB)
-    if center=="MEDIAN":
-        bpy.data.objects[name].select_set(True)
-        bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='MEDIAN')
-
-    points = np.array(control_points)
-    if sort_point:
-        points = np.array(sort_coordinates(control_points))    
-    
-    return {"name":name,"points":points - points[0],"center":center}
 
 
 """
 create a square
 """
-def create_square(name,length,rotation_rad=0,center="MEDIAN"):
-    bpy.ops.curve.simple(align='WORLD',location=(0,0,0), rotation=(0,0,0),Simple_Type='Rectangle', Simple_width=length,shape='3D', Simple_length=length, use_cyclic_u=True,edit_mode=False)
+def create_square(name,profile_name=None,length=1.0,rotation_rad=0, location=None, rotation=None, closed=True, center="MEDIAN", thickness=None, fill_caps='none'):
+    bpy.ops.curve.simple(align='WORLD',location=(0,0,0), rotation=(0,0,0),Simple_Type='Rectangle', Simple_width=length,shape='3D', Simple_length=length, use_cyclic_u=closed,edit_mode=False)
     curve = bpy.context.object
     curve.name = name
     curveData = curve.data
-    curveData.dimensions = '3D'
-    if center=="POINT":
-        curve.location=[length/2,length/2,0]
-        bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
-    curve.rotation_euler=[0,0,rotation_rad*pi]
-    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
-    
-    return {"name":name,"length":length,"rotation_rad":rotation_rad,"center":center}
-
-"""
-创建直线底碗形状的bevel
-"""
-def create_linebowl_curve(name, control_points=[], resolution=12):
-    coords = copy.deepcopy(control_points)
-    
-    curveData = bpy.data.curves.new(name, type='CURVE')
-    curveData.dimensions = '3D'
-    curveData.resolution_u = resolution
-    
-    bezierSpline = curveData.splines.new('BEZIER')
-    bezierSpline.bezier_points.add(len(coords) - 1) 
-
-    for i, coord in enumerate(coords):
-        x, y, z = coord
-        bezier_point = bezierSpline.bezier_points[i]
-        bezier_point.co = (x, y, z)
-        bezier_point.handle_left_type = 'AUTO'
-        bezier_point.handle_right_type = 'AUTO'
-    
-    bezierSpline.bezier_points[1].handle_left_type="VECTOR"
-    bezierSpline.bezier_points[1].handle_right_type="ALIGNED"
-    curveOB = bpy.data.objects.new(name, curveData)
-
-    scn = bpy.context.scene.collection
-    scn.objects.link(curveOB)
-    
-    return {"name":name, "points":control_points}
-
-"""
-创建碗形状的bevel
-"""
-def create_bowl_curve(name, control_points=[], resolution=12):
-    coords = copy.deepcopy(control_points)
-    handle = coords[1]
-    try:
-        coords.pop(1)
-    except:
-        coords = coords.tolist()
-        coords.pop(1)
-    
-    curveData = bpy.data.curves.new(name, type='CURVE')
-    curveData.dimensions = '3D'
-    curveData.resolution_u = resolution
-    
-    bezierSpline = curveData.splines.new('BEZIER')
-    bezierSpline.bezier_points.add(len(coords) - 1) 
-
-    for i, coord in enumerate(coords):
-        x, y, z = coord
-        bezier_point = bezierSpline.bezier_points[i]
-        bezier_point.co = (x, y, z)
-        bezier_point.handle_left_type = 'AUTO'
-        if i==0:
-            bezier_point.handle_right_type = 'FREE'
-        else:
-            bezier_point.handle_right_type = 'AUTO'
-    
-    bezierSpline.bezier_points[0].handle_right=handle
-    curveOB = bpy.data.objects.new(name, curveData)
-
-    scn = bpy.context.scene.collection
-    scn.objects.link(curveOB)
-    
-    return {"name":name, "points":control_points}
-
-"""
-创建瓶颈形状的curve，即底部为一个竖直线封闭的形状
-"""
-def create_bottleneck_curve(name, control_points=[], resolution=12):
-    coords = copy.deepcopy(control_points)
-        
-    curveData = bpy.data.curves.new(name, type='CURVE')
-    curveData.dimensions = '3D'
-    curveData.resolution_u = resolution
-    
-    bezierSpline = curveData.splines.new('BEZIER')
-    bezierSpline.bezier_points.add(len(coords) - 1) 
-
-    for i, coord in enumerate(coords):
-        x, y, z = coord
-        bezier_point = bezierSpline.bezier_points[i]
-        bezier_point.co = (x, y, z)
-        if i<2:
-            bezier_point.handle_left_type = 'VECTOR'
-            bezier_point.handle_right_type = 'VECTOR'
-        else:
-            bezier_point.handle_left_type = 'AUTO'
-            bezier_point.handle_right_type = 'AUTO'
-    
-    bezierSpline.bezier_points[2].handle_left_type="VECTOR"
-    curveOB = bpy.data.objects.new(name, curveData)
-
-    scn = bpy.context.scene.collection
-    scn.objects.link(curveOB)
-    
-    return {"name":name, "points":control_points}
-
-"""
-创建蘑菇形状的bevel
-"""
-def create_mushroom_curve(name, control_points=[], resolution=12):
-    coords = copy.deepcopy(control_points)
-        
-    curveData = bpy.data.curves.new(name, type='CURVE')
-    curveData.dimensions = '3D'
-    curveData.resolution_u = resolution
-    
-    bezierSpline = curveData.splines.new('BEZIER')
-    bezierSpline.bezier_points.add(3)
-    bezierSpline.bezier_points[0].co = coords[0]
-    bezierSpline.bezier_points[0].handle_right = coords[1]
-    bezierSpline.bezier_points[1].handle_left = coords[2]
-    bezierSpline.bezier_points[1].co = coords[3]
-        
-    
-    for i, coord in enumerate(coords[4:]):
-        i+=2
-        x, y, z = coord
-        bezier_point = bezierSpline.bezier_points[i]
-        bezier_point.co = (x, y, z)
-        
-        bezier_point.handle_left_type = 'VECTOR'
-        bezier_point.handle_right_type = 'VECTOR'
-    
-    bezierSpline.bezier_points[1].handle_right_type="VECTOR"
-    curveOB = bpy.data.objects.new(name, curveData)
-
-    scn = bpy.context.scene.collection
-    scn.objects.link(curveOB)
-    
-    return {"name":name, "points":control_points}
-
-"""
-创建陶罐形状的bevel
-"""
-def create_pot_curve(name, control_points=[], resolution=12):
-    coords = copy.deepcopy(control_points)
-        
-    curveData = bpy.data.curves.new(name, type='CURVE')
-    curveData.dimensions = '3D'
-    curveData.resolution_u = resolution
-    
-    bezierSpline = curveData.splines.new('BEZIER')
-    bezierSpline.bezier_points.add(3)
-    bezierSpline.bezier_points[0].co = coords[0]
-    bezierSpline.bezier_points[0].handle_right_type="VECTOR"
-    bezierSpline.bezier_points[1].handle_left_type="VECTOR"
-    bezierSpline.bezier_points[1].co = coords[1]
-    bezierSpline.bezier_points[1].handle_right=coords[2]
-    bezierSpline.bezier_points[2].handle_left=coords[3]
-    bezierSpline.bezier_points[2].co=coords[4]
-    bezierSpline.bezier_points[2].handle_right_type="VECTOR"
-    bezierSpline.bezier_points[3].handle_left_type="VECTOR"
-    bezierSpline.bezier_points[3].co=coords[5]
-    
-    curveOB = bpy.data.objects.new(name, curveData)
-
-    scn = bpy.context.scene.collection
-    scn.objects.link(curveOB)
-    
-    return {"name":name, "points":control_points}
-"""
-创建折线形状的bevel
-"""
-def create_polyline(name,control_points=[],resolution=12,sort_point=False):
-    control_points=copy.deepcopy(control_points)
-    curveData = bpy.data.curves.new(name, type='CURVE')
-    curveData.dimensions = '3D'
-    curveData.resolution_u = resolution
-
-    bezierSpline = curveData.splines.new('BEZIER')
-    bezierSpline.bezier_points.add(len(control_points) - 1)
-    # bezierSpline.use_cyclic_u = True
-
-    for i, coord in enumerate(control_points):
-        x, y, z = coord
-        bezier_point = bezierSpline.bezier_points[i]
-        bezier_point.co = (x, y, z)
-        bezier_point.handle_left_type = 'VECTOR'
-        bezier_point.handle_right_type = 'VECTOR'
-
-    curveOB = bpy.data.objects.new(name, curveData)
-
-    scn = bpy.context.scene.collection
-    scn.objects.link(curveOB)
-    points = np.array(control_points)
-    if sort_point:
-        points = np.array(sort_coordinates_endpoint(control_points))    
-
-    return {"name":name,"points":np.array(points) - np.array(points[0])}
-
-"""
-创建封闭的曲线+直线bevel
-"""
-def create_closed_concat_curve(name, control_points=None, index=None,sort_point=False):
-    curveData = bpy.data.curves.new(name, type='CURVE')
-    curveData.dimensions = '3D'
     curveData.resolution_u = 12
-
-    bezierSpline = curveData.splines.new('BEZIER')
-    bezierSpline.use_cyclic_u = True  # 设置样条为封闭的
-
-    if index == 1:
-        bezierSpline.bezier_points.add(len(control_points) - 3)
-        for i, coord in enumerate(control_points[:-2]):
-            x, y, z = coord
-            bezier_point = bezierSpline.bezier_points[i]
-
-            bezier_point.co = (x, y, z)
-            bezier_point.handle_left_type = 'VECTOR'
-            bezier_point.handle_right_type = 'VECTOR'
-            if i == 0:  # P1处理
-                bezier_point.handle_left_type = 'FREE'  
-                bezier_point.handle_left = control_points[-2]
-            elif i == len(control_points) - 3:
-                bezier_point.handle_right_type = 'FREE'  # 左手柄自由，但需调整其位置
-                bezier_point.handle_right = control_points[-1]
-    elif index ==2:
-        bezierSpline.bezier_points.add(len(control_points) - 2)
-        for i, coord in enumerate(control_points[:-1]):
-            x, y, z = coord
-            bezier_point = bezierSpline.bezier_points[i]
-
-            bezier_point.co = (x, y, z)
-            bezier_point.handle_left_type = 'VECTOR'
-            bezier_point.handle_right_type = 'VECTOR'
-            # 对于第一个和最后一个点，我们调整手柄来形成弧线
-            if i == 0:
-                bezier_point.handle_left_type = 'FREE'  # 右手柄自由，但需调整其位置
-                bezier_point.handle_left = (x, y, z) 
-            elif i == len(control_points) - 2:
-                bezier_point.handle_right_type = 'FREE'  # 左手柄自由，但需调整其位置
-                bezier_point.handle_right = control_points[-1]
-    elif index ==3:
-        bezierSpline.bezier_points.add(len(control_points) - 2)
-
-        for i, coord in enumerate(control_points[:-1]):
-            x, y, z = coord
-            bezier_point = bezierSpline.bezier_points[i]
-
-            bezier_point.co = (x, y, z)
-            bezier_point.handle_left_type = 'VECTOR'
-            bezier_point.handle_right_type = 'VECTOR'
-            # 对于第一个和最后一个点，我们调整手柄来形成弧线
-            if i == 0:
-                bezier_point.handle_right_type = 'FREE'  # 右手柄自由，但需调整其位置
-                # 让右手柄沿着P1-P2的方向
-                bezier_point.handle_right = (x, y, z) 
-            elif i == len(control_points) - 2:  # P3处理
-                bezier_point.handle_left_type = 'FREE'  # 左手柄自由，但需调整其位置
-                # 让左手柄沿着P3-P2的方向
-                bezier_point.handle_left = control_points[-1]
-    elif index ==4:
-        bezierSpline.bezier_points.add(len(control_points) - 1)
-
-        for i, coord in enumerate(control_points):
-            x, y, z = coord
-            bezier_point = bezierSpline.bezier_points[i]
-
-            bezier_point.co = (x, y, z)
-            bezier_point.handle_left_type = 'VECTOR'
-            bezier_point.handle_right_type = 'VECTOR'
-    elif index ==5:
-        bezierSpline.bezier_points.add(len(control_points) - 3)
-
-        for i, coord in enumerate(control_points[:-2]):
-            x, y, z = coord
-            bezier_point = bezierSpline.bezier_points[i]
-
-            bezier_point.co = (x, y, z)
-            bezier_point.handle_left_type = 'VECTOR'
-            bezier_point.handle_right_type = 'VECTOR'
-            # 对于第一个和最后一个点，我们调整手柄来形成弧线
-            if i == len(control_points) - 3:  
-                bezier_point.handle_left_type = 'FREE'  # 右手柄自由，但需调整其位置
-                bezier_point.handle_left = control_points[-2]
-            elif i == len(control_points) - 4:
-                bezier_point.handle_right_type = 'FREE'  # 左手柄自由，但需调整其位置
-                bezier_point.handle_right = control_points[-1]
-    elif index ==6:
-        bezierSpline.bezier_points.add(len(control_points) - 3)
-
-        for i, coord in enumerate(control_points[:-2]):
-            x, y, z = coord
-            bezier_point = bezierSpline.bezier_points[i]
-
-            bezier_point.co = (x, y, z)
-            bezier_point.handle_left_type = 'VECTOR'
-            bezier_point.handle_right_type = 'VECTOR'
-            if i == len(control_points) - 3: 
-                bezier_point.handle_left_type = 'FREE'  # 右手柄自由，但需调整其位置
-                # 让右手柄沿着P1-P2的方向
-                bezier_point.handle_left = control_points[-2]
-            elif i == len(control_points) - 4:
-                bezier_point.handle_right_type = 'FREE'  # 左手柄自由，但需调整其位置
-                bezier_point.handle_right = control_points[-1]
-
-    curveOB = bpy.data.objects.new(name, curveData)
-    scn = bpy.context.scene.collection
-    scn.objects.link(curveOB)
-    if sort_point:
-        control_points = np.array(sort_coordinates_endpoint(control_points))    
-    return {"name":name,"points":np.array(control_points) - np.array(control_points[0]),"index":index}
-
-"""
-Create a section shape
-"""
-def create_section_shape(type, param_dict):
-    
-    param = {}
-
-    name = param_dict["name"]
-    if type=="rectangle":
-        if "center" in param_dict.keys():
-            param=create_rectangle(name,param_dict["width"],param_dict["length"],param_dict["rotation_rad"],param_dict["center"],closed=True)
-        else:
-            param=create_rectangle(name,param_dict["width"],param_dict["length"],param_dict["rotation_rad"],closed=True)
-    elif type=="rectangle_points":
-        param = create_rectangle_by_points(name,param_dict['points'],type=type)
-
-    elif type=="rectangle_open":
-        param=create_rectangle(name,param_dict["width"],param_dict["length"], param_dict["rotation_rad"],closed=False)
-
-    elif type=="rectangle_open_points":
-        param = create_rectangle_by_points(name,param_dict['points'],type=type)
-
-    elif type=="circle":
-        if "center" in param_dict.keys():
-            param=create_circle(name, param_dict["radius"], center=param_dict["center"])
-        else:
-            param=create_circle(name, param_dict["radius"])
-
-    elif type=="circle_points":
-        create_bezier_circle_by_3Dpoints(name,param_dict['points'])
-
-    elif type=="arc" or type=="arc_closed":
-        if "center" in param_dict.keys():
-            param=create_arc_points(name, param_dict["radius"], param_dict["start_angle"], param_dict["end_angle"],param_dict["location"], param_dict["rotation"],param_dict["center"] )
-        else:
-            param=create_arc_points(name, param_dict["radius"], param_dict["start_angle"], param_dict["end_angle"],param_dict["location"], param_dict["rotation"] )
-    
-    elif type=="arc_points":
-        create_bezier_arc_by_3Dpoints(name,param_dict['points'])
-
-    elif type=="arc_closed_points":
-        create_bezier_arc_by_3Dpoints(name,param_dict['points'],param_dict["center"],closed=True)
-
-    elif type=="oval":
-        if "center" in param_dict.keys():
-            param = create_oval(name, param_dict['a'],param_dict['b'],param_dict['rotation_rad'],param_dict['center'])
-        else:
-            param = create_oval(name, param_dict['a'],param_dict['b'],param_dict['rotation_rad'])
-
-    elif type=="quad" or type=="triangle" :
-        if "center" in param_dict.keys():
-            param=create_quad(name, param_dict["points"],param_dict["center"])
-        else:
-            param=create_quad(name, param_dict["points"])
-
-    elif type=="square": 
-        if "center" in param_dict.keys():
-            param=create_square(name, param_dict["length"],param_dict['rotation_rad'],param_dict['center'])
-        else:
-            param=create_square(name, param_dict["length"],param_dict['rotation_rad'])
-
-    elif type=="curve":
-        param = create_curve(name, param_dict["points"])
-
-    elif type=="closed_curve":
-        if "center" in param_dict.keys():
-            param = create_closed_curve(name, param_dict["points"],param_dict["center"])
-        else:
-            param = create_closed_curve(name, param_dict["points"])
-    
-    elif type=="linebowl_curve":
-        param = create_linebowl_curve(name, param_dict["points"])
-
-    elif type=="bowl_curve":
-        param = create_bowl_curve(name, param_dict["points"])
-
-    elif type=="bottleneck_curve":
-        param = create_bottleneck_curve(name, param_dict["points"])
-    
-    elif type=="mushroom_curve":
-        param = create_mushroom_curve(name, param_dict["points"])
-    
-    elif type=="pot_curve":
-        param = create_pot_curve(name, param_dict["points"])
-
-    elif type=="polyline":
-        param = create_polyline(name, param_dict["points"])
-
-    elif type=="closed_concat":
-        param = create_closed_concat_curve(name, param_dict["points"],index=param_dict["index"])
-    
-    return param
-
-    
-
-"""
-Creates a translational object of a line trajectory
-"""
-def create_line_translation(name, bevel_name, control_points, points_radius,thickness, resolution=24, use_smooth=False, fill_caps="none"):
-    coords = control_points
-
-    curveData = bpy.data.curves.new(name, type='CURVE')
     curveData.dimensions = '3D'
-    curveData.resolution_u = resolution
 
-    polyline = curveData.splines.new('POLY')
-    polyline.points.add(len(coords) - 1) 
-
-    for i, coord in enumerate(coords):
-        x, y, z = coord
-        polyline.points[i].co = (x, y, z, 1)
-        polyline.points[i].radius = points_radius[i]
-
-    curveOB = bpy.data.objects.new(name, curveData)
-    curveData.bevel_mode = "OBJECT"
-    if fill_caps=="both":
-        curveData.use_fill_caps = True
+    if profile_name==None:
+        if center=="POINT":
+            curve.location=[length/2,length/2,0]
+            bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+        curve.rotation_euler=[0,0,rotation_rad*pi]
+        bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+        
+        return {"name":name,"length":length,"rotation_rad":rotation_rad,"center":center}
+    
     else:
-        curveData.use_fill_caps = False
-    curveData.splines[0].use_smooth = use_smooth
-    curveData.bevel_object = bpy.data.objects[bevel_name]
-
-    scn = bpy.context.scene.collection
-    scn.objects.link(curveOB)
-    
-    #bpy.ops.object.mode_set(mode = 'OBJECT')
-    bpy.context.view_layer.objects.active = bpy.data.objects[name]
-    bpy.ops.object.mode_set(mode = 'OBJECT')
-    bpy.data.objects[name].select_set(True)
-    bpy.ops.object.convert(target='MESH')
-    bpy.data.objects.remove(bpy.data.objects[bevel_name], do_unlink=True)
-    #bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_VOLUME', center='MEDIAN')
-    if fill_caps in ["start","end"]:
-        make_caps(name,fill_caps)
-    solidify(name,thickness)
-    
-    return curveOB
-
-
-"""
-Create a translational object of an arc or circle trajectory by three control points
-"""
-def arc_translation_by_points(name, control_points=[],type='circle'):
-    
-    assert len(control_points) == 3
-    
-    ng = bpy.data.node_groups.new('nodeGroupTranslation', 'GeometryNodeTree')
-
-    inNode = ng.nodes.new('NodeGroupInput')
-    outNode = ng.nodes.new('NodeGroupOutput')
-    
-    c2mNode = ng.nodes.new('GeometryNodeCurveToMesh')
-    
-    if type=='circle':
-        arcNode = ng.nodes.new('GeometryNodeCurvePrimitiveCircle')
-    elif type=='arc':
-        arcNode = ng.nodes.new('GeometryNodeCurveArc')
-    realNode = ng.nodes.new('GeometryNodeRealizeInstances')
-
-    ng.interface.new_socket(name='Geometry', in_out='INPUT', socket_type='NodeSocketGeometry')
-    ng.interface.new_socket(name='Geometry', in_out='OUTPUT', socket_type='NodeSocketGeometry')
-    
-    ng.links.new(arcNode.outputs['Curve'], c2mNode.inputs['Curve'])
-    ng.links.new(inNode.outputs['Geometry'], c2mNode.inputs['Profile Curve'])
-    ng.links.new(c2mNode.outputs['Mesh'], realNode.inputs['Geometry'])
-    ng.links.new(realNode.outputs['Geometry'], outNode.inputs['Geometry'])
-
-    arcNode.mode = 'POINTS'
-    for i,point in enumerate(control_points):
-        arcNode.inputs[i+1].default_value=point
-    modifier = bpy.data.objects[name].modifiers.new('nodeTranslation', "NODES")
-    modifier.node_group = ng
-    bpy.ops.object.mode_set(mode = 'OBJECT')
-    bpy.ops.object.convert(target='MESH')
-    bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_VOLUME', center='MEDIAN')
-    #bpy.ops.object.mode_set(mode = 'EDIT')
-    #make_caps(name,fill_caps)
-
+        curveData.location = location
+        curve.rotation_mode = "QUATERNION"
+        curve.rotation_quaternion = rotation
+        curveData.bevel_mode = "OBJECT"
+        if fill_caps=="both":
+            curveData.use_fill_caps = True
+        else:
+            curveData.use_fill_caps = False
+        curveData.splines[0].use_smooth = False
+        curveData.bevel_object = bpy.data.objects[profile_name]
+        
+        #bpy.ops.object.mode_set(mode = 'OBJECT')
+        bpy.context.view_layer.objects.active = bpy.data.objects[name]
+        bpy.ops.object.mode_set(mode = 'OBJECT')
+        bpy.data.objects[name].select_set(True)
+        bpy.ops.object.convert(target='MESH')
+        bpy.data.objects.remove(bpy.data.objects[profile_name], do_unlink=True)
+        #bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_VOLUME', center='MEDIAN')
+        if fill_caps in ["start","end"]:
+            make_caps(name,fill_caps)
+        solidify(name,thickness)
 
 """
-Three control points create a translational body of the arc trajectory
+create a spiral curve
 """
-def create_arc_translation(name,bevel_name, control_points,thickness,points_radius=[1,1],use_smooth=False, fill_caps="none"):
-    create_bezier_arc_by_3Dpoints(name,control_points,points_radius)
-    curveData = bpy.data.objects[name].data
-    
-    curveData.bevel_mode = "OBJECT"
-    if fill_caps=="both":
-        curveData.use_fill_caps = True
-    else:
-        curveData.use_fill_caps = False
-    curveData.splines[0].use_smooth = use_smooth
-    curveData.bevel_object = bpy.data.objects[bevel_name]
-    
-    bpy.context.view_layer.objects.active = bpy.data.objects[name]
-    bpy.ops.object.mode_set(mode = 'OBJECT')
-    bpy.data.objects[name].select_set(True)
-    bpy.ops.object.convert(target='MESH')
-    bpy.data.objects.remove(bpy.data.objects[bevel_name], do_unlink=True)
-    bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_VOLUME', center='MEDIAN')
-    if fill_caps in ["start","end"]:
-        make_caps(name,fill_caps)
-
-    solidify(name,thickness)
-
-"""
-A translational body of a radius-controlled circular trajectory
-"""
-def create_circle_translation(name, bevel_name, r, location, rotation,thickness, points_radius=[1.,1.,1.,1.], resolution=24,use_smooth=False, fill_caps="none"):
-    bpy.ops.curve.simple(align='WORLD', location=[0,0,0], rotation=[0,0,0], Simple_Type='Circle',shape='3D',Simple_sides=4,Simple_radius=r, outputType='BEZIER', use_cyclic_u=True,edit_mode=False)
+def create_spiral(name, profile_name=None,dif_z=0.5,radius=0.5,turns=5,closed=False, center="POINT",thickness=0, handle_type="AUTO",fill_caps="none",flip_normals=False, direction="COUNTER_CLOCKWISE", resolution=8 ,location=[0,0,0], rotation=[0,0,0,0]):
+    bpy.ops.curve.spirals(align='WORLD', location=(0, 0, 0), rotation=(0, 0, 0), spiral_type='ARCH', turns=turns, dif_z=dif_z, radius=radius, shape='3D', curve_type='BEZIER', use_cyclic_u=closed,edit_mode=False, spiral_direction=direction, handleType=handle_type,steps=12)
     curve = bpy.context.object
     curve.name = name
-    curve.location = location
-    curve.rotation_mode = "QUATERNION"
-    curve.rotation_quaternion = rotation
-    
-    curveData = bpy.data.objects[name].data
+    curveData = curve.data
     curveData.resolution_u = resolution
-    for i in range(4):
-        curveData.splines[0].bezier_points[i].radius=points_radius[i]
-    
-    curveData.bevel_mode = "OBJECT"
-    if fill_caps=="both":
-        curveData.use_fill_caps = True
-    else:
-        curveData.use_fill_caps = False
-    curveData.splines[0].use_smooth = use_smooth
-    curveData.bevel_object = bpy.data.objects[bevel_name]
-    
-    bpy.context.view_layer.objects.active = bpy.data.objects[name]
-    bpy.ops.object.mode_set(mode = 'OBJECT')
-    bpy.data.objects[name].select_set(True)
-    bpy.ops.object.convert(target='MESH')
-    bpy.data.objects.remove(bpy.data.objects[bevel_name], do_unlink=True)
-    bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_VOLUME', center='MEDIAN')
-    if fill_caps in ["start","end"]:
-        make_caps(name,fill_caps)
-    solidify(name,thickness)
-    
-    
-"""
-Creates a translational object of a Bezier trajectory
-"""
-def create_curve_translation(name, bevel_name, control_points, points_radius, thickness, resolution=24, use_smooth=False, fill_caps="none", flip_normals=False):
-    coords = control_points
+    #curveOB = bpy.data.objects.new(name, curveData)
+    if thickness is None:
+        thickness = 0
+    if profile_name != None:
+        curveData.bevel_mode = "OBJECT"
+        if fill_caps=="both":
+            curveData.use_fill_caps = True
+        else:
+            curveData.use_fill_caps = False
+        curveData.splines[0].use_smooth = False
+        curveData.bevel_object = bpy.data.objects[profile_name]
 
-    curveData = bpy.data.curves.new(name, type='CURVE')
-    curveData.dimensions = '3D'
-    curveData.resolution_u = resolution
-
-    bezierSpline = curveData.splines.new('BEZIER')
-    bezierSpline.bezier_points.add(len(coords) - 1) 
-
-    for i, coord in enumerate(coords):
-        x, y, z = coord
-        bezier_point = bezierSpline.bezier_points[i]
-        bezier_point.co = (x, y, z)
-        bezier_point.handle_left_type = 'AUTO'
-        bezier_point.handle_right_type = 'AUTO'
-        bezier_point.radius = points_radius[i]
-
-    curveOB = bpy.data.objects.new(name, curveData)
-    curveData.bevel_mode = "OBJECT"
-    if fill_caps=="both":
-        curveData.use_fill_caps = True
-    else:
-        curveData.use_fill_caps = False
-    curveData.splines[0].use_smooth = use_smooth
-    curveData.bevel_object = bpy.data.objects[bevel_name]
-
-    scn = bpy.context.scene.collection
-    scn.objects.link(curveOB)
-
-    bpy.context.view_layer.objects.active = bpy.data.objects[name]
-    bpy.ops.object.mode_set(mode = 'OBJECT')
-    bpy.data.objects[name].select_set(True)
-    bpy.ops.object.convert(target='MESH')
-    bpy.data.objects.remove(bpy.data.objects[bevel_name], do_unlink=True)
-    bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_VOLUME', center='MEDIAN')
-    
-    if flip_normals:
-        bpy.data.objects[name].select_set(True)
-        bpy.ops.object.mode_set(mode = 'EDIT')
-        bpy.ops.mesh.select_all(action='SELECT')
-        bpy.ops.mesh.flip_normals()
+        #scn = bpy.context.scene.collection
+        #scn.objects.link(curveOB)
+        bpy.context.view_layer.objects.active = bpy.data.objects[name]
         bpy.ops.object.mode_set(mode = 'OBJECT')
-   
-    if fill_caps in ["start","end"]:
-        make_caps(name,fill_caps)
+        bpy.data.objects[name].select_set(True)
+        bpy.ops.object.convert(target='MESH')
+        bpy.data.objects.remove(bpy.data.objects[profile_name], do_unlink=True)
+        bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_VOLUME', center='MEDIAN')
         
-    if thickness>1e-10:
-        solidify(name,thickness)
+        if flip_normals:
+            bpy.data.objects[name].select_set(True)
+            bpy.ops.object.mode_set(mode = 'EDIT')
+            bpy.ops.mesh.select_all(action='SELECT')
+            bpy.ops.mesh.flip_normals()
+            bpy.ops.object.mode_set(mode = 'OBJECT')
     
-    return curveOB
+        if fill_caps in ["start","end"]:
+            make_caps(name,fill_caps)
 
-"""
-Creates a translational object in which the middle segment is a Bézier trajectory of a straight line
-"""
-def create_concatcurve_translation(name, bevel_name, control_points, concatcurve_id,points_radius, thickness, resolution=24, use_smooth=False, fill_caps="none"):
-    points = control_points
-    if concatcurve_id==0:
-        control_points = points[:4]+[points[3]] + [points[4]] + points[4:] 
-    elif concatcurve_id==1:
-        control_points = [points[0]] + points[:2] + [points[1]] + points[2:4] + [points[4]]+points[4:] + [points[-1]]
-    elif concatcurve_id==2:
-        control_points = [points[0]] + points[:2] + [points[1]] + points[2:]
-    elif concatcurve_id==3:
-        control_points = points[:-1] + [points[-2]] + [points[-1]] + [points[-1]]
+        recalculate_normals(name,inside=False)
+            
+        if thickness>1e-10:
+            solidify(name,thickness)
+
+        weld(name,1e-5)
     
-    control_points = [[0,0,0]]+control_points+[[0,0,0]]
-    control_points = np.array(control_points)
-
-    curveData = bpy.data.curves.new(name, type='CURVE')
-    curveData.dimensions = '3D'
-    curveData.resolution_u = resolution
-
-    
-    bezierSpline = curveData.splines.new('BEZIER') 
-    num_cycle = int(len(control_points)/3)
-    bezierSpline.bezier_points.add(num_cycle - 1)
-    #assert len(control_points) == 12
-    
-    for i in range(num_cycle):        
-        bezier_point = bezierSpline.bezier_points[i]
-        bezier_point.handle_left = control_points[i*3]
-        bezier_point.co = control_points[i*3+1]
-        bezier_point.handle_right = control_points[i*3+2]
-        
-
-    curveOB = bpy.data.objects.new(name, curveData)
-    curveData.bevel_mode = "OBJECT"
-    if fill_caps=="both":
-        curveData.use_fill_caps = True
     else:
-        curveData.use_fill_caps = False
-    curveData.splines[0].use_smooth = use_smooth
-    curveData.bevel_object = bpy.data.objects[bevel_name]
+        if center=="MEDIAN":
+            bpy.data.objects[name].select_set(True)
+            bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='MEDIAN')
+    obj = bpy.data.objects[name]
+    if rotation is not None:
+        obj.rotation_mode = 'QUATERNION'
+        #print(rotation)
+        obj.rotation_quaternion = rotation
+    if location is not None:
+        obj.location = location
+    bpy.ops.object.transform_apply(True)
+    return {
+        "name": name, "profile_name": profile_name,"dif_z": dif_z,"radius": radius, "turns": turns,"thickness": thickness, "location": location, "rotation": rotation, "fill_caps": fill_caps
+    }
 
-    scn = bpy.context.scene.collection
-    scn.objects.link(curveOB)
 
-    bpy.context.view_layer.objects.active = bpy.data.objects[name]
-    bpy.ops.object.mode_set(mode = 'OBJECT')
-    bpy.data.objects[name].select_set(True)
-    bpy.ops.object.convert(target='MESH')
-    bpy.data.objects.remove(bpy.data.objects[bevel_name], do_unlink=True)
-    bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_VOLUME', center='MEDIAN')
-    if fill_caps in ["start","end"]:
-        make_caps(name,fill_caps)
-    solidify(name,thickness)
-    return curveOB
 
 """
 Create a rotation object
 """
-def bezier_rotation(name,bevel_name,location=[0,0,0], rotation=[0,0,0,0],thickness=0.01,use_smooth=False):
+def bezier_rotation(name,bevel_name,location=[0,0,0], rotation=[0,0,0,0],thickness=0.,use_smooth=False):
     r=1
     bpy.ops.curve.simple(align='WORLD', location=[0,0,0], rotation=[0,0,0], Simple_Type='Circle',shape='3D',Simple_sides=4,Simple_radius=r, outputType='BEZIER', use_cyclic_u=True,edit_mode=False)
     curve = bpy.context.object
@@ -1485,83 +933,399 @@ def bezier_rotation(name,bevel_name,location=[0,0,0], rotation=[0,0,0,0],thickne
     bpy.data.objects.remove(bpy.data.objects[bevel_name], do_unlink=True)
     bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_VOLUME', center='MEDIAN')
     solidify(name, thickness)
+
+
+###########
+## luoli ##
+###########
+
+def curve2meshgrid(name, thickness, bevel_width, is_seat_subsurf):
+    obj = bpy.data.objects[name]
+    obj.select_set(True)
+    bpy.context.view_layer.objects.active = obj
+    curve2mesh(obj)
+    bpy.ops.object.mode_set(mode="EDIT")
+    bpy.ops.mesh.select_all(action="SELECT")
+    bpy.ops.mesh.fill_grid(use_interp_simple=True)
+    bpy.ops.object.mode_set(mode="OBJECT")
     
+    solidify(obj.name, thickness)
+    subsurf(obj.name, 1, not is_seat_subsurf)
+    bevel(obj.name, bevel_width, segments=8)
+    return obj
+
+def fill_grid(name, thickness=None, use_interp_simple=True):
+    obj = bpy.data.objects[name]
+    obj.select_set(True)
+    bpy.context.view_layer.objects.active = obj
+    if obj.type != 'MESH':
+        assert obj.type == 'CURVE', f"the type of obj is {obj.type} rather than \'CURVE\' or \'MESH\'"
+        curve2mesh(obj)
+    bpy.ops.object.mode_set(mode="EDIT")
+    bpy.ops.mesh.select_all(action="SELECT")
+    bpy.ops.mesh.fill_grid(use_interp_simple=use_interp_simple)
+    bpy.ops.object.mode_set(mode="OBJECT")
+    if thickness is not None:
+        solidify(name, thickness)
+
+def curve2mesh(obj, weld_mod=True, merge_threshold=1e-4):
+    # with butil.SelectObjects(obj):
+    bpy.ops.object.mode_set(mode = 'OBJECT')
+    obj.select_set(True)
+    bpy.ops.object.convert(target="MESH")
+    obj = bpy.context.active_object
+    # butil.modify_mesh(obj, "WELD", merge_threshold=1e-4)
+    if weld_mod:
+        # TODO: which one?
+        # weld(obj, merge_threshold=merge_threshold)
+        weld(obj.name, merge_threshold=merge_threshold)
+    return obj
+
 """
-Creates a translational object of a line trajectory
+Apply WELD modifier to the object.
 """
-def create_curve(name, profile_name=None,control_points=[],points_radius=[],handle_type=[],closed=False, center="POINT",thickness=None, fill_caps="none",flip_normals=False):
-    type_dict={0:"AUTO", 1:"VECTOR", 2:"ALIGNED", 3:"FREE"}
+def weld(name, merge_threshold):
+    bpy.data.objects[name].modifiers.new("Weld", "WELD")
+    bpy.data.objects[name].modifiers["Weld"].merge_threshold = merge_threshold
+    bpy.context.view_layer.objects.active = bpy.data.objects[name]
+    bpy.ops.object.modifier_apply(modifier="Weld")
 
-    control_points = np.array(control_points).tolist()
-    control_points_tmp = copy.deepcopy(control_points)
-    #统计手柄坐标的数量与真实控制点的数量
-    num_handle_co = handle_type.count(3)
-    num_control_points = len(control_points) - num_handle_co
 
-    curveData = bpy.data.curves.new(name, type='CURVE')
-    curveData.dimensions = '3D'
-    curveData.resolution_u = 24
-
-    bezierSpline = curveData.splines.new('BEZIER')
-    bezierSpline.bezier_points.add(num_control_points - 1) 
-    bezierSpline.use_cyclic_u = closed
-
-    for i in range(num_control_points):
-        bezier_point = bezierSpline.bezier_points[i]
-        bezier_point.handle_left_type = type_dict[handle_type[2*i]]
-        if type_dict[handle_type[2*i]]=="FREE":
-            bezier_point.handle_left = control_points.pop(0)
-        bezier_point.co = control_points.pop(0)
-        bezier_point.handle_right_type = type_dict[handle_type[2*i+1]]
-        if type_dict[handle_type[2*i+1]]=="FREE":
-            bezier_point.handle_right = control_points.pop(0)
-        bezier_point.radius = points_radius[i] if len(points_radius)!=0 else 1.0
-    
-    assert len(control_points)==0, "cannot create curve"
-    curveOB = bpy.data.objects.new(name, curveData)
-
-    if profile_name != None:
-        curveData.bevel_mode = "OBJECT"
-        if fill_caps=="both":
-            curveData.use_fill_caps = True
-        else:
-            curveData.use_fill_caps = False
-        curveData.splines[0].use_smooth = False
-        curveData.bevel_object = bpy.data.objects[profile_name]
-
-        scn = bpy.context.scene.collection
-        scn.objects.link(curveOB)
-
-        bpy.context.view_layer.objects.active = bpy.data.objects[name]
-        bpy.ops.object.mode_set(mode = 'OBJECT')
-        bpy.data.objects[name].select_set(True)
+def bevel(name, width, segments=8):
+    """ 
+    This function aims to add bevel modifier and apply to the object
+    """
+    bpy.data.objects[name].modifiers.new("Bevel", "BEVEL")
+    bpy.data.objects[name].modifiers["Bevel"].width = width
+    bpy.data.objects[name].modifiers["Bevel"].segments = segments
+    bpy.context.view_layer.objects.active = bpy.data.objects[name]
+    if bpy.data.objects[name].type == 'MESH':
+        bpy.ops.object.modifier_apply(modifier="Bevel")
+    elif bpy.data.objects[name].type == 'CURVE':
+        bpy.context.object.modifiers["Bevel"].affect = 'VERTICES'
         bpy.ops.object.convert(target='MESH')
-        bpy.data.objects.remove(bpy.data.objects[profile_name], do_unlink=True)
-        bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_VOLUME', center='MEDIAN')
-        
-        if flip_normals:
-            bpy.data.objects[name].select_set(True)
-            bpy.ops.object.mode_set(mode = 'EDIT')
-            bpy.ops.mesh.select_all(action='SELECT')
-            bpy.ops.mesh.flip_normals()
-            bpy.ops.object.mode_set(mode = 'OBJECT')
-    
-        if fill_caps in ["start","end"]:
-            make_caps(name,fill_caps)
-            
-        if thickness>1e-10:
-            solidify(name,thickness)
+        bpy.ops.object.convert(target='CURVE')
 
-        return curveOB
-    
+def subsurf(name: list[str] | str, levels: list[int] | int, simple: list[bool] | bool=False):
+    """ 
+    This function aims to add subdivide surface modifier and apply to the object
+    TODO: There are some properties that haven't added to this function yet.
+    """
+    if not isinstance(name, list):
+        name = [name]
+    if not isinstance(levels, list):
+        levels = [levels] * len(name)
+    if not isinstance(simple, list):
+        simple = [simple] * len(name)
+    for i in range(len(name)):
+        if levels[i] > 0:
+            if bpy.data.objects.get(name[i]).type == 'CURVE':
+                bpy.context.view_layer.objects.active = bpy.data.objects[name[i]]
+                bpy.data.objects[name[i]].select_set(True)
+                bpy.ops.object.convert(target='MESH')
+                bpy.data.objects[name[i]].select_set(False)
+            bpy.data.objects[name[i]].modifiers.new("Subsurf", "SUBSURF")
+            bpy.data.objects[name[i]].modifiers["Subsurf"].levels = levels[i]
+            bpy.data.objects[name[i]].modifiers["Subsurf"].render_levels = levels[i]
+            bpy.data.objects[name[i]].modifiers["Subsurf"].subdivision_type = "SIMPLE" if simple[i] else "CATMULL_CLARK"
+            bpy.context.view_layer.objects.active = bpy.data.objects[name[i]]
+            bpy.ops.object.modifier_apply(modifier="Subsurf")
+
+"""
+Bridge edge loops of more than 2 loops
+"""
+def bridge_edge_loops(name: str | list[str], profile_name: list[str] | list[list[str]], number_cuts: int | list[int]=8, smoothness: float | list[float]=0., profile_shape_factor: float | list[float]=0., twist: int | list[int]=0, interpolation: str | list[str]='PATH', profile_shape: str | list[str]='SMOOTH', flip_normals: list[bool] | bool=True, fill_caps: list[str] | str="none"):
+    """
+    Bridges edge loops between multiple objects in Blender.
+
+    Args:
+        name (str | list[str]): The name(s) to assign to the resulting object(s).
+        profile_name (list[str] | list[list[str]]): A list of names of the objects to be bridged.
+        number_cuts (int | list[int], optional): The number of cuts to make along the bridge. Defaults to 8.
+        smoothness (float | list[float], optional): The smoothness of the bridge. Defaults to 0.
+        profile_shape_factor (float | list[float], optional): The factor for the profile shape. Defaults to 0.
+        twist (int | list[int], optional): The twist offset for the bridge. Defaults to 0.
+        interpolation (str | list[str], optional): The interpolation method for the bridge. Must be one of ['LINEAR', 'PATH', 'SURFACE']. Defaults to 'PATH'.
+        profile_shape (str | list[str], optional): The profile shape for the bridge. Must be one of ['SMOOTH', 'SPHERE', 'ROOT', 'INVERSE_SQUARE', 'SHARP', 'LINEAR']. Defaults to 'SMOOTH'.
+        
+    Raises:
+        AssertionError: If fewer than two profile names are provided.
+        AssertionError: If an invalid interpolation method is provided.
+        AssertionError: If an invalid profile shape is provided.
+
+    """
+    if isinstance(name, str):
+        assert len(profile_name) >= 2
+        assert interpolation in ['LINEAR', 'PATH', 'SURFACE']
+        assert profile_shape in ['SMOOTH', 'SPHERE', 'ROOT', 'INVERSE_SQUARE', 'SHARP', 'LINEAR']
+
+        # 如果profile是curve，需要转换为mesh
+        for b_name in profile_name:
+            if bpy.data.objects.get(b_name).type == 'CURVE':
+                bpy.context.view_layer.objects.active = bpy.data.objects[b_name]
+                bpy.data.objects[b_name].select_set(True)
+                bpy.ops.object.convert(target='MESH')
+                bpy.data.objects[b_name].select_set(False)
+        
+        if fill_caps=='start':
+            bpy.ops.object.select_all(action='DESELECT')
+            bpy.data.objects[profile_name[0]].select_set(True)
+            bpy.context.view_layer.objects.active = bpy.data.objects[profile_name[0]]
+            bpy.ops.object.mode_set(mode='EDIT')
+            bpy.ops.mesh.select_all(action='SELECT')
+            bpy.ops.mesh.edge_face_add()
+            bpy.ops.object.mode_set(mode='OBJECT')
+        elif fill_caps=='end':
+            bpy.ops.object.select_all(action='DESELECT')
+            bpy.data.objects[profile_name[-1]].select_set(True)
+            bpy.context.view_layer.objects.active = bpy.data.objects[profile_name[-1]]
+            bpy.ops.object.mode_set(mode='EDIT')
+            bpy.ops.mesh.select_all(action='SELECT')
+            bpy.ops.mesh.edge_face_add()
+            bpy.ops.object.mode_set(mode='OBJECT')
+
+        scene = bpy.context.scene
+
+        start_obj = bpy.data.objects[profile_name[0]].copy()
+        end_obj = bpy.data.objects[profile_name[-1]].copy()
+        start_obj.data = bpy.data.objects[profile_name[0]].data.copy()
+        end_obj.data = bpy.data.objects[profile_name[-1]].data.copy()
+        scene.collection.objects.link(start_obj)
+        scene.collection.objects.link(end_obj)
+        profile_name[0] += ".001"
+        profile_name[-1] += ".001"
+
+        bpy.ops.object.select_all(action='DESELECT')
+        for b_name in profile_name:
+            bpy.data.objects[b_name].select_set(True)
+        if 0. not in bpy.data.objects[profile_name[0]].scale:
+            bpy.context.view_layer.objects.active = bpy.data.objects[profile_name[0]]
+        else:
+            bpy.context.view_layer.objects.active = bpy.data.objects[profile_name[-1]]
+            
+        bpy.ops.object.join()
+        bpy.context.object.name = name
+        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.mesh.select_all(action='SELECT')
+        bpy.ops.mesh.bridge_edge_loops(
+            twist_offset=twist,
+            number_cuts=number_cuts,
+            smoothness=smoothness,
+            profile_shape_factor=profile_shape_factor,
+            interpolation=interpolation,
+            profile_shape=profile_shape
+        )
+        if fill_caps=='both':
+            bpy.ops.mesh.select_all(action='SELECT')
+            bpy.ops.mesh.region_to_loop()
+            bpy.ops.mesh.edge_face_add()
+            bpy.ops.mesh.select_all(action='DESELECT')
+        bpy.ops.object.mode_set(mode='OBJECT')
+        if flip_normals:
+            recalculate_normals(name,inside=True)
+        else:
+            recalculate_normals(name,inside=False)
+        bpy.data.objects[name].select_set(False)
+
     else:
-        scn = bpy.context.scene.collection
-        scn.objects.link(curveOB)
-        if center=="MEDIAN":
-            bpy.data.objects[name].select_set(True)
-            bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='MEDIAN')
-        points=np.array(control_points_tmp)
-        return {"name":name, "points":points, "handle_type":handle_type, "closed":closed, "center":center}
+        if isinstance(number_cuts, int):
+            number_cuts = [number_cuts] * len(name)
+        if isinstance(smoothness, float):
+            smoothness = [smoothness] * len(name)
+        if isinstance(profile_shape_factor, float):
+            profile_shape_factor = [profile_shape_factor] * len(name)
+        if isinstance(twist, int):
+            twist = [twist] * len(name)
+        if isinstance(interpolation, str):
+            interpolation = [interpolation] * len(name)
+        if isinstance(profile_shape, str):
+            profile_shape = [profile_shape] * len(name)
+        if isinstance(flip_normals, bool):
+            flip_normals = [flip_normals] * len(name)
+        if isinstance(fill_caps, str):
+            fill_caps = [fill_caps] * len(name)
+
+        for i in range(len(name)):
+            assert len(profile_name[i]) >= 2
+            assert interpolation[i] in ['LINEAR', 'PATH', 'SURFACE']
+            assert profile_shape[i] in ['SMOOTH', 'SPHERE', 'ROOT', 'INVERSE_SQUARE', 'SHARP', 'LINEAR']
+
+            # 如果圆是curve，需要转换为mesh
+            for b_name in profile_name[i]:
+                if bpy.data.objects.get(b_name).type == 'CURVE':
+                    bpy.context.view_layer.objects.active = bpy.data.objects[b_name]
+                    bpy.data.objects[b_name].select_set(True)
+                    bpy.ops.object.convert(target='MESH')
+                    bpy.data.objects[b_name].select_set(False)
+
+            if fill_caps[i]=='start':
+                bpy.ops.object.select_all(action='DESELECT')
+                bpy.data.objects[profile_name[i][0]].select_set(True)
+                bpy.context.view_layer.objects.active = bpy.data.objects[profile_name[i][0]]
+                bpy.ops.object.mode_set(mode='EDIT')
+                bpy.ops.mesh.select_all(action='SELECT')
+                bpy.ops.mesh.edge_face_add()
+                bpy.ops.object.mode_set(mode='OBJECT')
+            elif fill_caps[i]=='end':
+                bpy.ops.object.select_all(action='DESELECT')
+                bpy.data.objects[profile_name[i][-1]].select_set(True)
+                bpy.context.view_layer.objects.active = bpy.data.objects[profile_name[i][-1]]
+                bpy.ops.object.mode_set(mode='EDIT')
+                bpy.ops.mesh.select_all(action='SELECT')
+                bpy.ops.mesh.edge_face_add()
+                bpy.ops.object.mode_set(mode='OBJECT')
+
+            scene = bpy.context.scene
+
+            start_obj = bpy.data.objects[profile_name[i][0]].copy()
+            end_obj = bpy.data.objects[profile_name[i][-1]].copy()
+            start_obj.data = bpy.data.objects[profile_name[i][0]].data.copy()
+            end_obj.data = bpy.data.objects[profile_name[i][-1]].data.copy()
+            scene.collection.objects.link(start_obj)
+            scene.collection.objects.link(end_obj)
+            profile_name[i][0] += ".001"
+            profile_name[i][-1] += ".001"
+
+            bpy.ops.object.select_all(action='DESELECT')
+            for b_name in profile_name[i]:
+                bpy.data.objects[b_name].select_set(True)
+            if 0. not in bpy.data.objects[profile_name[i][0]].scale:
+                bpy.context.view_layer.objects.active = bpy.data.objects[profile_name[i][0]]
+            else:
+                bpy.context.view_layer.objects.active = bpy.data.objects[profile_name[i][-1]]
+                
+            bpy.ops.object.join()
+            bpy.context.object.name = name[i]
+            bpy.ops.object.mode_set(mode='EDIT')
+            bpy.ops.mesh.select_all(action='SELECT')
+            bpy.ops.mesh.bridge_edge_loops(
+                twist_offset=twist[i],
+                number_cuts=number_cuts[i],
+                smoothness=smoothness[i],
+                profile_shape_factor=profile_shape_factor[i],
+                interpolation=interpolation[i],
+                profile_shape=profile_shape[i]
+            )
+            if fill_caps[i]=='both':
+                bpy.ops.mesh.select_all(action='SELECT')
+                bpy.ops.mesh.region_to_loop()
+                bpy.ops.mesh.edge_face_add()
+                bpy.ops.mesh.select_all(action='DESELECT')
+            bpy.ops.object.mode_set(mode='OBJECT')
+            if flip_normals[i]:
+                recalculate_normals(name[i],inside=True)
+            else:
+                recalculate_normals(name[i],inside=False)
+            bpy.data.objects[name[i]].select_set(False)
+
+    objects = bpy.data.objects
+    profile_name_list = list(itertools.chain(*profile_name)) if isinstance(profile_name[0], list) else profile_name
+    profile_name_list = [profile_name.split('.')[0] for profile_name in profile_name_list]
+    profile_name_set = set(profile_name_list)
+    profile_to_delete = [obj for obj in objects if obj.name in profile_name_set]
+    for obj in profile_to_delete:
+        obj.select_set(True)
+    bpy.ops.object.delete()
+
+    return name
+
+
+def add_curve_modifier_to_object(name, curve_name, origin=[0., 0., 0.], rotation=[1, 0, 0, 0], axis='POS_X'):
+    """
+    Add a curve modifier to the specified mesh object and link it to the specified curve object.
+    
+    :param name: Name of the mesh object
+    :param curve_name: Name of the curve object
+    :param axis: Deformation axis, 'POS_X', 'POS_Y', 'POS_Z', 'NEG_X', 'NEG_Y' or 'NEG_Z'
+    """
+    origin = origin.copy()
+    rotation = rotation.copy()
+    
+    origin = origin[-1] if isinstance(origin[-1], list) else origin
+    rotation = rotation[-1] if isinstance(rotation[-1], list) else rotation
+
+    # Get the mesh object
+    mesh_obj = bpy.data.objects.get(name)
+    assert mesh_obj is not None and mesh_obj.type == 'MESH'
+    
+    # Get the curve object
+    curve_obj = bpy.data.objects.get(curve_name)
+    assert curve_obj is not None and curve_obj.type == 'CURVE'
+
+    # 如果不是cardinal pose, 则先将mesh_obj转换为cardinal pose再transform回来
+    bpy.context.view_layer.objects.active = curve_obj
+    for o in bpy.context.selected_objects:
+        o.select_set(False)
+    curve_obj.select_set(True)
+    if origin != [0, 0, 0]:
+        curve_obj.location -= Vector(origin)
+        bpy.ops.object.transform_apply(location=True, rotation=False, scale=False)
+    if rotation != [1, 0, 0, 0]:
+        # 旋转curve_obj
+        curve_obj.rotation_mode = 'XYZ'
+        curve_obj.rotation_euler = (Quaternion(rotation).conjugated() @ curve_obj.rotation_quaternion).to_euler()
+        bpy.ops.object.transform_apply(location=False, rotation=True, scale=False)
+
+    # 将curve旋转回来
+    if rotation != [1, 0, 0, 0]:
+        curve_obj.rotation_mode = 'QUATERNION'
+        curve_obj.rotation_quaternion = Quaternion(rotation) @ curve_obj.rotation_quaternion
+    # 将mesh_obj移动回来
+    if origin != [0, 0, 0]:
+        curve_obj.location += Vector(origin)
+
+    # Add the curve modifier
+    modifier = mesh_obj.modifiers.new(name="CurveModifier", type='CURVE')
+    
+    # Set the curve object
+    modifier.object = curve_obj
+    
+    # Set the deformation axis
+    assert axis.upper() in ['POS_X', 'POS_Y', 'POS_Z', 'NEG_X', 'NEG_Y', 'NEG_Z']
+    modifier.deform_axis = axis.upper()
+
+    # Let the mesh object be the parent of the curve object
+    curve_obj.parent = mesh_obj
+    curve_obj.matrix_parent_inverse = mesh_obj.matrix_world.inverted()
+    
+    # 再次确保活动对象为目标对象并选中
+    bpy.context.view_layer.objects.active = mesh_obj
+    for o in bpy.context.selected_objects:
+        o.select_set(False)
+    mesh_obj.select_set(True)
+
+    # 应用修改器
+    try:
+        bpy.ops.object.modifier_apply(modifier=modifier.name)
+    except RuntimeError as e:
+        raise RuntimeError(f"应用修改器时出错: {e}")
+
+    # 删除 curve 对象
+    for o in bpy.context.selected_objects:
+        o.select_set(False)
+    curve_obj.select_set(True)
+    bpy.context.view_layer.objects.active = curve_obj
+    bpy.ops.object.delete()
+
+
+def delete_obj(sub_name: str):
+    objects = bpy.data.objects
+    circles_to_delete = [obj for obj in objects if sub_name in obj.name]
+    for obj in circles_to_delete:
+        obj.select_set(True)
+    bpy.ops.object.delete()
+
+
+def join_obj(name: str, seq_name: list[str], use_weld: bool=False, merge_threshold: float=1e-4):
+    for n in seq_name:
+        bpy.data.objects[n].select_set(True)
+    bpy.context.view_layer.objects.active = bpy.data.objects[seq_name[-1]]
+    bpy.ops.object.join()
+    bpy.data.objects[seq_name[-1]].name = name
+    if use_weld:
+        weld(name=name, merge_threshold=merge_threshold)
+    return name
+
 def create_star(name, outer_radius, inner_radius, num_points, edge="smooth"):
     # Create a simple circle curve using the built-in operator
     bpy.ops.curve.simple(
@@ -1607,144 +1371,40 @@ def create_star(name, outer_radius, inner_radius, num_points, edge="smooth"):
         point.handle_right_type = handle_type
     
     return {"name": name, "outer_radius": outer_radius, "inner_radius": inner_radius, "num_points": num_points}
-def star_curve_rotation(name,bevel_name,num_points=16, inner_radius=1, location=[0,0,0], rotation=[0,0,0,0],thickness=0.002,use_smooth=False):
-    create_star(name, 1, inner_radius, num_points, edge="sharp")
+
+def star_curve_rotation(name,profile_name,num_points=16, r_diff=0.1, location=[0,0,0], rotation=[0,0,0,0],thickness=0.002,use_smooth=False):
+    create_star(name, 1 + r_diff, 1, num_points, edge="sharp")
     curve = bpy.context.object
     curveData = bpy.data.objects[name].data
     curve.location = location
     curve.rotation_mode = "QUATERNION"
     curve.rotation_quaternion = rotation
-    curveData.offset=inner_radius
+    curveData.offset=(1 + r_diff)*1.05
     curveData.bevel_mode = "OBJECT"
     curveData.splines[0].use_smooth = use_smooth
-    curveData.bevel_object = bpy.data.objects[bevel_name]
+    curveData.bevel_object = bpy.data.objects[profile_name]
     
     bpy.context.view_layer.objects.active = bpy.data.objects[name]
     bpy.ops.object.mode_set(mode = 'OBJECT')
     bpy.data.objects[name].select_set(True)
     bpy.ops.object.convert(target='MESH')
-    bpy.data.objects.remove(bpy.data.objects[bevel_name], do_unlink=True)
+    bpy.data.objects.remove(bpy.data.objects[profile_name], do_unlink=True)
     bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_VOLUME', center='MEDIAN')
     solidify(name, thickness)
-    
-def subsurf(name, levels, simple=False):
-    """ 
-    This function aims to add subdivide surface modifier and apply to the object
-    TODO: There are some properties that haven't added to this function yet.
-    """
-    if levels > 0:
-        bpy.data.objects[name].modifiers.new("Subsurf", "SUBSURF")
-        bpy.data.objects[name].modifiers["Subsurf"].levels = levels
-        bpy.data.objects[name].modifiers["Subsurf"].render_levels = levels
-        bpy.data.objects[name].modifiers["Subsurf"].subdivision_type = "SIMPLE" if simple else "CATMULL_CLARK"
-        bpy.context.view_layer.objects.active = bpy.data.objects[name]
-        bpy.ops.object.modifier_apply(modifier="Subsurf")
-    
-from random import uniform
-from random import choice
-def create_vase(name):
-    neck_scale = uniform(0.2, 0.8)
-    top_scale = neck_scale * uniform(0.8, 1.2)
-    z = uniform(0.25, 0.40)
-    x = uniform(0.2, 0.4) * z
-    neck_position = 0.5 * neck_scale + 0.5 + uniform(-0.05, 0.05)
-    neck_middle_position = uniform(0.7, 0.95)
-    shoulder_position = uniform(0.3, 0.7)
-    shoulder_thickness = uniform(0.1, 0.25)
-    foot_height = uniform(0.01, 0.1)
-    foot_scale = uniform(0.4, 0.6)
-    inner_radius = choice([1.0, uniform(0.8, 1.0)])
-    map_range = shoulder_position * (neck_position - foot_height) + foot_height
-    pos_body_top = map_range
-    pos_body_top += (neck_position - foot_height) * shoulder_thickness
-    pos_body_top = min(pos_body_top, neck_position)
-    pos_body_bottom = map_range
-    pos_body_bottom -= (neck_position - foot_height) * shoulder_thickness
-    pos_body_bottom = max(pos_body_bottom, foot_height)
-    pts = [
-        [top_scale * x, z, 0],
-        [(top_scale + neck_scale) / 2 * x, z * ((1 - neck_position) * neck_middle_position + neck_position), 0],
-        [neck_scale * x, z * neck_position, 0],
-        [x, pos_body_top * z, 0],
-        [x, pos_body_bottom * z, 0],
-        [x * foot_scale,foot_height * z, 0],
-        [x * foot_scale, 0, 0],
-        [0, 0, 0]
-    ]
-    handle_type = [
-        0, 0, 0, 0, 0,0 ,0 ,0, 0,0 ,0, 0, 0, 1, 1, 1
-    ]
-    print(pts, inner_radius)
-    create_curve("temp", None, pts, [], handle_type)
-    star_curve_rotation(name, "temp", inner_radius=inner_radius)
-    subsurf(name, 2)
-#create_vase("revolute")
-
-def create_spiral(name, profile_name=None,dif_z=0.5,radius=0.5,turns=5,closed=False, center="POINT",thickness=0, handle_type="AUTO",fill_caps="none",flip_normals=False, direction="COUNTER_CLOCKWISE", resolution=24 ,location=[0,0,0], rotation=[0,0,0,0]):
-    bpy.ops.curve.spirals(align='WORLD', location=(0, 0, 0), rotation=(0, 0, 0), spiral_type='ARCH', turns=turns, dif_z=dif_z, radius=radius, shape='3D', curve_type='BEZIER', use_cyclic_u=closed,edit_mode=False, spiral_direction=direction, handleType=handle_type)
-    curve = bpy.context.object
-    curve.name = name
-    curveData = curve.data
-    curveData.resolution_u = resolution
-    #curveOB = bpy.data.objects.new(name, curveData)
-    if thickness is None:
-        thickness = 0
-    if profile_name != None:
-        curveData.bevel_mode = "OBJECT"
-        if fill_caps=="both":
-            curveData.use_fill_caps = True
-        else:
-            curveData.use_fill_caps = False
-        curveData.splines[0].use_smooth = False
-        curveData.bevel_object = bpy.data.objects[profile_name]
-
-        #scn = bpy.context.scene.collection
-        #scn.objects.link(curveOB)
-        bpy.context.view_layer.objects.active = bpy.data.objects[name]
-        bpy.ops.object.mode_set(mode = 'OBJECT')
-        bpy.data.objects[name].select_set(True)
-        bpy.ops.object.convert(target='MESH')
-        bpy.data.objects.remove(bpy.data.objects[profile_name], do_unlink=True)
-        bpy.ops.object.origin_set(type='ORIGIN_CENTER_OF_VOLUME', center='MEDIAN')
-        
-        if flip_normals:
-            bpy.data.objects[name].select_set(True)
-            bpy.ops.object.mode_set(mode = 'EDIT')
-            bpy.ops.mesh.select_all(action='SELECT')
-            bpy.ops.mesh.flip_normals()
-            bpy.ops.object.mode_set(mode = 'OBJECT')
-    
-        if fill_caps in ["start","end"]:
-            make_caps(name,fill_caps)
-            
-        if thickness>1e-10:
-            solidify(name,thickness)
-    
-    else:
-        if center=="MEDIAN":
-            bpy.data.objects[name].select_set(True)
-            bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='MEDIAN')
-    obj = bpy.data.objects[name]
     if rotation:
-        obj.rotation_mode = 'QUATERNION'
+        curve.rotation_mode = 'QUATERNION'
         #print(rotation)
-        obj.rotation_quaternion = rotation
+        curve.rotation_quaternion = rotation
     if location:
-        obj.location = location
+        curve.location = location
     bpy.ops.object.transform_apply(True)
-    return {
-        "name": name, "profile_name": profile_name,"dif_z": 0.5,"radius": 0.5,"turns": 5,"closed": False, "center": "POINT","thickness": None, "handle_type": "AUTO","fill_caps": "none","flip_normals": False, "direction": "COUNTER_CLOCKWISE", "resolution":24, "thickness": thickness
-    }
 
-
-
-from numpy.random import uniform
-def log_uniform(low, high, size=None):
-    return np.exp(uniform(np.log(low), np.log(high), size))
 def create_fork(name, x_tip, thickness, n_cuts, x_anchors, y_anchors, z_anchors, location=(0.0, 0.0, 0.0), rotation=(0.0, 0.0, 0.0,0.0), scale=(1, 1, 1)):
+    x_anchors = np.array(x_anchors)
+    y_anchors = np.array(y_anchors)
+    z_anchors = np.array(z_anchors)
     has_cut =True
-    print(n_cuts)
-    n = 2 * (n_cuts + 1)
+    n = int(2 * (n_cuts + 1))
     obj = create_primitive(name=name, primitive_type="grid", x_subdivisions=len(x_anchors) - 1, y_subdivisions=n - 1)
     x = np.concatenate([x_anchors] * n)
     y = np.ravel(y_anchors[np.newaxis, :] * np.linspace(1, -1, n)[:, np.newaxis])
@@ -1790,64 +1450,12 @@ def create_fork(name, x_tip, thickness, n_cuts, x_anchors, y_anchors, z_anchors,
         obj.location = location
     bpy.ops.object.transform_apply(True)
     return {"name": name, "x_tip": x_tip, "thickness": thickness,"n_cuts": n_cuts, "x_anchors": x_anchors, "y_anchors": y_anchors, "z_anchors": z_anchors, "location": location, "rotation": rotation, "scale": scale}
-    
-def make_fork():
-    for i in range(100):
-        x_length = log_uniform(0.4, 0.8)
-        x_tip = uniform(0.15, 0.2)
-        y_length = log_uniform(0.05, 0.08)
-        x_end = 0.15
-        z_depth = log_uniform(0.02, 0.04)
-        z_offset = uniform(0.0, 0.05)
-        thickness = log_uniform(0.008, 0.015)
-        n_cuts = np.random.randint(1, 3) if uniform(0, 1) < 0.3 else 3
-        x_anchors = np.array(
-            [
-                x_tip,
-                uniform(-0.04, -0.02),
-                -0.08,
-                -0.12,
-                -x_end,
-                -x_end - x_length,
-                -x_end - x_length * log_uniform(1.2, 1.4),
-            ]
-        )
-        y_anchors = np.array(
-            [
-                y_length * log_uniform(0.8, 1.0),
-                y_length * log_uniform(1.0, 1.2),
-                y_length * log_uniform(0.6, 1.0),
-                y_length * log_uniform(0.2, 0.4),
-                log_uniform(0.01, 0.02),
-                log_uniform(0.02, 0.05),
-                log_uniform(0.01, 0.02),
-            ]
-        )
-        z_anchors = np.array(
-            [
-                0,
-                -z_depth,
-                -z_depth,
-                0,
-                z_offset,
-                z_offset + uniform(-0.02, 0.04),
-                z_offset + uniform(-0.02, 0),
-            ]
-        )
-        location = (random.random(), random.random(), random.random())
-        rotation = (random.random(), random.random(), random.random(), random.random())
-        rotation = (0.0, 0.0, 0.0,0.0)
-        p = create_fork(f"fork{i}", x_tip, thickness, n_cuts, x_anchors, y_anchors, z_anchors, location, rotation)
-        p = change_param_according_mesh(f"fork{i}", p)
-        p["name"] = f"fork_{i}"
-        print(p)
-        create_fork(**p)
 
-from numpy.random import uniform
-def log_uniform(low, high, size=None):
-    return np.exp(uniform(np.log(low), np.log(high), size))
 def create_spoon(name, z_depth, thickness, x_anchors, y_anchors, z_anchors, location=(0.0, 0.0, 0.0), rotation=(0.0, 0.0, 0.0,0.0), scale=(1, 1, 1)):
     obj = create_primitive(name=name, primitive_type="grid", x_subdivisions=len(x_anchors) - 1, y_subdivisions=2)
+    x_anchors = np.array(x_anchors)
+    y_anchors = np.array(y_anchors)
+    z_anchors = np.array(z_anchors)
     x = np.concatenate([x_anchors] * 3)
     y = np.concatenate([y_anchors, np.zeros_like(y_anchors), -y_anchors])
     z = np.concatenate([z_anchors] * 3)
@@ -1858,68 +1466,537 @@ def create_spoon(name, z_depth, thickness, x_anchors, y_anchors, z_anchors, loca
     solidify(name, thickness)
     subsurf(name, 1)
     subsurf(name, 2)
+    arr = np.array([v.co for v in obj.data.vertices])
+    center = np.array(((arr[:, 0].max() + arr[:, 0].min()) / 2, (arr[:, 1].max() + arr[:, 1].min()) / 2, (arr[:, 2].max() + arr[:, 2].min()) / 2))
+    obj.location = -center
+    bpy.ops.object.transform_apply(True)
     if scale is not None:
         obj.scale = scale
-    bpy.ops.object.transform_apply(True)
-    if location is not None:
-        obj.location = location
-    bpy.ops.object.transform_apply(True)
+        bpy.ops.object.transform_apply(True)
     if rotation is not None:
         obj.rotation_mode = 'QUATERNION'
         #print(rotation)
         obj.rotation_quaternion = rotation
     bpy.ops.object.transform_apply(True)
+    if location is not None:
+        obj.location = location
+    bpy.ops.object.transform_apply(True)
     return {"name": name, "z_depth": z_depth, "thickness": thickness,"x_anchors": x_anchors, "y_anchors": y_anchors, "z_anchors": z_anchors, "location": location, "rotation": rotation, "scale": scale}
-import random
-def make_spoon():
-    for i in range(100):
-        x_end = 0.15
-        x_length = log_uniform(0.2, 0.8)
-        y_length = log_uniform(0.06, 0.12)
-        z_depth = log_uniform(0.08, 0.25)
-        z_offset = uniform(0.0, 0.05)
-        thickness = log_uniform(0.008, 0.015)
-        x_anchors = np.array(
-                [
-                    log_uniform(0.07, 0.25),
-                    0,
-                    -0.08,
-                    -0.12,
-                    -x_end,
-                    -x_end - x_length,
-                    -x_end - x_length * log_uniform(1.2, 1.4),
-                ]
-            )
-        y_anchors = np.array(
-                [
-                    y_length * log_uniform(0.1, 0.8),
-                    y_length * log_uniform(1.0, 1.2),
-                    y_length * log_uniform(0.6, 1.0),
-                    y_length * log_uniform(0.2, 0.4),
-                    log_uniform(0.01, 0.02),
-                    log_uniform(0.02, 0.05),
-                    log_uniform(0.01, 0.02),
-                ]
-            )
-        z_anchors = np.array(
-                [
-                    0,
-                    0,
-                    0,
-                    0,
-                    z_offset,
-                    z_offset + uniform(-0.02, 0.04),
-                    z_offset + uniform(-0.02, 0),
-                ]
-            )
-        location = (random.random(), random.random(), random.random())
-        #rotation = (random.random(), random.random(), random.random(), random.random())
-        rotation = (0.0, 0.0, 0.0,0.0)
-        p = create_spoon(f"spoon_{random.random()}", z_depth, thickness, x_anchors, y_anchors, z_anchors, location, rotation)
-        p = change_param_according_mesh(p["name"], p)
-        print(p)
-        create_spoon(**p)
 
-make_fork()
+
+
+#根据mesh对齐调整平移体的坐标并添加噪声
+def get_param_according_mesh(name,canonical=True,is_straight_line=False,set_small = True):
+    curve_param = copy.deepcopy(curve_param_in)
+    bevel_param = copy.deepcopy(bevel_param_in)
+    if "points" in curve_param:
+        curve_param["points"] = copy.deepcopy(curve_param["points"])
+    if "points" in bevel_param:
+        bevel_param["points"] = copy.deepcopy(bevel_param["points"])
+    vertices, indices = get_faces()
+    
+    #调用trimesh的方法获取当前的mesh
+    mesh = trimesh.Trimesh(vertices.cpu(), indices.cpu())
+    bpy.data.objects.remove(bpy.data.objects[name], do_unlink=True)
+    rot_mat=None
+
+    #canonical情况下需要将pose转换到标准姿态下
+    if canonical and not is_straight_line:
+        trans = np.linalg.inv(mesh.bounding_box_oriented.transform)
+        tmp = np.eye(4)
+        tmp[:3,:3]=trans[:3,:3]
+        trans = tmp
+        #trans = mesh.bounding_box_oriented.transform
+        #修改参数
+        if "points" in curve_param.keys():
+            points4 = np.pad(curve_param["points"], ((0, 0), (0, 1)), mode='constant', constant_values=1)
+            #随机进行90度旋转并50%的概率添加高斯噪声
+            noise = [random.gauss(0,5.0/180.0*pi) for _ in range(3)] if random.uniform(0,1)<0.5 else [0.,0.,0.] 
+            #noise = [0,0,0]
+            random_angle = [ noise[i]+ pi/2*random.sample([-1,0,1,2],k=1)[0] for i in range(3)]
+            rotate_angle_final = [normalize_to_pi(value) for value in random_angle]
+            eul = mathutils.Euler(rotate_angle_final, 'XYZ')
+            random_rotation = np.array(eul.to_matrix())
+            random_mat = np.eye(4)
+            random_mat[:3,:3] = random_rotation
+
+            points_final = random_mat@np.array(trans)@points4.T
+            rot_mat = (random_mat@np.array(trans))[:3,:3]
+            points_final = points_final.T[:,:3]
+            curve_param["points"] = points_final
+            mesh.apply_transform(random_mat@np.array(trans)) 
+        
+        elif "rotation" in curve_param.keys():
+            rotation_quat = curve_param["rotation"]
+            quat = mathutils.Quaternion(rotation_quat)
+            ori_matrix = quat.to_matrix()
+            trans_matrix = np.array(trans)[:3,:3]
+
+            #随机进行90度旋转并50%的概率添加高斯噪声
+            noise = [random.gauss(0,5.0/180.0*pi) for _ in range(3)] if random.uniform(0,1)<0.5 else [0.,0.,0.] 
+            random_angle = [ noise[i]+ pi/2*random.sample([-1,0,1,2],k=1)[0] for i in range(3)]
+            rotate_angle_final = [normalize_to_pi(value) for value in random_angle]
+            eul = mathutils.Euler(rotate_angle_final, 'XYZ')
+            random_matirx = np.array(eul.to_matrix())
+            final_matrix = random_matirx@trans_matrix@ori_matrix
+            final_matrix4 = np.eye(4)
+            final_matrix4[:3,:3] = random_matirx@trans_matrix
+            rotation_matrix = mathutils.Matrix(final_matrix)
+            quat_final = np.array(rotation_matrix.to_quaternion())
+            curve_param["rotation"] = quat_final
+            mesh.apply_transform(final_matrix4)
+    
+    
+    #scaling
+    x0, x1 = mesh.vertices[:,0].min(), mesh.vertices[:,0].max()
+    y0, y1 = mesh.vertices[:,1].min(), mesh.vertices[:,1].max()
+    z0, z1 = mesh.vertices[:,2].min(), mesh.vertices[:,2].max()
+    bounding_x = x1 - x0
+    bounding_y = y1 - y0
+    bounding_z = z1 - z0
+    max_bounding = max(bounding_x, bounding_y, bounding_z)
+    max_scale = 2.0 / max_bounding
+    min_scale = 1.8 / max_bounding
+    
+    #是否生成0.2-1的
+    if set_small:
+        min_scale = 0.4 / max_bounding
+
+    if canonical and not set_small:
+        scaling_factor = max_scale if random.uniform(0.,1.)<0.5 else random.uniform(min_scale, max_scale)
+    else:
+        scaling_factor = random.uniform(min_scale, max_scale)
+
+    #scaling_factor=2.0 / max_bounding
+    mesh.apply_scale(scaling_factor)
+    # mesh.export('mesh.ply')
+    # centralize & randomly shift
+    x0, x1 = mesh.vertices[:,0].min(), mesh.vertices[:,0].max()
+    y0, y1 = mesh.vertices[:,1].min(), mesh.vertices[:,1].max()
+    z0, z1 = mesh.vertices[:,2].min(), mesh.vertices[:,2].max()
+    bounding_x = x1 - x0
+    bounding_y = y1 - y0
+    bounding_z = z1 - z0
+    center_x = (x0 + x1) / 2
+    center_y = (y0 + y1) / 2
+    center_z = (z0 + z1) / 2
+    move = [-center_x, -center_y, -center_z]
+    length_semi = [x1-center_x , y1-center_y, z1-center_z]
+    move_add = []
+    for length in length_semi:
+        free = 1.0-length
+        if free<0.1:
+            move_add.append(random.uniform(-free, free))
+        else: 
+            add_item = random.uniform(-0.1, 0.1) + random.gauss(0,(free-0.1)/3.0)
+            if add_item>free:
+                add_item = free
+            elif add_item < -free:
+                add_item = -free
+            move_add.append(add_item)
+
+    if canonical:
+        move = move if random.uniform(0.,1.0)<0.5 else [move_item + move_add_item for move_item,move_add_item in zip(move,move_add)]
+    else:
+        move = [move_item + move_add_item for move_item,move_add_item in zip(move,move_add)]
+
+    param_name = ["a","b","width","length","radius","points"]
+    for item in param_name:
+        #应用scale
+        if item in curve_param.keys():
+            curve_param[item]*=scaling_factor
+            if item!="points":
+                curve_param[item] = float(floor_to_n(curve_param[item], 2))
+    ####################
+    ## YOUR CODE HERE ##
+    ####################
+    # scale_factor #
+    
+    #应用move
+    if "points" in curve_param.keys():
+        curve_param["points"]+=move
+        curve_param["points"] = np.around(curve_param["points"],2)
+        #检查这些点是否为同一个点
+        are_equal = np.all(curve_param["points"] == curve_param["points"][0], axis=1)
+        all_same = np.all(are_equal)
+        if all_same:
+            raise ValueError("all control points are same")
+
+    elif "location" in curve_param.keys():
+        curve_param["location"] = np.array(curve_param["location"])
+        curve_param["location"]+=move
+        curve_param["location"] = floor_to_n(curve_param["location"],2)
+    if "thickness" in curve_param.keys():
+        curve_param["thickness"] = float(floor_to_n(curve_param["thickness"],3))
+    if "rotation" in curve_param.keys():
+        curve_param["rotation"] = floor_to_n(curve_param["rotation"],2)
+    
+    curve_param["rot_mat"]=rot_mat
+    return curve_param, bevel_param
+
+def get_curve_tangent(control_points):
+    coords = control_points
+
+    curveData = bpy.data.curves.new("tan", type='CURVE')
+    curveData.dimensions = '3D'
+    curveData.resolution_u = 12
+
+    bezierSpline = curveData.splines.new('BEZIER')
+    bezierSpline.bezier_points.add(len(coords) - 1) 
+
+    for i, coord in enumerate(coords):
+        x, y, z = coord
+        bezier_point = bezierSpline.bezier_points[i]
+        bezier_point.co = (x, y, z)
+        bezier_point.handle_left_type = 'VECTOR'
+        bezier_point.handle_right_type = 'VECTOR'
+
+    curveOB = bpy.data.objects.new("tan", curveData)
+
+    scn = bpy.context.scene.collection
+    scn.objects.link(curveOB)
+    p1 = bpy.data.objects['tan'].data.splines[0].bezier_points[0].co
+    p2 = bpy.data.objects['tan'].data.splines[0].bezier_points[0].handle_right
+
+    tan = (p1-p2)/np.linalg.norm(np.array(p1)-np.array(p2))
+    bpy.data.objects.remove(bpy.data.objects["tan"], do_unlink=True)
+
+    return tan
+
+#更一般的情况，给定一个平移体的n，求出平移体按rot_mat旋转后bevel应该旋转的角度
+#更一般的情况，给定一个平移体的n，求出平移体按rot_mat旋转后bevel应该旋转的角度
+def cal_angle_according_rotation(rot_mat,n):
+    z = np.array([0,0,1])
+    #求旋转前bevel的y轴正向
+    v1 = z - np.dot(n,z)*n
+    if np.linalg.norm(v1)<1e-5:
+        v1=np.array([0,1,0]) if n[2]>0 else np.array([0,-1,0])
+    #求旋转后的y轴正向
+    n2=np.array(rot_mat)@n
+    v2 = z - np.dot(n2,z)*n2
+    if np.linalg.norm(v2)<1e-5:
+        v2=np.array([0,1,0]) if n2[2]>0 else np.array([0,-1,0])
+    #旋转前的y轴正向进行旋转
+    v3 = np.array(rot_mat)@v1   
+    TheNorm = np.linalg.norm(v2) * np.linalg.norm(v3)   
+    theta = np.arccos(np.clip(np.dot(v2, v3) / TheNorm, -1., 1.))
+    cross_product = np.cross(v2, v3)
+    dot_product = np.dot(cross_product, n2)
+    if dot_product>0:
+        theta = theta
+    else:
+        theta = -theta
+    
+    if np.isnan(theta) or np.isinf(theta):
+        raise ValueError("theta is invalid")
+    
+    #将theta规范到[-1,1]
+    rad = theta/pi
+    
+    return rad
+import trimesh
+def normalize_to_pi(value):
+    while value < -pi:
+        value += 2 * pi
+    while value > pi:
+        value -= 2 * pi
+    return value
+def floor_to_n(arr, n=2):
+    arr = np.array(arr)
+    factor = 10 ** n
+    # 对于正数使用 floor，负数使用 ceil
+    return np.where(arr >= 0, np.floor(arr * factor) / factor, np.ceil(arr * factor) / factor)
+def normalize_by_mesh(name, param, canonical=True, is_straight_line=False, set_small = True):
+    obj = bpy.data.objects[name]
+    # set the new_obj as active object for later process
+    bpy.context.view_layer.objects.active = obj
+    # make sure new_obj has single user copy
+    bpy.ops.object.make_single_user(object=True, obdata=True, material=False, animation=False)
+    bpy.ops.object.modifier_add(type='TRIANGULATE')
+    bpy.ops.object.modifier_apply(modifier="Triangulate")
+    arr = np.zeros(len(obj.data.vertices) * 3)
+    obj.data.vertices.foreach_get("co", arr)
+    vertices = arr.reshape(-1, 3)
+    arr = np.zeros(len(obj.data.polygons) * 3)
+    obj.data.polygons.foreach_get("vertices", arr)
+    faces = arr.reshape(-1, 3)
+    mesh = trimesh.Trimesh(vertices, faces)
+    bpy.data.objects.remove(bpy.data.objects[name], do_unlink=True)
+    if canonical and not is_straight_line:
+        trans = np.linalg.inv(mesh.bounding_box_oriented.transform)
+        tmp = np.eye(4)
+        tmp[:3, :3] = trans[:3, :3]
+        trans = tmp
+        rotation_quat = param["rotation"]
+        quat = mathutils.Quaternion(rotation_quat)
+        ori_matrix = quat.to_matrix()
+        trans_matrix = np.array(trans)[:3, :3]
+        # 随机进行90度旋转并50%的概率添加高斯噪声
+        #noise = [random.gauss(0, 5.0 / 180.0 * pi) for _ in range(3)] if random.uniform(0, 1) < 0.5 else [0., 0.,
+         #                                                                                                 0.]
+        noise = [0., 0., 0.]
+        random_angle = [noise[i] + pi / 2 * random.sample([-1, 0, 1, 2], k=1)[0] for i in range(3)]
+        rotate_angle_final = [normalize_to_pi(value) for value in random_angle]
+        #rotate_angle_final = [0.0, 0.0, 0.0]
+        eul = mathutils.Euler(rotate_angle_final, 'XYZ')
+        random_matirx = np.array(eul.to_matrix())
+        final_matrix = random_matirx @ trans_matrix @ ori_matrix
+        final_matrix4 = np.eye(4)
+        final_matrix4[:3, :3] = random_matirx @ trans_matrix
+        rotation_matrix = mathutils.Matrix(final_matrix)
+        quat_final = rotation_matrix.to_quaternion()
+        param["rotation"] = quat_final
+        mesh.apply_transform(final_matrix4)
+    #scaling
+    x0, x1 = mesh.vertices[:,0].min(), mesh.vertices[:,0].max()
+    y0, y1 = mesh.vertices[:,1].min(), mesh.vertices[:,1].max()
+    z0, z1 = mesh.vertices[:,2].min(), mesh.vertices[:,2].max()
+    bounding_x = x1 - x0
+    bounding_y = y1 - y0
+    bounding_z = z1 - z0
+    max_bounding = max(bounding_x, bounding_y, bounding_z)
+    max_scale = 2.0 / max_bounding
+    min_scale = 1.8 / max_bounding
+    
+    #是否生成0.2-1的
+    if set_small:
+        min_scale = 0.4 / max_bounding
+
+    if canonical and not set_small:
+        scaling_factor = max_scale if random.uniform(0.,1.)<0.5 else random.uniform(min_scale, max_scale)
+    else:
+        scaling_factor = random.uniform(min_scale, max_scale)
+
+    #scaling_factor=2.0 / max_bounding
+    mesh.apply_scale(scaling_factor)
+    # mesh.export('mesh.ply')
+    # centralize & randomly shift
+    x0, x1 = mesh.vertices[:,0].min(), mesh.vertices[:,0].max()
+    y0, y1 = mesh.vertices[:,1].min(), mesh.vertices[:,1].max()
+    z0, z1 = mesh.vertices[:,2].min(), mesh.vertices[:,2].max()
+    bounding_x = x1 - x0
+    bounding_y = y1 - y0
+    bounding_z = z1 - z0
+    center_x = (x0 + x1) / 2
+    center_y = (y0 + y1) / 2
+    center_z = (z0 + z1) / 2
+    move = [-center_x, -center_y, -center_z]
+    length_semi = [x1-center_x , y1-center_y, z1-center_z]
+    move_add = []
+    for length in length_semi:
+        free = 1.0-length
+        if free<0.1:
+            move_add.append(random.uniform(-free, free))
+        else: 
+            add_item = random.uniform(-0.1, 0.1) + random.gauss(0,(free-0.1)/3.0)
+            if add_item>free:
+                add_item = free
+            elif add_item < -free:
+                add_item = -free
+            move_add.append(add_item)
+
+    if canonical:
+        move = move if random.uniform(0.,1.0)<0.5 else [move_item + move_add_item for move_item,move_add_item in zip(move,move_add)]
+    else:
+        move = [move_item + move_add_item for move_item,move_add_item in zip(move,move_add)]
+    param["location"] = np.array(param["location"])
+    param["location"]+=move
+    #param["location"] = floor_to_n(param["location"],2)
+    #param["rotation"] = floor_to_n(param["rotation"],2)
+    param["scale"] = scaling_factor
+    return param
+    
+
+import random
+from numpy.random import uniform
+def log_uniform(low, high, size=None):
+    return np.exp(uniform(np.log(low), np.log(high), size))
+def create_toilet_cover(name, random_location, rotation, scale, params=None):
+    if params is None:
+        size = random.uniform(0.4, 0.5)
+        width = size * random.uniform(0.7, 0.8)
+        size_mid = random.uniform(0.6, 0.65)
+        curve_scale = log_uniform(0.8, 1.2, 4)
+        depth = size * random.uniform(0.5, 0.6)
+        tube_scale = random.uniform(0.25, 0.3)
+        thickness = random.uniform(0.05, 0.25)
+        extrude_height = random.uniform(0.015, 0.02)
+        seat_size = thickness * uniform(1.2, 1.6)
+        mid_offset = (1 - size_mid) * size
+        ctrl_pts_1 = [[0, -size_mid * size, 0], [width / 2, 0, 0], [0, mid_offset, 0]]
+        handle_1 = []
+        scale = [1, *curve_scale, 1]
+        a = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
+        axes = np.array([[1, 0, 0], [0, 1, 0], [1, 0, 0]])
+        num_cuts = np.random.randint(12, 16)
+        profile_shape_factor = random.uniform(0.1, 0.2)
+        prob = random.uniform(0, 1)
+        segments = random.randint(2, 6)
+        scale_ = uniform(0.7, 0.9)
+        width_factor = uniform(0.2, 0.6)
+        thickness = np.around(thickness, 3)
+        seat_thickness = uniform(0.1, 0.3) * thickness
+        profile_shape_factor = np.around(profile_shape_factor, 2)
+        params = [
+            size,
+            width,
+            size_mid,
+            curve_scale,
+            depth,
+            tube_scale,
+            thickness,
+            extrude_height,
+            seat_size,
+            num_cuts,
+            profile_shape_factor,
+            prob,
+            segments,
+            scale_,
+            width_factor,
+            seat_thickness
+        ]
+    else:
+        size = params[0]
+        width = params[1]
+        size_mid = params[2]
+        curve_scale = params[3]
+        depth = params[4]
+        tube_scale = params[5]
+        thickness = params[6]
+        extrude_height = params[7]
+        seat_size = params[8]
+        mid_offset = (1 - size_mid) * size
+        ctrl_pts_1 = [[0, -size_mid * size, 0], [width / 2, 0, 0], [0, mid_offset, 0]]
+        handle_1 = []
+        scale = [1, *curve_scale, 1]
+        a = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
+        axes = np.array([[1, 0, 0], [0, 1, 0], [1, 0, 0]])
+        num_cuts = params[9]
+        profile_shape_factor = params[10]
+        prob = params[11]
+        segments = params[12]
+        scale_ = params[13]
+        width_factor = params[14]
+        thickness = np.around(thickness, 3)
+        seat_thickness = params[15]
+        profile_shape_factor = np.around(profile_shape_factor, 2)
+    #rotation = (random.uniform(-np.pi, np.pi), random.uniform(-np.pi, np.pi), random.uniform(-np.pi, np.pi))
+    #print(rotation)
+    #random_location = np.array((random.uniform(-1, 1), random.uniform(-1, 1), random.uniform(-1, 1)))
+    
+    # 引入curve来计算得到handle
+    create_curve(name=name, control_points=ctrl_pts_1, points_radius=[1, 1, 1], handle_type=[0, 0, 0, 0, 0, 0])
+    points = bpy.data.objects[name].data.splines[0].bezier_points
+    for i, p in enumerate(points):
+        a = axes[i]
+        if a is None:
+            continue
+        a = np.array(a)
+        p.handle_left_type = "FREE"
+        p.handle_right_type = "FREE"
+        proj_left = np.array(p.handle_left - p.co) @ a * a
+        p.handle_left = (
+            np.array(p.co)
+            + proj_left
+            / np.linalg.norm(proj_left)
+            * np.linalg.norm(p.handle_left - p.co)
+            * scale[2 * i]
+        )
+        proj_right = np.array(p.handle_right - p.co) @ a * a
+        p.handle_right = (
+            np.array(p.co)
+            + proj_right
+            / np.linalg.norm(proj_right)
+            * np.linalg.norm(p.handle_right - p.co)
+            * scale[2 * i + 1]
+        )
+        handle_1.append(list(p.handle_left))
+        handle_1.append(list(p.handle_right))
+    bpy.data.objects.remove(bpy.data.objects[name], do_unlink=True)
+    # 得到贝塞尔曲线的handle以及控制点
+    ctrl_pts_1 = [*ctrl_pts_1, [-width / 2, 0, 0]]
+    tmp_1 = handle_1[1:-1]
+    tmp_2 = [[-x, y, z] for [x, y, z] in tmp_1]
+    ctrl_pts_1 = [tmp_2[0], ctrl_pts_1[0], tmp_1[0], tmp_1[1], ctrl_pts_1[1], tmp_1[2], tmp_1[3], ctrl_pts_1[2], tmp_2[3], tmp_2[2], ctrl_pts_1[3], tmp_2[1]]
+    ctrl_pts_1 = np.array(ctrl_pts_1)
+    ctrl_pts_1_original = np.copy(ctrl_pts_1)
+    for i in range(1, len(ctrl_pts_1)):
+        ctrl_pts_1[i] -= ctrl_pts_1[0]
+    move = np.copy(ctrl_pts_1[0])
+    #print(move)
+    ctrl_pts_1[0] = [0, 0, 0]
+    normalized_pts_1 = np.copy(ctrl_pts_1)
+    ctrl_pts_2 = [
+        [0, 0, 0],
+        [0, 0, seat_thickness]
+    ]
+    normalized_pts_2 = np.copy(ctrl_pts_2)
+    ctrl_pts_2 = np.array(ctrl_pts_2)
+    eul_ = mathutils.Euler(rotation, 'XYZ')
+    random_rotation = np.array(eul_.to_matrix())
+    rad = (ctrl_pts_2[0] - ctrl_pts_2[1]) / np.linalg.norm(ctrl_pts_2[0] - ctrl_pts_2[1])
+    rad = cal_angle_according_rotation(random_rotation, rad)
+    ctrl_pts_2 =  (random_rotation @ np.array(ctrl_pts_2).T).T
+    eul = mathutils.Euler((0, 0, rad), 'XYZ')
+    random_rotation_profile = np.array(eul.to_matrix())
+    ctrl_pts_1 = (random_rotation_profile @ np.array(ctrl_pts_1).T).T.tolist()
+    ctrl_pts_1 = np.where(ctrl_pts_1 == -0, 0, ctrl_pts_1)
+    create_curve(name='loop_1', control_points=ctrl_pts_1, handle_type=[3, 3, 3, 3, 3, 3, 3, 3], closed=True)
+    print(ctrl_pts_2, random_location)
+    ctrl_pts_2 += random_location
+    ctrl_pts_2 = np.where(ctrl_pts_2 == -0, 0, ctrl_pts_2)
+    create_curve(name=name,profile_name="loop_1", control_points=ctrl_pts_2, handle_type=[1, 1, 1, 1], thickness=0, fill_caps="both")
+    # ctrl_pts_3 = np.array(ctrl_pts_1)
+    
+    # ctrl_pts_3[:, 0] *= scale_
+    # ctrl_pts_3[:, 1] *= scale_
+    # ctrl_pts_2 = [
+    #     [0, 0, -seat_thickness],
+    #     [0, 0, seat_thickness * 1.5]
+    # ]
+    # normalized_cutter_pts = np.copy(ctrl_pts_2)
+    # ctrl_pts_2 =  (random_rotation @ np.array(ctrl_pts_2).T).T
+    # ctrl_pts_3 = np.where(ctrl_pts_3 == -0, 0, ctrl_pts_3)
+    # create_curve(name='loop_2', control_points=ctrl_pts_3, handle_type=[3, 3, 3, 3, 3, 3, 3, 3], closed=True)
+    # ctrl_pts_2 += random_location
+    # gap = (1 - scale_) * move
+    # gap[0] *= -1
+    # gap = (random_rotation @ np.array(gap).T).T
+    # ctrl_pts_2 += gap
+    # ctrl_pts_2 = np.where(ctrl_pts_2 == -0, 0, ctrl_pts_2)
+    # create_curve(name=f'cutter_{name}',profile_name="loop_2", control_points=ctrl_pts_2, handle_type=[1, 1, 1, 1], thickness=0, fill_caps="both")
+    location = (0.0, 0.0, 0.0)#(0, -mid_offset, seat_thickness / 2)
+    move[1] *= -1
+    location = np.array(location) - move
+    location = (random_rotation @ np.array(location).T).T
+    location += random_location
+    location = location.tolist()
+    # #print(location)
+    cube = create_primitive(name=f"cube_{name}", scale = (width / 2 * width_factor, seat_thickness * 2, seat_thickness / 2), location=location, rotation=eul_.to_quaternion())
+    # boolean_operation(name, f"cube_{name}")
+    # boolean_operation(name, f"cutter_{name}", "DIFFERENCE")
+    return params
+
+
+# scale not done yet
+def seat_object(i=0):
+    rotation = (random.randint(0, 3) * np.pi / 2, random.randint(0, 3) * np.pi / 2, random.randint(0, 3) * np.pi / 2)#(random.uniform(-np.pi, np.pi), random.uniform(-np.pi, np.pi), random.uniform(-np.pi, np.pi))
+    random_location = (0.0, 0.0, 0.0)#np.array((random.uniform(-1, 1), random.uniform(-1, 1), random.uniform(-1, 1)))
+    params = create_toilet_cover(f"seat{i}", random_location, rotation, 1, params=None)
+    # eul_ = mathutils.Euler(rotation, 'XYZ')
+    # rotation = eul_.to_quaternion()
+    # params_ = {
+    #     "rotation": rotation,
+    #     "location": random_location
+    # }
+    # params_ = normalize_by_mesh(f"seat{i}", params_, canonical=True)
+    # params_['rotation'] = params_['rotation'].to_euler()
+    # #params_['rotation'][random.randint(0, 2)] = random.randint(0, 3) * np.pi / 2
+    # #params_['rotation'] = (0, 0, - np.pi / 2)
+    # print(params_['rotation'])
+    # create_toilet_cover(f"seat{i}", params_['location'], params_['rotation'], 1, params=params)
+for i in range(10):
+    seat_object(i)
+
 from infinigen.core.util import blender as butil
-butil.save_blend("fork.blend", autopack=True)
+butil.save_blend("toilet_cover.blend", autopack=True)

@@ -23,6 +23,7 @@ from infinigen.assets.objects.tables.table_utils import (
     nodegroup_create_anchors,
     nodegroup_create_legs_and_strechers,
 )
+from infinigen.assets.utils.auxiliary_parts import random_auxiliary
 from infinigen.assets.utils.decorate import read_co, write_co
 from infinigen.core import surface, tagging
 from infinigen.core.nodes import node_utils
@@ -266,6 +267,10 @@ class TableCocktailFactory(AssetFactory):
             )
 
         self.params.update(self.material_params)
+        self.use_aux_top = choice([True, False], p=[0.7, 0.3])
+        print(self.use_aux_top)
+        if self.use_aux_top:
+            self.aux_top = random_auxiliary('table_top')
 
     def get_material_params(self):
         material_assignments = AssetList["TableCocktailFactory"]()
@@ -448,6 +453,7 @@ class TableCocktailFactory(AssetFactory):
                     "upper_1": 0,
                 },
             }
+            co_l = read_co(leg_)
             save_obj_parts_add([leg_], self.ps['path'], self.ps['i'], "leg", first=True, use_bpy=True, material=[self.ms['LegMaterial'],self.scratch, self.edge_wear, self.clothes_scatter], parent_obj_id=parent_id, joint_info=joint_info)
         elif self.params['Leg Style'] == "straight":
             co = read_co(leg)
@@ -485,6 +491,7 @@ class TableCocktailFactory(AssetFactory):
                     "upper": 0,
                 },
             }
+            co_l = read_co(leg_)
             save_obj_parts_add([leg_], self.ps['path'], self.ps['i'], "leg", first=True, use_bpy=True, material=[self.ms['LegMaterial'],self.scratch, self.edge_wear, self.clothes_scatter], parent_obj_id=parent_id, joint_info=joint_info)
         save_obj_parts_add([leg], self.ps['path'], self.ps['i'], "leg", first=False, use_bpy=True, material=[self.ms['LegMaterial'],self.scratch, self.edge_wear, self.clothes_scatter])
         top = bpy.ops.mesh.primitive_plane_add(
@@ -512,6 +519,31 @@ class TableCocktailFactory(AssetFactory):
             "type": "fixed",
             "name": get_joint_name("fixed"),
         }
+        if self.use_aux_top:
+            aux_top = butil.deep_clone_obj(self.aux_top[0], keep_materials=False, keep_modifiers=False)
+            co_top = read_co(top)
+            center = (co_top[:, 0].max() + co_top[:, 0].min()) / 2, (co_top[:, 1].max() + co_top[:, 1].min()) / 2, (co_top[:, 2].max() + co_top[:, 2].min()) / 2
+            scale = co_top[:, 0].max() - co_top[:, 0].min(), co_top[:, 1].max() - co_top[:, 1].min(), co_top[:, 2].max() - co_top[:, 2].min()
+            aux_top.rotation_euler = (np.pi / 2, 0, np.pi / 2)
+            butil.apply_transform(aux_top, True)
+            aux_top.scale = scale
+            butil.apply_transform(aux_top, True)
+            aux_top.location = center
+            butil.apply_transform(aux_top, True)
+            top = aux_top
+            if self.aux_top[1]['need_top_support'] == 'True':
+                leg_top_panel = butil.spawn_cube()
+                leg_top_panel.scale = (co[:, 0].max() - co[:, 0].min(), co[:, 1].max() - co[:, 1].min(), 0.01)
+                leg_top_panel.location = (0, 0, co_l[:, 2].max() + 0.005)
+                top.location = (0, 0, 0.01)
+                butil.apply_transform(leg_top_panel, True)
+                butil.apply_transform(top, True)
+                res = save_obj_parts_add([leg_top_panel], self.ps['path'], self.ps['i'], "leg", first=False, use_bpy=True, parent_obj_id=parent_id, joint_info=joint_info, material=[self.ms['TopMaterial'],self.scratch, self.edge_wear, self.clothes_scatter])
+                parent_id = res[0]
+                joint_info = {
+                    "name": get_joint_name("fixed"),
+                    "type": "fixed",
+                }
         save_obj_parts_add([top], self.ps['path'], self.ps['i'], "leg", first=False, use_bpy=True, parent_obj_id=parent_id, joint_info=joint_info, material=[self.ms['TopMaterial'],self.scratch, self.edge_wear, self.clothes_scatter])
         node_utils.save_geometry_new(assets, 'whole',0, self.ps['i'], self.ps['path'], first=False, use_bpy=True)
 

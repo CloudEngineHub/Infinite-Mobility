@@ -23,6 +23,8 @@ from . import (
 
 
 def apply(obj, selection=None, metal_color=None, **kwargs):
+    if metal_color is None:
+        metal_color = np.random.choice(["plain", "natural", "bw", "bw+natural"])
     color = sample_metal_color(metal_color)
     shader = get_shader()
     common.apply(obj, shader, selection, base_color=color, **kwargs)

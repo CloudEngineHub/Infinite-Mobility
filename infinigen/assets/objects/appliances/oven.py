@@ -324,7 +324,7 @@ class OvenFactory(AssetFactory):
                     "type": "revolute",
                     "axis": (0, 1, 0),
                     "limit": {
-                        "lower": -np.pi / 2,
+                        "lower": 0,#-np.pi / 2,
                         "upper": 0,
                     },
                     "origin_shift": (-self.params['PanelThickness'] / 2, 0, -self.params['PanelHeight'] / 2),

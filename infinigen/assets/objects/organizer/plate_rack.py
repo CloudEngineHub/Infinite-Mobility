@@ -15,6 +15,7 @@ from infinigen.core.nodes import node_utils
 from infinigen.core.nodes.node_wrangler import Nodes, NodeWrangler
 from infinigen.core.placement.factory import AssetFactory
 from infinigen.core.util import blender as butil
+from infinigen.tools import export
 
 
 @node_utils.to_nodegroup(
@@ -495,26 +496,34 @@ class PlateOnRackBaseFactory(AssetFactory):
     def create_asset(self, i, **params):
         self.get_asset_params(i)
         rack, place_points = self.rack_fac.create_asset(i)
-        plate = self.plate_fac.create_asset(i)
-
-        plate.location = place_points[0]
-        butil.apply_transform(plate, loc=True)
+        done = False
         save_obj_parts_add(rack, params.get("path"), i, "part", first=True, use_bpy=True)
-        parent_id="world"
-        joint_info = {
-            "name": get_joint_name("limited_planar"),
-            "type": "limited_planar",
-            "axis": (1, 0, 0),
-            "limit": {
-                "lower": -np.pi,
-                "upper": np.pi,
-                "lower_1": 0,
-                "upper_1": 0.1,
-                "lower_2": -0.1,
-                "upper_2": 0.1,
+        for k in range(len(place_points)):
+            plate = self.plate_fac.create_asset(k)
+            export.realizeInstances(plate)
+            export.apply_all_modifiers(plate)
+            butil.apply_transform(plate, loc=True)
+            plate.location = place_points[k]
+            butil.apply_transform(plate, True)
+            parent_id="world"
+            joint_info = {
+                "name": get_joint_name("limited_planar"),
+                "type": "limited_planar",
+                "axis": (1, 0, 0),
+                "limit": {
+                    "lower": -np.pi,
+                    "upper": np.pi,
+                    "lower_1": 0,
+                    "upper_1": 0.1,
+                    "lower_2": -0.1,
+                    "upper_2": 0.1,
+                }
             }
-        }
-        save_obj_parts_add(plate, params.get("path"), i, "part", first=False, use_bpy=True,parent_obj_id=parent_id, joint_info=joint_info)
+            if np.random.choice([True, False]):
+                save_obj_parts_add(plate, params.get("path"), i, "part", first=False, use_bpy=True,parent_obj_id=parent_id, joint_info=joint_info)
+                done = True
+        if not done:
+            save_obj_parts_add(plate, params.get("path"), i, "part", first=False, use_bpy=True,parent_obj_id=parent_id, joint_info=joint_info)
         whole = join_objects([rack, plate])
         join_objects_save_whole(whole, params.get("path"), i, use_bpy=True, join=False)
 

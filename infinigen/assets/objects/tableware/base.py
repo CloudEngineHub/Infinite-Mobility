@@ -72,7 +72,7 @@ class TablewareFactory(AssetFactory):
                 attrs={"domain": "FACE"},
             )
             nw.new_node(Nodes.GroupOutput, input_kwargs={"Geometry": geometry})
-
+        
         surface.add_geomod(obj, geo_guard, apply=True)
 
     @staticmethod

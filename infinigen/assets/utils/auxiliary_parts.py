@@ -14,6 +14,10 @@ ALL_AUXILIARY_CATAGORY = [
     "strainer",
     "chair_back",
     "chair_seat",
+    "tv_supports",
+    "table_top",
+    "knob_handle",
+    "lamp_shade"
 ]
 
 AUXILIARY_PATH = "/home/pjlab/datasets/parts"
@@ -52,7 +56,6 @@ def sample_auxiliary(catagory, id):
     if f"{catagory}_{id}" in LOADED_AUXILIARY:
         return deep_clone_obj(LOADED_AUXILIARY[f"{catagory}_{id}"])
     catagory_path = f"{AUXILIARY_PATH}/{catagory}/{id}/whole/whole/whole.obj"
-    print(catagory_path)
     bpy.ops.wm.obj_import(filepath=catagory_path)
     des = {}
     if os.path.exists(f"{AUXILIARY_PATH}/{catagory}/{id}/whole/whole/whole.txt"):

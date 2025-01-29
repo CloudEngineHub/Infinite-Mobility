@@ -9,9 +9,12 @@ from numpy.random import uniform
 from infinigen.assets.utils.decorate import read_co, subsurf, write_attribute
 from infinigen.assets.utils.object import (
     # join_objects,
+    get_joint_name,
     new_bbox,
     save_obj_parts_join_objects,
-    join_objects
+    join_objects,
+    save_obj_parts_add,
+    join_objects_save_whole
 )
 
 # save_objects,
@@ -20,6 +23,7 @@ from infinigen.core.util.math import FixedSeed
 from infinigen.core.util.random import log_uniform
 
 from .pan import PanFactory
+from .lid import LidFactory
 
 
 class PotFactory(PanFactory):
@@ -49,6 +53,7 @@ class PotFactory(PanFactory):
             self.guard_type = "round"
             self.guard_depth = log_uniform(0.5, 1.0) * self.thickness
             self.scale = log_uniform(0.1, 0.15)
+            #self.lid_fac = LidFactory(factory_seed)
 
     def post_init(self):
         self.has_handle = not self.has_bar
@@ -64,6 +69,30 @@ class PotFactory(PanFactory):
             self.add_bar(obj, params.get("path", "bar"), params.get("i", "unknown"))
         obj.scale = [self.scale] * 3
         butil.apply_transform(obj)
+        lid = self.lid_fac.create_asset(**params, save=False)
+        co_l = read_co(lid)
+        co_p = read_co(obj)
+        lid.location = 0, 0, co_p[:, 2].max() - co_l[:, 2].min()
+        scale_p = co_p[:, 1].max() - co_p[:, 1].min()
+        scale_l = co_l[:, 1].max() - co_l[:, 1].min()
+        scale = scale_p / scale_l
+        lid.scale = scale, scale, scale
+        obj_ = butil.deep_clone_obj(obj, keep_materials=False, keep_modifiers=False)
+        self.surface.apply(obj_, metal_color="bw+natural")
+        save_obj_parts_add([obj_], params['path'], params['i'], 'pot', first= True, use_bpy=True)
+        save_obj_parts_add([lid], params['path'], params['i'], 'lid', first= False, use_bpy=True, parent_obj_id="world", joint_info={
+            "name": get_joint_name("continuous_prismatic"),
+            "type": "continuous_prismatic",
+            "axis": [0, 0, 1],
+            "axis_1": [0, 0, 1],
+            "limit": {
+                "lower": -np.pi,
+                "upper": np.pi,
+                "lower_1": 0 ,
+                "upper_1": 0.03
+            }
+        })
+        join_objects_save_whole([obj], params['path'], params['i'], 'whole', use_bpy=True)
         return obj
 
     def create_placeholder(self, **kwargs) -> bpy.types.Object:

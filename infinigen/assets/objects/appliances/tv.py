@@ -48,6 +48,7 @@ from infinigen.core.util.blender import deep_clone_obj
 from infinigen.core.util.math import FixedSeed
 from infinigen.core.util.random import log_uniform
 import random
+from infinigen.assets.utils.auxiliary_parts import random_auxiliary
 
 
 class TVFactory(AssetFactory):
@@ -79,6 +80,10 @@ class TVFactory(AssetFactory):
             self.screen_surface = materials["screen_surface"]
             self.support_surface = materials["support"]
             self.button_surface = materials["button_surface"]
+            self.use_aux_leg = np.random.choice([True, False], p=[0.7, 0.3])
+            self.use_aux_leg = True
+            if self.use_aux_leg:
+                self.aux_leg = random_auxiliary('tv_supports')
 
     def get_material_params(self):
         material_assignments = AssetList["TVFactory"]()
@@ -140,34 +145,117 @@ class TVFactory(AssetFactory):
         )
 
     def create_asset(self, **params) -> bpy.types.Object:
+        match self.leg_type:
+            case "two-legged":
+                legs = self.add_two_legs()
+            case _:
+                legs = self.add_single_leg()
+        for leg_obj in legs:
+            write_attribute(leg_obj, 1, "leg", "FACE", "INT")
+        connector_radius = 0
+        legs = join_objects(legs)
+        y_min = read_co(legs)[:, 1].min()
         obj = self.make_base(params.get("path", None), params.get("i", "unknown"))
         self.make_screen(obj)
+        if self.use_aux_leg:
+            leg = self.aux_leg[0]
+            leg.rotation_euler[0] = np.pi / 2
+            butil.apply_transform(leg, True)
+            co = read_co(legs)
+            #print(co[:, 2].max())
+            scale = co[:, 0].max() - co[:, 0].min(), co[:, 1].max() - co[:, 1].min(), co[:, 2].max() - co[:, 2].min()
+            location = (co[:, 0].max() + co[:, 0].min()) / 2, (co[:, 1].max() + co[:, 1].min()) / 2, (co[:, 2].max() + co[:, 2].min()) / 2
+            leg.scale = scale#(scale[0], scale[1], scale[2])
+            butil.apply_transform(leg, True)
+            leg.location = location
+            butil.apply_transform(leg, True)
+            legs = leg
+            top_1_height = (co[:, 2].max() - co[:, 2].min()) * 0.9 + co[:, 2].min()
+            co_ = read_co(legs)
+            #print(co_[:, 2].max(), co_[:, 2].min())
+            pts = []
+            for c in co_:
+                #print(c, top_1_height)
+                if c[2] >= top_1_height:
+                    pts.append(c)
+            #print(pts)
+            pts = np.array(pts)
+            y_min = pts[:, 1].min()
+            y_max = pts[:, 1].max()
+            x_max = pts[:, 0].max()
+            x_min = pts[:, 0].min()
+            connector_radius = (x_max - x_min) / 10 * uniform(0.8, 1)
+            connector = butil.spawn_cylinder(radius=connector_radius, depth=connector_radius * uniform(1, 4))
+            connector.rotation_euler[1] = np.pi / 2
+            connector.location = (co[:, 0].max() + co[:, 0].min()) / 2, y_min - connector_radius, top_1_height
+            butil.apply_transform(connector, True)
+            y_min = read_co(connector)[:, 1].min()
+            print(self.aux_leg)
+            if self.aux_leg[1]['prismatic'] == 'True':
+                res = save_obj_parts_add(connector, params.get("path", None), params.get("i", "unknown"), "screen", use_bpy=True, first=True, parent_obj_id="world", joint_info=
+                            {
+                                "name": get_joint_name("revolute_prismatic"),
+                                    "type": "revolute_prismatic",
+                                    "axis" : (1, 0, 0),
+                                    "axis_1": (0, 0, 1),
+                                    #"origin_shift": (0, 0, (self.h_max + self.h_min) / 2 - self.leg_length),
+                                    "limit": {
+                                        "lower": -np.pi / 8,
+                                        "upper": -np.pi / 48,
+                                        "lower_1": (-self.h_min / 2) if self.h_min else -0.05,
+                                        "upper_1": (self.h_min / 2) if self.h_min else 0.05
+                                    }
+                            })
+            else:
+                res = save_obj_parts_add(connector, params.get("path", None), params.get("i", "unknown"), "screen", use_bpy=True, first=True, parent_obj_id="world", joint_info=
+                            {
+                                "name": get_joint_name("revolute"),
+                                    "type": "revolute",
+                                    "axis" : (1, 0, 0),
+                                    #"origin_shift": (0, 0, (self.h_max + self.h_min) / 2 - self.leg_length),
+                                    "limit": {
+                                        "lower": -np.pi / 8,
+                                        "upper": -np.pi / 48,
+                                        #"lower_1": (-self.h_min / 2) if self.h_min else -0.05,
+                                        #"upper_1": (self.h_min / 2) if self.h_min else 0.05
+                                    }
+                            })
+            #res = save_obj_parts_add(connector, params.get("path", None), params.get("i", "unknown"), "connector", use_bpy=True, first=True, parent_obj_id=None)
+        save_obj_parts_add(legs, params.get("path", None), params.get("i", "unknown"), "leg", use_bpy=True, first=False if self.use_aux_leg else True, material=[self.support_surface])
         self.surface.apply(obj, selection="!screen", rough=True, metal_color="bw")
         self.support_surface.apply(
             obj, selection="leg", rough=True, metal_color="bw"
         )
         butil.apply_transform(obj, True)
+        y = read_co(obj)[:, 1].max()
+        obj.location = 0, y_min - y, 0
+        butil.apply_transform(obj, True)
         co = read_co(obj).copy()
-        res = save_obj_parts_add(obj, params.get("path", None), params.get("i", "unknown"), "screen", use_bpy=True, first=True, parent_obj_id="world", joint_info=
-                           {
-                               "name": get_joint_name("revolute_prismatic"),
-                                "type": "revolute_prismatic",
-                                "axis" : (1, 0, 0),
-                                "axis_1": (0, 0, 1),
-                                "origin_shift": (0, 0, (self.h_max + self.h_min) / 2 - self.leg_length),
-                                "limit": {
-                                    "lower": -np.pi / 8,
-                                    "upper": -np.pi / 48,
-                                    "lower_1": (-self.h_min / 2) if self.h_min else -0.1,
-                                    "upper_1": 0
-                                }
-                           })
+        if self.use_aux_leg:
+            res = save_obj_parts_add(obj, params.get("path", None), params.get("i", "unknown"), "screen", use_bpy=True, first=False, parent_obj_id=res[0], joint_info={
+                "name": get_joint_name("fixed"),
+                "type": "fixed",
+            })
+        else:
+            res = save_obj_parts_add(obj, params.get("path", None), params.get("i", "unknown"), "screen", use_bpy=True, first=False, parent_obj_id="world", joint_info=
+                            {
+                                "name": get_joint_name("revolute_prismatic"),
+                                    "type": "revolute_prismatic",
+                                    "axis" : (1, 0, 0),
+                                    "axis_1": (0, 0, 1),
+                                    "origin_shift": (0, 0, (self.h_max + self.h_min) / 2 - self.leg_length),
+                                    "limit": {
+                                        "lower": -np.pi / 8,
+                                        "upper": -np.pi / 48,
+                                        "lower_1": (-self.h_min / 2) if self.h_min else -0.05,
+                                        "upper_1": (self.h_min / 2) if self.h_min else 0.05
+                                    }
+                            })
         z_min = co[:, 2].min()
         button_type = np.random.choice(['circle', 'square'])
         button_type = "square"
         button_scale = self.bottom_margin * 0.5 * uniform(0.9, 1.0)
-        print("button_scale", button_scale)
-        location = (co[:, 0].max() * 0.9, -button_scale / 10, self.bottom_margin / 2)
+        location = (co[:, 0].max() * 0.9, -button_scale / 10 + y_min - y, self.bottom_margin / 2)
 
         button_num = np.random.randint(0, 5)
         gap = button_scale * random.uniform(0.5, 1.2)
@@ -197,21 +285,12 @@ class TVFactory(AssetFactory):
 
         parts = [obj]
         name = ["screen"]
-        match self.leg_type:
-            case "two-legged":
-                legs = self.add_two_legs()
-            case _:
-                legs = self.add_single_leg()
-        for leg_obj in legs:
-            write_attribute(leg_obj, 1, "leg", "FACE", "INT")
-        legs = join_objects(legs)
         co = read_co(legs)
         parts.append(legs)
         self.surface.apply(legs, selection="!screen", rough=True, metal_color="bw")
         self.support_surface.apply(
-            legs , rough=True, metal_color="bw"
+            legs , rough=True, #metal_color="bw"
         )
-        save_obj_parts_add(legs, params.get("path", None), params.get("i", "unknown"), "leg", use_bpy=True, first=False, material=[self.support_surface])
         #name.extend(["legs"] * len(legs))
         # save_objects_obj(
         #     parts,

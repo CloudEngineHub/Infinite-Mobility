@@ -12,18 +12,22 @@ import numpy as np
 from numpy.random import uniform
 
 from infinigen.assets.material_assignments import AssetList
-from infinigen.assets.utils.decorate import subsurf
+from infinigen.assets.utils.decorate import read_co, subsurf
 from infinigen.assets.utils.object import (
+    get_joint_name,
     join_objects,
     new_base_circle,
     new_base_cylinder,
     origin2lowest,
+    save_obj_parts_add,
+    join_objects_save_whole
 )
 from infinigen.core.util import blender as butil
 from infinigen.core.util.math import FixedSeed
 from infinigen.core.util.random import log_uniform
 
 from .base import TablewareFactory
+from .lid import LidFactory
 
 
 class PanFactory(TablewareFactory):
@@ -60,12 +64,31 @@ class PanFactory(TablewareFactory):
             self.metal_color = None
             self.scale = log_uniform(0.1, 0.15)
             self.scratch = self.edge_wear = None
+            self.lid_fac = LidFactory(factory_seed, coarse)
 
     def create_asset(self, **params) -> bpy.types.Object:
         obj = self.make_base()
         origin2lowest(obj, vertical=True)
         obj.scale = [self.scale] * 3
         butil.apply_transform(obj)
+        save_obj_parts_add(obj, params['path'], params['i'], "base", first=True, use_bpy=True, material=[self.surface])
+        lid = self.lid_fac.create_asset(save=False)
+        co = self.co_base * self.scale
+        co_l = read_co(lid)
+        scale_l = self.r_expand * self.scale / co_l[:, 1].max()#co[:, 1].max() / co_l[:, 1].max()
+        lid.location = 0, 0, co[:, 2].max() - co_l[:, 2].min()
+        lid.scale = scale_l, scale_l, scale_l
+        butil.apply_transform(lid, True)
+        save_obj_parts_add(lid, params['path'], params['i'], "lid", first=False, use_bpy=True, parent_obj_id="world", joint_info={
+            "name": get_joint_name("prismatic"),
+            "type": "prismatic",
+            "axis": [0, 0, 1],
+            "limit": {
+                "lower": 0,
+                "upper": 0.02
+            }
+        })
+        join_objects_save_whole(obj, params['path'], params['i'], "pan", use_bpy=True, join=False)
         return obj
 
     def make_base(self):
@@ -97,6 +120,7 @@ class PanFactory(TablewareFactory):
             )
         obj.rotation_euler[-1] = np.pi / n
         butil.apply_transform(obj)
+        self.co_base = read_co(obj)
         if self.has_handle:
             self.add_handle(obj)
         self.solidify_with_inside(obj, self.thickness)

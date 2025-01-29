@@ -5,7 +5,44 @@ import numpy as np
 import math
 import os
 import json
+import urdfpy
 
+def find_all_urdfs(path)-> list[str]:
+    urdfs = []
+    for root, dirs, files in os.walk(path):
+        for file in files:
+            if file.endswith(".urdf"):
+                urdfs.append(os.path.join(root, file))
+    return urdfs
+
+def iter_tree(r, urdf_path, tree, links, reset_material=True):
+    p_name = r.name
+    if len(r.visuals) >= 1:
+        for v in r.visuals:
+            g = v.geometry
+            m = g.mesh
+            f = m.filename
+            path = urdf_path.replace('scene.urdf', f)
+            path_ = path.replace('.obj', '.mtl_')
+            path = path.replace('.obj', '.mtl')
+            if not reset_material and os.path.exists(path):
+                os.rename(path, path_)
+            elif reset_material and os.path.exists(path_):
+                os.rename(path_, path)
+                
+    for j in tree.joints:
+        if j.parent == p_name:
+            c_name = j.child
+            for l in links:
+                if l.name == c_name:
+                    iter_tree(l, urdf_path, tree, links, reset_material)
+
+
+def find_all_objs_in_urdf(path, reset_material=True):
+    tree = urdfpy.URDF.load(path)
+    r = tree.base_link
+    links = tree.links
+    iter_tree(r, path, tree, links, reset_material)
 
 def main():
     #engine.set_log_level('warning')
@@ -45,10 +82,10 @@ def main():
     # The coordinate frame in Sapien is: x(forward), y(left), z(upward)
     # The principle axis of the camera is the x-axis
     #viewer.set_camera_xyz(x=18, y=-20, z=19)
-    viewer.set_camera_xyz(x=5, y=0, z=1)
+    viewer.set_camera_xyz(x=1.0504360713336667,y= -0.004402500000000004,z= 0.05151299999999994)
     # The rotation of the free camera is represented as [roll(x), pitch(-y), yaw(-z)]
     # The camera now looks at the origin
-    viewer.set_camera_rpy(r=0, p=-np.arctan2(2, 10), y= 1.1 * 3.14)
+    viewer.set_camera_rpy(r=0, p=-np.pi / 2, y=  3.14)
     viewer.window.set_camera_parameters(near=0.05, far=200, fovy=1)
     near, far = 0.1, 100
     width, height = 640, 480
@@ -75,19 +112,22 @@ def main():
 
     loader = scene.create_urdf_loader()
     robots = []
-    for i in range(100):
+    paths = find_all_urdfs("/home/pjlab/datasets/Banana_Articulated")
+    for i in range(500):
          try:
-             robot = loader.load(f"/home/pjlab/projects/infinigen_sep_part_urdf/outputs/OfficeChairFactory/{i}/scene.urdf")
+            #  find_all_objs_in_urdf(f"/home/pjlab/projects/infinigen_sep_part_urdf/outputs/WindowFactory/{i}/scene.urdf", True)
+            #  robot = loader.load(f"/home/pjlab/projects/infinigen_sep_part_urdf/outputs/BottleFactory/{i}/scene.urdf")
+             robot = loader.load(paths[i])
              r = i / 10
              c = i % 10
              robot.set_root_pose(sapien.Pose([-10 + 2* c, -10  + 2 * r, 0], [1, 0, 0, 0]))
              robots.append(robot)
          except:
              pass
-    # robots.append(loader.load("/home/pjlab/projects/infinigen_sep_part_urdf/outputs/DishwasherFactory/0/scene.urdf"))
+    # robots.append(loader.load(f"/home/pjlab/datasets/partnet_mobility/35059/mobility.urdf"))
     # robots[0].set_root_pose(sapien.Pose([0, 0, 0], [1, 0, 0, 0]))
-    #robot = loader.load("/home/pjlab/projects/infinigen_sep_part_urdf/outputs/OfficeChairFactory/0/scene.urdf")
-    #robot.set_root_pose(sapien.Pose([0, 0, 0], [1, 0, 0, 0]))
+    # robots.append(loader.load("/home/pjlab/文档/xwechat_files/wxid_zzpdavudi54422_1196/msg/file/2025-01/export_cage/export/#0/#0.urdf"))
+    # robots[0].set_root_pose(sapien.Pose([0, 0, 0], [1, 0, 0, 0]))
     all_poses = []
     all_steps = []
     all_childs = []

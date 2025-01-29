@@ -116,6 +116,7 @@ class VaseFactory(AssetFactory):
         surface.add_geomod(obj, geometry_vases, apply=True, input_kwargs=self.params)
         butil.modify_mesh(obj, "SOLIDIFY", apply=True, thickness=0.002)
         butil.modify_mesh(obj, "SUBSURF", apply=True, levels=2, render_levels=2)
+        #save_obj_parts_add(obj, "vase")
 
         return obj
 

@@ -11,6 +11,9 @@ import mathutils
 
 from PIL import Image, ImageDraw, ImageFont
 
+from reconstruct_obj_according_tourdf import generate_whole
+import trimesh
+
 def iter_tree(r, urdf_path, tree, links, reset_material=True):
     p_name = r.name
     if len(r.visuals) >= 1:
@@ -41,16 +44,18 @@ def find_all_objs_in_urdf(path, reset_material=True):
     iter_tree(r, path, tree, links, reset_material)
 
 def generate_text_image(image):
+    #image = Image.fromarray(image)
     # 创建绘图对象
     draw = ImageDraw.Draw(image)
     # 选择字体和大小
-    font = ImageFont.truetype('/home/pjlab/下载/经典宋体简/res.ttf', 72)
+    font = ImageFont.truetype('/home/pjlab/下载/经典宋体简/res.ttf', 40)
     # 添加文字到图片上
-    draw.text((20, 20), '椅子', font=font, fill=(0, 0, 0))
+    draw.text((10, 10), '盘子架与盘子', font=font, fill=(0, 0, 0))
+    #return np.asarray(image)
 
 
 def add_noise_to_joint(joint):
-    scale = 0.03
+    scale = 0.1
     if joint.type == "fixed":
         return
     
@@ -100,13 +105,13 @@ def main(id, catagory):
     #scene.add_ground(altitude=-10, render_half_size=[200, 200])  # Add a ground
 
     # Add some lights so that you can observe the scene
-    scene.set_ambient_light([0.5, 0.5, 0.5])
+    scene.set_ambient_light([0.3, 0.3, 0.3])
     scene.add_directional_light([0, 1, -1], [0.5, 0.5, 0.5])
     #scene.set_ambient_light([-0.5, -0.5, -0.5])
 
     #viewer = scene.create_viewer()  # Create a viewer (window)
     #viewer = Viewer(resolutions=(640, 480))  # Create a viewer (window)
-    viewer = Viewer(resolutions=[680, 680])  # Create a viewer (window)
+    viewer = Viewer(resolutions=[680, 720])  # Create a viewer (window)
     viewer.window.hide()
     viewer.set_scene(scene)  # Set the viewer to observe the scene
     #viewer = scene.create_viewer()
@@ -114,25 +119,25 @@ def main(id, catagory):
     # The coordinate frame in Sapien is: x(forward), y(left), z(upward)
     # The principle axis of the camera is the x-axis
     #viewer.set_camera_xyz(x=18, y=-20, z=19)
-    viewer.set_camera_xyz(x=2, y=0, z=1)
+    #viewer.set_camera_xyz(x=2, y=0, z=1)
     # viewer.set_camera_xyz(x=2, y=0.7, z=1)
     # # The rotation of the free camera is represented as [roll(x), pitch(-y), yaw(-z)]
     # # The camera now looks at the origin
     # viewer.set_camera_rpy(r=0, p=-np.arctan2(2, 3), y= 3.14 - 0.2)
-    viewer.set_camera_rpy(r=0, p=-np.arctan2(2, 12), y= 3.14)
-    viewer.window.set_camera_parameters(near=0.05, far=100, fovy=1)
+
+    
     near, far = 0.1, 100
     width, height = 640, 480
-    camera = scene.add_camera(
-        name="camera",
-        width=680,
-        height=680,
-        fovy=1,
-        near=0.1,
-        far=100,
-    )
-    q = mathutils.Euler((0.0, -np.arctan2(2, 12), 3.14)).to_quaternion()
-    camera.set_entity_pose(sapien.Pose([2, 0, 0], q))
+    # camera = scene.add_camera(
+    #     name="camera",
+    #     width=680,
+    #     height=680,
+    #     fovy=1,
+    #     near=0.1,
+    #     far=100,
+    # )
+    # q = mathutils.Euler((0.0, -np.arctan2(2, 12), 3.14)).to_quaternion()
+    # camera.set_entity_pose(sapien.Pose([2, 0, 0], q))
 
     # Compute the camera pose by specifying forward(x), left(y) and up(z)
     cam_pos = np.array([-2, -2, 3])
@@ -174,12 +179,30 @@ def main(id, catagory):
     #     c = i % 10
     #     robot.set_root_pose(sapien.Pose([-10 + 2* c, -10  + 2 * r, 0], [1, 0, 0, 0]))
     #     robots.append(robot)
+    if not os.path.exists(f"/home/pjlab/projects/infinigen_sep_part_urdf/outputs/{catagory}/{id}/whole.obj"):
+        generate_whole(f"/home/pjlab/projects/infinigen_sep_part_urdf/outputs/{catagory}/{id}/scene.urdf")
+    mesh = trimesh.load(f"/home/pjlab/projects/infinigen_sep_part_urdf/outputs/{catagory}/{id}/whole.obj", force="mesh")
+    center = (mesh.vertices[:, 0].max() + mesh.vertices[:, 0].min()) / 2, (mesh.vertices[:, 1].max() + mesh.vertices[:, 1].min()) / 2, (mesh.vertices[:, 2].max() + mesh.vertices[:, 2].min()) / 2
+    scale = mesh.vertices[:, 0].max() - mesh.vertices[:, 0].min(), mesh.vertices[:, 1].max() - mesh.vertices[:, 1].min(), mesh.vertices[:, 2].max() - mesh.vertices[:, 2].min()
+    viewer.window.set_camera_parameters(near=0.05, far=100, fovy=1)
+    viewer.set_camera_rpy(r=0, p=0, y= np.pi/2)
+    x = center[0] + 4
+    # scale = 3 / abs(scale[2])
+    # x /= scale
+
+    scale = 3 / abs(scale[2])
+    x /= scale
+    #viewer.set_camera_xyz(x=0, y=0, z=max(center[1] + x, 6))
+    #viewer.set_camera_xyz(x=-max(center[0], 1), y=-center[2], z=center[1])
+    viewer.set_camera_xyz(x=center[0], y=max(-center[2], 1), z=center[1])
+    #viewer.set_camera_xyz(x=max(x, 3), y=0, z=center[1])
     find_all_objs_in_urdf(f"/home/pjlab/projects/infinigen_sep_part_urdf/outputs/{catagory}/{id}/scene.urdf", False)
     robots.append(loader.load(f"./outputs/{catagory}/{id}/scene.urdf"))
     #find_all_objs_in_urdf(f"/home/pjlab/projects/infinigen_sep_part_urdf/outputs/{catagory}/{id}/scene.urdf", True)
     robots[0].set_root_pose(sapien.Pose([0, 0, 0], [1, 0, 0, 0]))
     for j in robots[0].get_joints():
-        add_noise_to_joint(j)
+        #add_noise_to_joint(j)
+        pass
     #robot = loader.load("/home/pjlab/projects/infinigen_sep_part_urdf/outputs/OfficeChairFactory/0/scene.urdf")
     #robot.set_root_pose(sapien.Pose([0, 0, 0], [1, 0, 0, 0]))
     all_poses = []
@@ -423,8 +446,16 @@ def main(id, catagory):
         #scene.update_render()  # sync pose from SAPIEN to renderer
         rgba = viewer.window.get_picture("Color")
         rgba_img = (rgba * 255).clip(0, 255).astype("uint8")
+        print(rgba_img.shape)
         rgba_pil = Image.fromarray(rgba_img)
         generate_text_image(rgba_pil)
+        #print(rgba_pil.size)
+        #text = np.ones((50, 680, 4)) * 255.0
+        #print(text.shape)
+        #generate_text_image(text.clip(0, 255).astype("uint8")) * 255.0
+        #print(text.shape)
+        #rgba_img = np.concatenate([text, rgba_img], axis=0)
+        #rgba_pil = Image.fromarray(rgba_img.clip(0, 255).astype("uint8"))
         rgba_pil.save(f"pics/screenshot{step}.png")
         
         # camera.take_picture()
@@ -433,7 +464,6 @@ def main(id, catagory):
         # rgba_pil = Image.fromarray(rgba_img)
         # rgba_pil.save(f"pics/screenshot{step}.png")
         step += 1
-        print(step)
         if step == 300:
             break
         #print(scene.get_contacts())
@@ -448,9 +478,9 @@ def main(id, catagory):
 
 
 if __name__ == "__main__":
-    number = 10
-    start_number = 70
-    catagory = "OfficeChairFactory"
+    number = 100
+    start_number = 0
+    catagory = "PlateOnRackBaseFactory"
     #main(4, catagory)
     #main(9, catagory)
     for i in range(number):

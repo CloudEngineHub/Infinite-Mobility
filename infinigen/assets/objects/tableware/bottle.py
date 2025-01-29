@@ -217,7 +217,7 @@ class BottleFactory(AssetFactory):
             "axis_1": (0, 0, 1),
             "limit": {
                 "lower_1": 0,
-                "upper_1": 0.05,
+                "upper_1": 0.01,
             }
         })
         obj = join_objects([bottle, wrap, cap])

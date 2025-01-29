@@ -8,6 +8,8 @@ import json
 import random
 import urdfpy
 from PIL import ImageDraw, ImageFont
+from reconstruct_obj_according_tourdf import generate_whole
+import trimesh
 
 
 def iter_tree(r, urdf_path, tree, links, reset_material=True):
@@ -41,15 +43,17 @@ def find_all_objs_in_urdf(path, reset_material=True):
     iter_tree(r, path, tree, links, reset_material)
 
 def generate_text_image(image):
+    #image = Image.fromarray(image)
     # 创建绘图对象
     draw = ImageDraw.Draw(image)
     # 选择字体和大小
-    font = ImageFont.truetype('/home/pjlab/下载/经典宋体简/res.ttf', 72)
+    font = ImageFont.truetype('/home/pjlab/下载/经典宋体简/res.ttf', 40)
     # 添加文字到图片上
-    draw.text((20, 20), '椅子', font=font, fill=(0, 0, 0))
+    draw.text((10, 10), '推车', font=font, fill=(0, 0, 0))
+    #return np.asarray(image)
 
 def add_noise_to_joint(joint):
-    scale = 0.03
+    scale = 0.1
     if joint.type == "fixed":
         return
     
@@ -106,7 +110,7 @@ def main(id, catagory):
 
     #viewer = scene.create_viewer()  # Create a viewer (window)
     #viewer = Viewer(resolutions=(640, 480))  # Create a viewer (window)
-    viewer = Viewer(resolutions=[680, 680])  # Create a viewer (window)
+    viewer = Viewer(resolutions=[680, 720])  # Create a viewer (window)
     viewer.window.hide()
     viewer.set_scene(scene)  # Set the viewer to observe the scene
     #viewer = scene.create_viewer()
@@ -120,12 +124,11 @@ def main(id, catagory):
     # # The camera now looks at the origin
     # viewer.set_camera_rpy(r=0, p=-np.arctan2(2, 12), y= 0)
     #viewer.set_camera_xyz(x=-3, y=-0.5, z=1)
-    viewer.set_camera_xyz(x=2.5, y=0, z=0.5)
+    #viewer.set_camera_xyz(x=2.5, y=0, z=0.5)
     # The rotation of the free camera is represented as [roll(x), pitch(-y), yaw(-z)]
     # The camera now looks at the origin
     #viewer.set_camera_rpy(r=0, p=-np.arctan2(2, 6), y= - 0.2 )
-    viewer.set_camera_rpy(r=0, p=-np.arctan2(2, 12), y= 3.14)
-    viewer.window.set_camera_parameters(near=0.05, far=100, fovy=1)
+    #viewer.window.set_camera_parameters(near=0.05, far=100, fovy=1)
     near, far = 0.1, 100
     width, height = 640, 480
 
@@ -169,13 +172,27 @@ def main(id, catagory):
     #     c = i % 10
     #     robot.set_root_pose(sapien.Pose([-10 + 2* c, -10  + 2 * r, 0], [1, 0, 0, 0]))
     #     robots.append(robot)
+    if not os.path.exists(f"{dir}/{objs[id]}/whole.obj"):
+        generate_whole(f"{dir}/{objs[id]}/mobility_no_collision.urdf")
+    mesh = trimesh.load(f"{dir}/{objs[id]}/whole.obj", force="mesh")
+    center = (mesh.vertices[:, 0].max() + mesh.vertices[:, 0].min()) / 2, (mesh.vertices[:, 1].max() + mesh.vertices[:, 1].min()) / 2, (mesh.vertices[:, 2].max() + mesh.vertices[:, 2].min()) / 2
+    scale = mesh.vertices[:, 0].max() - mesh.vertices[:, 0].min(), mesh.vertices[:, 1].max() - mesh.vertices[:, 1].min(), mesh.vertices[:, 2].max() - mesh.vertices[:, 2].min()
+    print(scale, center)
+    viewer.window.set_camera_parameters(near=0.05, far=100, fovy=1)
+    viewer.set_camera_rpy(r=0, p=0, y= 0)
+    x = center[0]
+    scale = 3 / abs(scale[2])
+    x += (4 / scale)
+    viewer.set_camera_xyz(x=-(center[0] + 3), y=-center[2], z=center[1] * 2)
+    #print(x, -center[2], center[1] * 1.2)
     find_all_objs_in_urdf(f"{dir}/{objs[id]}/mobility_no_collision.urdf", False)
     robots.append(loader.load(f"{dir}/{objs[id]}/mobility_no_collision.urdf"))
     #find_all_objs_in_urdf(f"{dir}/{objs[id]}/mobility_no_collision.urdf", True)
     robots[0].set_root_pose(sapien.Pose([0, 0, 0], [1, 0, 0, 0]))
     r = robots[0]
     for j in robots[0].get_joints():
-        add_noise_to_joint(j)
+        pass
+        #add_noise_to_joint(j)
     ls = r.get_links()
     # for l in ls:
     #     l.collision_shapes = []
@@ -440,15 +457,15 @@ def main(id, catagory):
 
 
 if __name__ == "__main__":
-    catagory = 'chair'
-    max_number = 11
+    catagory = 'bucket'
+    max_number = 100
     json_path = f'./partnet_catagory_json/{catagory}.json'
     res = json.load(open(json_path))
     # main(40, catagory)
     # main(41, catagory)
     # main(42, catagory)
     # exit(0)
-    starting_number = 69
+    starting_number = 0
     res = res[:max_number]
     for i in range(len(res)):
         i += starting_number

@@ -142,7 +142,7 @@ class RackFactory(AssetFactory):
                 # p_id = ids[(i // 2) - 1] if i >= 2 else "world"
                 p_id = "world" if i < 2 else ids[(i // 2) - 1]
                 save_obj_parts_add([p], self.params.get("path", None), self.params.get("i", None), "pallet", first=False, use_bpy=True, parent_obj_id= p_id, joint_info={
-                    "type": "limited_planar",
+                    "type": "fixed",
                     "name": get_joint_name("limited_planar"),
                     "axis": (0, 0, 1),
                     "limit": {

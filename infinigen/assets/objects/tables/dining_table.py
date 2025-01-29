@@ -35,6 +35,8 @@ from infinigen.core.placement.factory import AssetFactory
 from infinigen.core.surface import NoApply
 from infinigen.core.util.math import FixedSeed
 from infinigen.core.util import blender as butil
+from infinigen.assets.utils.auxiliary_parts import random_auxiliary
+import numpy as np
 
 
 @node_utils.to_nodegroup(
@@ -288,6 +290,9 @@ class TableDiningFactory(AssetFactory):
             self.material_params, self.scratch, self.edge_wear = (
                 self.get_material_params()
             )
+            self.use_aux_top = choice([True, False], p=[0.7, 0.3])
+            if self.use_aux_top:
+                self.aux_top = random_auxiliary('table_top')
 
         self.params.update(self.material_params)
 
@@ -535,7 +540,7 @@ class TableDiningFactory(AssetFactory):
                 }
             }, material=[self.scratch, self.edge_wear])
 
-        save_obj_parts_add([legs], self.ps.get("path", None), self.ps.get("i", "unknown"), "leg", first=True, use_bpy=True, material=[self.scratch, self.edge_wear])
+        save_obj_parts_add([legs], self.ps.get("path", None), self.ps.get("i", "unknown"), "leg", first=False, use_bpy=True, material=[self.scratch, self.edge_wear])
         bpy.ops.mesh.primitive_plane_add(
             size=2,
             enter_editmode=False,
@@ -562,6 +567,18 @@ class TableDiningFactory(AssetFactory):
                 "name": get_joint_name("fixed"),
                 "type": "fixed",
             }
+        if self.use_aux_top:
+            aux_top = self.aux_top[0]
+            co_top = read_co(top)
+            center = (co_top[:, 0].max() + co_top[:, 0].min()) / 2, (co_top[:, 1].max() + co_top[:, 1].min()) / 2, (co_top[:, 2].max() + co_top[:, 2].min()) / 2
+            scale = co_top[:, 0].max() - co_top[:, 0].min(), co_top[:, 1].max() - co_top[:, 1].min(), co_top[:, 2].max() - co_top[:, 2].min()
+            aux_top.rotation_euler = (np.pi / 2, 0, np.pi / 2)
+            butil.apply_transform(aux_top, True)
+            aux_top.scale = scale
+            butil.apply_transform(aux_top, True)
+            aux_top.location = center
+            butil.apply_transform(aux_top, True)
+            top = aux_top
         save_obj_parts_add([top], self.ps.get("path", None), self.ps.get("i", "unknown"), "table_top", first=False, use_bpy=True, parent_obj_id=parent_id, joint_info=joint_info, material=[self.scratch, self.edge_wear])
         node_utils.save_geometry_new(assets, "whole", 0, self.ps['i'], self.ps['path'], False, True)
 

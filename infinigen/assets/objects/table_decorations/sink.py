@@ -317,7 +317,7 @@ def nodegroup_handle(nw: NodeWrangler):
 @node_utils.to_modifier("nodegroup_water_tap", singleton=False, type="GeometryNodeTree")
 def nodegroup_water_tap(nw: NodeWrangler, **kwargs):
     # Code generated using version 2.6.5 of the node_transpiler
-
+    t = np.random.choice([True, False])
     group_input = nw.new_node(
         Nodes.GroupInput,
         # expose_input=[
@@ -335,6 +335,7 @@ def nodegroup_water_tap(nw: NodeWrangler, **kwargs):
         #     ("NodeSocketBool", "different_type", True if U() > 0.8 else False),
         #     ("NodeSocketBool", "length_one_side", True if U() > 0.8 else False),
         # ],
+        
         expose_input=[
             ("NodeSocketFloatDistance", "base_width", U(0.2, 0.3)),
             ("NodeSocketFloat", "tap_head", U(0.7, 1.1)),
@@ -347,7 +348,7 @@ def nodegroup_water_tap(nw: NodeWrangler, **kwargs):
             ("NodeSocketFloat", "hands_length_x", U(0.750, 1.25)),
             ("NodeSocketFloat", "hands_length_Y", U(0.950, 1.550)),
             ("NodeSocketBool", "one_side", False),
-            ("NodeSocketBool", "different_type", False),
+            ("NodeSocketBool", "different_type", t),
             ("NodeSocketBool", "length_one_side", False),
         ],
     )
@@ -356,7 +357,7 @@ def nodegroup_water_tap(nw: NodeWrangler, **kwargs):
             "Switch": False,
             "hand_type": False,
             "one_side": False,
-            "different_type": False,
+            "different_type": t,
             "length_one_side": False,
     }
 

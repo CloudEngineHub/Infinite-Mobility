@@ -123,7 +123,7 @@ class WindowFactory(AssetFactory):
         if open is None:
             open = U(0, 1) < 0.5
         if shutter is None:
-            shutter = False#U(0, 1) < 0.2
+            shutter = U(0, 1) < 0.2
         if curtain is None:
             curtain = U(0, 1) < 0.3
         if curtain:
@@ -133,7 +133,7 @@ class WindowFactory(AssetFactory):
         open_type = RI(0, 3)
         if panel_v_amount % 2 == 1:
             open_type = RI(1, 3)
-        open_type = 2
+        #open_type = 2
         open_h_angle = 0
         open_v_angle = 0
         open_offset = 0
@@ -175,7 +175,7 @@ class WindowFactory(AssetFactory):
         curtain_mid_l = -U(0, width / 2)
         curtain_mid_r = U(0, width / 2)
 
-        curtain = True
+        #curtain = True
 
         params = {
             "Width": width,
@@ -275,7 +275,7 @@ class WindowFactory(AssetFactory):
         # portal.hide_viewport = True
 
         names = ["curtain_hold", "curtain", "curtain_", "panel", "shutter", "shutter_frame"]
-        parts = [5, 2, 1, 10000, 1, 1]
+        parts = [5, 2, 1, 10, 1, 1]
         #names = ["shutter", "panel"]
         #parts = [1, 1]
         first = True
@@ -338,7 +338,7 @@ class WindowFactory(AssetFactory):
                         }
                         for i in range(1, len(joint_info)):
                             joint_info[i] = joint_info[i].copy()
-                            joint_info[i]["axis"] = random.choice(([0, 1, 0], [1, 0, 0]))
+                            joint_info[i]["axis"] = [0, 1, 0]
                             if joint_info[i]["axis"] == [1, 0, 0]:
                                 width = (self.params['Height'] - self.params['FrameWidth'] * self.params['PanelHAmount']) / self.params['PanelHAmount'] - self.params['SubFrameWidth']
                             joint_info[i]["origin_shift"] = random.choice(([-width / 2, 0, 0], [width / 2, 0, 0])) if joint_info[i]["axis"] == [0, 1, 0] else random.choice(([0, -width / 2, 0], [0, width / 2, 0]))
@@ -372,13 +372,15 @@ class WindowFactory(AssetFactory):
                                 joint_info[i]['limit']['lower'] = 0
                             if i > int(self.params["PanelHAmount"]) * (int(self.params["PanelVAmount"]) - 1):
                                 joint_info[i]['limit']['upper'] = 0
-                            print(i, self.params["PanelVAmount"], joint_info[i])
+                            #print(i, self.params["PanelVAmount"], joint_info[i])
                         #print(joint_info)
                             #joint_info[i]["origin_shift"] = random.choice(([0, 0, 0], [-width / 2, 0, 0], [width / 2, 0, 0])) if joint_info[i]["axis"] == [0, 1, 0] else random.choice(([0, 0, 0], [0, -width / 2, 0], [0, width / 2, 0]))
-
+                    print(name, k, parent_id)
                     res = save_geometry_new(obj, name, k, params.get("i", None), params.get("path", None), first, use_bpy=True, separate=True, parent_obj_id=parent_id, joint_info=joint_info, material=material)
-                    if name == "panel" and not res:
-                        break 
+                    if res:
+                        first = False
+                    # if name == "panel" and not res:
+                    #     break 
                 else:
                     if name == "curtain" and k == 1:
                         parent_id = "world"
@@ -402,9 +404,11 @@ class WindowFactory(AssetFactory):
                                 "upper": 0,
                             }
                         }
+                    print(name, k, parent_id)
                     res = save_geometry_new(obj, name, k, params.get("i", None), params.get("path", None), first, use_bpy=True, parent_obj_id=parent_id, joint_info=joint_info)
                     if res:
                         last_id = res[0]
+                        first = False
                 if res:
                     first = False
                     
