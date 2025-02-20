@@ -93,4 +93,6 @@ If you are having difficulties running scripts in our repo, please open issues!
 We are happy to provide supports and have discussions!
 
 ## TO DO
-
+- [] Make installation more self-contained
+- [] Add usd format support
+- [] Generate interactive environment with infinigen layout solvers.
