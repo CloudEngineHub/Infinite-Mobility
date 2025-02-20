@@ -15,10 +15,18 @@ This repo is about the procedural generation of articulated objects like this.
 ## Getting Started
 
 First, follow installation instruction of Infinigen to setup the basic environment [Installation Instructions](docs/Installation.md).  
-__important: we are based on an earlier version of Infinigen.  
+__important: we are based on an earlier version of Infinigen.(git 572bfe7)  
 It could break the pipeline if the newest version is installed__   
-Then, please run setup.py to configure our dependencies.  
-Finally, download our part dataset [here](https://github.com/yinoqifu00/Infinite-Mobility/releases/tag/v0.0.1) and configure dataset path in [python code](infinigen/assets/utils/auxiliary_parts.py).  
+Then, please run setup.py to configure our dependencies.
+```bash
+python setup.py
+```
+Next, download our part dataset [here](https://github.com/yinoqifu00/Infinite-Mobility/releases/tag/v0.0.1) 
+Finally, configure dataset path in [python code](infinigen/assets/utils/auxiliary_parts.py) line 30.
+For example, if part dataset is /datasets/parts
+```python
+AUXILIARY_PATH = "/datasets/parts"
+```
 It should work just fine now!🎊 
 
 ## Generate
