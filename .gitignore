@@ -3,6 +3,8 @@ Python-*.tgz
 blender
 blender.tar.xz
 Blender.app
+remove_collision.py
+test_mesh.py
 
 *.c
 
