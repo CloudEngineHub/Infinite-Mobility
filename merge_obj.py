@@ -61,19 +61,25 @@ def to_colonical(obj):
 
 
 dir_path = "/home/pjlab/datasets/parts/lamp_shade/3"
-parts = os.listdir(dir_path)
-paths = [f"{dir_path}/{part}" for part in parts if part.endswith('obj')]
-objs = []
-bpy.ops.object.select_all(action='SELECT')
-bpy.ops.object.delete()
-for path in paths:
-    bpy.ops.wm.obj_import(filepath=path)
-    obj = bpy.context.object
-    objs.append(obj)
-obj = join_objects(objs)
-#obj = to_colonical(obj)
-normalize(obj)
-obj.name = "whole"
-#rotation(obj, 0, 0, np.pi / 3)
-export_curr_scene([obj], Path(f"{dir_path}/whole"), "obj", individual_export=True)
-#bpy.ops.wm.obj_export(filepath="outputs/output.obj")
+def merge_dir(dir_path):
+    parts = os.listdir(dir_path)
+    paths = [f"{dir_path}/{part}" for part in parts if part.endswith('obj')]
+    objs = []
+    bpy.ops.object.select_all(action='SELECT')
+    bpy.ops.object.delete()
+    for path in paths:
+        bpy.ops.wm.obj_import(filepath=path)
+        obj = bpy.context.object
+        objs.append(obj)
+    obj = join_objects(objs)
+    #obj = to_colonical(obj)
+    normalize(obj)
+    obj.name = "whole"
+    #rotation(obj, 0, 0, np.pi / 3)
+    export_curr_scene([obj], Path(f"{dir_path}/whole"), "obj", individual_export=True)
+    #bpy.ops.wm.obj_export(filepath="outputs/output.obj")
+dir = "/home/pjlab/datasets/parts/lid"
+for i in range(1, 10):
+    dir_path = f"{dir}/{i}"
+    merge_dir(dir_path)
+#merge_dir(dir)

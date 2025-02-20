@@ -204,7 +204,7 @@ class RackFactory(AssetFactory):
         if save:
             for stand in stands:
                 self.stand_surface.apply(stand, "stand", metal_color="bw")
-                save_obj_parts_add([stand], self.params.get("path", None), self.params.get("i", None), "stand", first=first, use_bpy=True, parent_obj_id=
+                save_obj_parts_add([stand], self.params.get("path", None), self.params.get("i", None), "rack_stand", first=first, use_bpy=True, parent_obj_id=
                                    "world", joint_info={
                                        "type": "fixed",
                                        "name": get_joint_name("fixed")
@@ -295,14 +295,14 @@ class RackFactory(AssetFactory):
 
         if save:
             self.support_surface.apply(o, "support", metal_color="bw")
-            res = save_obj_parts_add([o], self.params.get("path", None), self.params.get("i", None), "support", first=False, use_bpy=True, parent_obj_id="world", joint_info={
+            res = save_obj_parts_add([o], self.params.get("path", None), self.params.get("i", None), "rack_support", first=False, use_bpy=True, parent_obj_id="world", joint_info={
                 "name": get_joint_name("fixed"),
                 "type": "fixed",
             })
             if res:
                 last_idx = res[0]
             self.support_surface.apply(obj, "support", metal_color="bw")
-            res = save_obj_parts_add([obj], self.params.get("path", None), self.params.get("i", None), "support", first=False, use_bpy=True, parent_obj_id="world", joint_info={
+            res = save_obj_parts_add([obj], self.params.get("path", None), self.params.get("i", None), "rack_support", first=False, use_bpy=True, parent_obj_id="world", joint_info={
                 "name": get_joint_name("fixed"),
                 "type": "fixed",
             })
@@ -358,7 +358,7 @@ class RackFactory(AssetFactory):
             frame.location[-1] = 0
             butil.apply_transform(frame, True)
             self.frame_surface.apply(frame, metal_color="bw")
-            res = save_obj_parts_add([frame], self.params.get("path", None), self.params.get("i", None), "frame", first=False, use_bpy=True, parent_obj_id="world", joint_info={
+            res = save_obj_parts_add([frame], self.params.get("path", None), self.params.get("i", None), "rack_frame", first=False, use_bpy=True, parent_obj_id="world", joint_info={
                 "name": get_joint_name("prismatic"),
                 "type": "prismatic",
                 "axis": (0, 0, 1),
@@ -382,7 +382,7 @@ class RackFactory(AssetFactory):
             frames.append(frame_)
             if save:
                 self.frame_surface.apply(frame_, metal_color="bw")
-                res = save_obj_parts_add([frame_], self.params.get("path", None), self.params.get("i", None), "frame", first=False, use_bpy=True, parent_obj_id="world", joint_info={
+                res = save_obj_parts_add([frame_], self.params.get("path", None), self.params.get("i", None), "rack_frame", first=False, use_bpy=True, parent_obj_id="world", joint_info={
                     "name": get_joint_name("prismatic"),
                     "type": "prismatic",
                     "axis": (0, 0, 1),

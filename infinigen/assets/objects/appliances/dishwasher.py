@@ -234,7 +234,7 @@ class DishwasherFactory(AssetFactory):
                     handle_.location = (co[:, 0].max() + co[:, 0].min()) / 2, (co[:, 1].max() + co[:, 1].min()) / 2, (co[:, 2].max() + co[:, 2].min()) / 2
                     butil.apply_transform(handle_)
                     handle = handle_
-                id_handle = save_obj_parts_add(handle, self.ps.get("path"), self.ps.get("i"), "door", first=False, use_bpy=True, parent_obj_id=parent_id, joint_info=joint_info)[0]
+                id_handle = save_obj_parts_add(handle, self.ps.get("path"), self.ps.get("i"), "handle", first=False, use_bpy=True, parent_obj_id=parent_id, joint_info=joint_info)[0]
                 co_h = co
             else:
                 heater = butil.spawn_cube()

@@ -2004,7 +2004,7 @@ def nodegroup_beverage_fridge_geometry(
                         nw,
                         separate_geometry,
                         kwargs.get("path", None),
-                        name,
+                        "rack",
                         kwargs.get("i", "unknown"),
                         first=first,
                         joint_info=joint_info,

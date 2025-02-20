@@ -178,7 +178,7 @@ class BaseDoorFactory(AssetFactory):
         if return_panel:
             return obj
         if save:
-            save_obj_parts_add([obj], self.params.get("path", None), self.params.get("i", None), "panel", first=first, use_bpy=True, parent_obj_id="world", joint_info={
+            save_obj_parts_add([obj], self.params.get("path", None), self.params.get("i", None), "door_panel", first=first, use_bpy=True, parent_obj_id="world", joint_info={
                 "name": get_joint_name("revolute"),
                 "type": "revolute",
                 "limit":{
@@ -259,7 +259,7 @@ class BaseDoorFactory(AssetFactory):
             self.handle_surface.apply(obj, selection="handle", metal_color="natural")
             self.handle_surface.apply(other, selection="handle", metal_color="natural")
             if save:
-                save_obj_parts_add([obj], self.params.get("path", None), self.params.get("i", None), "knob", first=first, use_bpy=True, parent_obj_id=0, joint_info={
+                save_obj_parts_add([obj], self.params.get("path", None), self.params.get("i", None), "door_knob", first=first, use_bpy=True, parent_obj_id=0, joint_info={
                     "name": get_joint_name("fixed"),
                     "type": "fixed",
                 })
@@ -275,11 +275,11 @@ class BaseDoorFactory(AssetFactory):
                         "name": get_joint_name("fixed"),
                         "type": "fixed",
                     }
-                save_obj_parts_add([other], self.params.get("path", None), self.params.get("i", None), "knob", first=first, use_bpy=True, parent_obj_id=0, joint_info=joint_info)
+                save_obj_parts_add([other], self.params.get("path", None), self.params.get("i", None), "door_knob", first=first, use_bpy=True, parent_obj_id=0, joint_info=joint_info)
                 first=False
                 joint_info = joint_info.copy()
                 joint_info["name"] = get_joint_name(joint_info['type'])
-                save_obj_parts_add([obj], self.params.get("path", None), self.params.get("i", None), "knob", first=first, use_bpy=True, parent_obj_id=0, joint_info=joint_info)
+                save_obj_parts_add([obj], self.params.get("path", None), self.params.get("i", None), "door_knob", first=first, use_bpy=True, parent_obj_id=0, joint_info=joint_info)
         else:
             write_attribute(obj[0], 1, "handle", "FACE")
             write_attribute(obj[1], 1, "handle", "FACE")
@@ -299,7 +299,7 @@ class BaseDoorFactory(AssetFactory):
             self.handle_surface.apply(other, selection="handle", metal_color="natural")
             self.handle_surface.apply(obj[0], selection="handle", metal_color="natural")
             self.handle_surface.apply(obj[1], selection="handle", metal_color="natural")
-            res = save_obj_parts_add([other], self.params.get("path", None), self.params.get("i", None), "knob", first=first, use_bpy=True, parent_obj_id=0, joint_info={
+            res = save_obj_parts_add([other], self.params.get("path", None), self.params.get("i", None), "door_knob", first=first, use_bpy=True, parent_obj_id=0, joint_info={
                 "name": get_joint_name("revolute"),
                 "type": "revolute",
                 "axis": (0, 1, 0),
@@ -309,11 +309,11 @@ class BaseDoorFactory(AssetFactory):
                 },
             })
             first = False
-            save_obj_parts_add([other_], self.params.get("path", None), self.params.get("i", None), "knob", first=first, use_bpy=True, parent_obj_id=res[0], joint_info={
+            save_obj_parts_add([other_], self.params.get("path", None), self.params.get("i", None), "door_knob", first=first, use_bpy=True, parent_obj_id=res[0], joint_info={
                 "name": get_joint_name("fixed"),
                 "type": "fixed",
             })
-            res = save_obj_parts_add([obj[0]], self.params.get("path", None), self.params.get("i", None), "knob", first=first, use_bpy=True, parent_obj_id=0, joint_info={
+            res = save_obj_parts_add([obj[0]], self.params.get("path", None), self.params.get("i", None), "door_knob", first=first, use_bpy=True, parent_obj_id=0, joint_info={
                 "name": get_joint_name("revolute"),
                 "type": "revolute",
                 "axis": (0, 1, 0),
@@ -322,7 +322,7 @@ class BaseDoorFactory(AssetFactory):
                     "upper": math.pi / 2
                 },
             })
-            save_obj_parts_add([obj[1]], self.params.get("path", None), self.params.get("i", None), "knob", first=first, use_bpy=True, parent_obj_id=res[0], joint_info={
+            save_obj_parts_add([obj[1]], self.params.get("path", None), self.params.get("i", None), "door_knob", first=first, use_bpy=True, parent_obj_id=res[0], joint_info={
                 "name": get_joint_name("fixed"),
                 "type": "fixed",
             })

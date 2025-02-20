@@ -192,7 +192,7 @@ class TVFactory(AssetFactory):
             y_min = read_co(connector)[:, 1].min()
             print(self.aux_leg)
             if self.aux_leg[1]['prismatic'] == 'True':
-                res = save_obj_parts_add(connector, params.get("path", None), params.get("i", "unknown"), "screen", use_bpy=True, first=True, parent_obj_id="world", joint_info=
+                res = save_obj_parts_add(connector, params.get("path", None), params.get("i", "unknown"), "connector", use_bpy=True, first=True, parent_obj_id="world", joint_info=
                             {
                                 "name": get_joint_name("revolute_prismatic"),
                                     "type": "revolute_prismatic",
@@ -207,7 +207,7 @@ class TVFactory(AssetFactory):
                                     }
                             })
             else:
-                res = save_obj_parts_add(connector, params.get("path", None), params.get("i", "unknown"), "screen", use_bpy=True, first=True, parent_obj_id="world", joint_info=
+                res = save_obj_parts_add(connector, params.get("path", None), params.get("i", "unknown"), "connector", use_bpy=True, first=True, parent_obj_id="world", joint_info=
                             {
                                 "name": get_joint_name("revolute"),
                                     "type": "revolute",
@@ -221,7 +221,7 @@ class TVFactory(AssetFactory):
                                     }
                             })
             #res = save_obj_parts_add(connector, params.get("path", None), params.get("i", "unknown"), "connector", use_bpy=True, first=True, parent_obj_id=None)
-        save_obj_parts_add(legs, params.get("path", None), params.get("i", "unknown"), "leg", use_bpy=True, first=False if self.use_aux_leg else True, material=[self.support_surface])
+        save_obj_parts_add(legs, params.get("path", None), params.get("i", "unknown"), "screen_leg", use_bpy=True, first=False if self.use_aux_leg else True, material=[self.support_surface])
         self.surface.apply(obj, selection="!screen", rough=True, metal_color="bw")
         self.support_surface.apply(
             obj, selection="leg", rough=True, metal_color="bw"
@@ -259,6 +259,11 @@ class TVFactory(AssetFactory):
 
         button_num = np.random.randint(0, 5)
         gap = button_scale * random.uniform(0.5, 1.2)
+        use_aux_button = np.random.choice([True, False], p=[0.9, 0.1])
+        all_same = True
+        if use_aux_button:
+            all_same = np.random.choice([True, False], p=[0.5, 0.5])
+        aux_button = None
         for i in range(button_num):
             if button_type == "square":
                 button = butil.spawn_cube()
@@ -271,8 +276,26 @@ class TVFactory(AssetFactory):
             button.location = location
             butil.apply_transform(button, True)
             location = (location[0] - gap - button_scale, location[1], location[2])
+            if use_aux_button:
+                if not all_same:
+                    aux_button = butil.deep_clone_obj(random_auxiliary('buttons')[0], keep_materials=False, keep_modifiers=False)
+                elif aux_button is None:
+                    aux_button = butil.deep_clone_obj(random_auxiliary('buttons')[0], keep_materials=False, keep_modifiers=False)
+                #aux_button = aux_button[0]
+                aux_button.rotation_euler = np.pi / 2, 0, np.pi / 2
+                butil.apply_transform(aux_button)
+                co = read_co(button)
+                co_ = read_co(aux_button)
+                scale = co[:, 0].max() - co[:, 0].min(), co[:, 1].max() - co[:, 1].min(), co[:, 2].max() - co[:, 2].min()
+                scale_t = co_[:, 0].max() - co_[:, 0].min(), co_[:, 1].max() - co_[:, 1].min(), co_[:, 2].max() - co_[:, 2].min()
+                scale = scale[0] / scale_t[0], scale[1] / scale_t[1], scale[2] / scale_t[2] 
+                aux_button.scale = scale
+                butil.apply_transform(aux_button)
+                aux_button.location = co[:, 0].max() - (co[:, 0].max() - co[:, 0].min()) / 2, co[:, 1].max() - (co[:, 1].max() - co[:, 1].min()) / 2, co[:, 2].max() - (co[:, 2].max() - co[:, 2].min()) / 2
+                butil.apply_transform(aux_button)
+                button = aux_button
             self.button_surface.apply(button, rough=True)
-            save_obj_parts_add(button, params.get("path", None), params.get("i", "unknown"), "screen", use_bpy=True, first=False, parent_obj_id=res[0], joint_info=
+            save_obj_parts_add(butil.deep_clone_obj(button, keep_materials=True, keep_modifiers=True), params.get("path", None), params.get("i", "unknown"), "button", use_bpy=True, first=False, parent_obj_id=res[0], joint_info=
                                {
                                    "name": get_joint_name("prismatic"),
                                    "type": "prismatic",

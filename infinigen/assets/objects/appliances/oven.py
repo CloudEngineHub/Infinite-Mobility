@@ -41,6 +41,7 @@ from infinigen.assets.utils.object import (
     get_joint_name,
     saved_obj
 )
+from infinigen.assets.utils.auxiliary_parts import random_auxiliary
 
 
 class OvenFactory(AssetFactory):
@@ -54,6 +55,10 @@ class OvenFactory(AssetFactory):
                 self.get_material_params()
             )
         self.geometry_node_params.update(self.material_params)
+        self.use_aux_botton = np.random.choice([True, False], p=[0.8, 0.2])
+        if self.use_aux_botton:
+            self.aux_botton = random_auxiliary("revolute_botton")
+
 
     def get_material_params(self):
         material_assignments = AssetList["OvenFactory"]()
@@ -384,6 +389,19 @@ class OvenFactory(AssetFactory):
                 co = read_co(obj)
                 min_b = min(min_b, np.min(co[:, 1]))
                 max_b = max(max_b, np.max(co[:, 1]))
+                if not self.use_aux_botton:
+                    return
+                new_botton = butil.deep_clone_obj(self.aux_botton[0])
+                new_botton.rotation_euler = (np.pi / 2, 0, np.pi / 2)
+                butil.apply_transform(new_botton, True)
+                scale = co[:, 0].max() - co[:, 0].min(), co[:, 1].max() - co[:, 1].min(), co[:, 2].max() - co[:, 2].min()
+                location = co[:, 0].min() + scale[0] / 2, co[:, 1].min() + scale[1] / 2, co[:, 2].min() + scale[2] / 2
+                new_botton.scale = scale
+                butil.apply_transform(new_botton, True)
+                new_botton.location = location
+                butil.apply_transform(new_botton, True)
+                return new_botton
+
             a = node_utils.save_geometry_new(assets, "button", i, self.params.get("i"), self.params.get("path"), first, True, False, material = [self.params['WhiteMetal'], self.scratch, self.edge_wear], parent_obj_id=parent_id, joint_info=joint_info, apply=get_co)
             if a:
                 first = False
@@ -417,6 +435,12 @@ class OvenFactory(AssetFactory):
         button_thickness = np.random.uniform(0.003, 0.005)
         x = co_[:, 0].min() + button_thickness / 2
         z = co_[:, 2].min() - button_scale
+        use_aux_button = np.random.choice([True, False], p=[0.9, 0.1])
+        #use_aux_button = True
+        all_same = True
+        if use_aux_button:
+            all_same = np.random.choice([True, False], p=[0.5, 0.5])
+        aux_button = None
         for number in range(button_number):
             shape = np.random.choice(['square', 'circle'])
             if shape == 'square':
@@ -430,6 +454,24 @@ class OvenFactory(AssetFactory):
             button.scale = (button_thickness, button_scale, button_scale * 0.5)
             button.location = (x, min_b + button_scale / 2 + number * (button_scale + real_gap),z)
             butil.apply_transform(button, True)
+            if use_aux_button:
+                if not all_same:
+                    aux_button = butil.deep_clone_obj(random_auxiliary('buttons')[0], keep_materials=False, keep_modifiers=False)
+                elif aux_button is None:
+                    aux_button = butil.deep_clone_obj(random_auxiliary('buttons')[0], keep_materials=False, keep_modifiers=False)
+                #aux_button = aux_button[0]
+                aux_button.rotation_euler = np.pi / 2, 0, np.pi / 2
+                butil.apply_transform(aux_button, True)
+                co = read_co(button)
+                co_ = read_co(aux_button)
+                scale = co[:, 0].max() - co[:, 0].min(), co[:, 1].max() - co[:, 1].min(), co[:, 2].max() - co[:, 2].min()
+                scale_t = co_[:, 0].max() - co_[:, 0].min(), co_[:, 1].max() - co_[:, 1].min(), co_[:, 2].max() - co_[:, 2].min()
+                s = scale[0] / scale_t[0], scale[1] / scale_t[1], scale[2] / scale_t[2] 
+                aux_button.scale = s
+                butil.apply_transform(aux_button, True)
+                aux_button.location = co[:, 0].max() + scale[0] / 2, co[:, 1].min() + scale[1] / 2, co[:, 2].min() + scale[2] / 2
+                butil.apply_transform(aux_button, True)
+                button = aux_button
             save_obj_parts_add([button], self.params.get("path"), self.params.get("i"), "button", first=False, use_bpy=True, material=[self.params['WhiteMetal'], self.scratch, self.edge_wear], parent_obj_id=parent_id, joint_info={
                 "name": get_joint_name("prismatic"),
                 "type": "prismatic",

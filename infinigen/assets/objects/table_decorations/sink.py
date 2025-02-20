@@ -14,6 +14,7 @@ from numpy.random import uniform as U
 
 from infinigen.assets.material_assignments import AssetList
 from infinigen.assets.utils import bbox_from_mesh
+from infinigen.assets.utils.decorate import read_co
 from infinigen.assets.utils.extract_nodegroup_parts import extract_nodegroup_geo
 from infinigen.core import surface, tagging
 from infinigen.core.nodes import node_utils
@@ -144,12 +145,15 @@ class SinkFactory(AssetFactory):
         if self.edge_wear:
             self.edge_wear.apply(assets)
 
-
+from infinigen.assets.utils.auxiliary_parts import random_auxiliary
 class TapFactory(AssetFactory):
     def __init__(self, factory_seed):
         super().__init__(factory_seed)
         with FixedSeed(factory_seed):
             self.params, self.scratch, self.edge_wear = self.get_material_params()
+        self.use_aux_pipe = np.random.choice([True, False])
+        if self.use_aux_pipe:
+            self.aux_pipe = random_auxiliary("tap_pipe")
 
     @staticmethod
     def tap_parameters():
@@ -204,7 +208,7 @@ class TapFactory(AssetFactory):
 
     def create_asset(self, **params):
         obj = butil.spawn_cube()
-        params.update({"obj": obj, "inputs": self.params})
+        params.update({"obj": obj, "inputs": self.params, 'use_aux_pipe': self.use_aux_pipe, 'aux_pipe': self.aux_pipe if self.use_aux_pipe else None})
         ng = nodegroup_water_tap(**params)
         butil.modify_mesh(
             obj, "NODES", node_group=ng, ng_inputs=self.params, apply=True, mod=True
@@ -1158,13 +1162,13 @@ def nodegroup_water_tap(nw: NodeWrangler, **kwargs):
                     nw,
                     output_geometry,
                     kwargs.get("path", None),
-                    name,
+                    f"{name}_{j}",
                     kwargs.get("i", "unknown"),
                     first=first,
                     use_bpy=True,
                     parent_obj_id=None,
                     joint_info=None,
-                    material=kwargs["inputs"]["Tap"],
+                    material=kwargs["inputs"]["Tap"]
                 )
                 if all([not input[key] for key in input.keys()]):     
                     add_joint(parent=1, child=a[0], joint_info={
@@ -1176,7 +1180,7 @@ def nodegroup_water_tap(nw: NodeWrangler, **kwargs):
                     nw,
                     output_geometry,
                     kwargs.get("path", None),
-                    name,
+                    f"{name}_{j}",
                     kwargs.get("i", "unknown"),
                     first=first,
                     use_bpy=True,
@@ -1196,7 +1200,7 @@ def nodegroup_water_tap(nw: NodeWrangler, **kwargs):
                         nw,
                         output_geometry,
                         kwargs.get("path", None),
-                        name,
+                        f"{name}_{j}",
                         kwargs.get("i", "unknown"),
                         first=first,
                         use_bpy=True,
@@ -1218,7 +1222,7 @@ def nodegroup_water_tap(nw: NodeWrangler, **kwargs):
                     nw,
                     output_geometry,
                     kwargs.get("path", None),
-                    name,
+                    f"{name}_{j}",
                     kwargs.get("i", "unknown"),
                     first=first,
                     use_bpy=True,
@@ -1230,7 +1234,7 @@ def nodegroup_water_tap(nw: NodeWrangler, **kwargs):
                     nw,
                     output_geometry,
                     kwargs.get("path", None),
-                    name,
+                    f"{name}_{j}",
                     kwargs.get("i", "unknown"),
                     first=first,
                     use_bpy=True,
@@ -1249,7 +1253,7 @@ def nodegroup_water_tap(nw: NodeWrangler, **kwargs):
                         nw,
                         output_geometry,
                         kwargs.get("path", None),
-                        name,
+                        f"{name}_{j}",
                         kwargs.get("i", "unknown"),
                         first=first,
                         use_bpy=True,
@@ -1271,7 +1275,7 @@ def nodegroup_water_tap(nw: NodeWrangler, **kwargs):
                         nw,
                         output_geometry,
                         kwargs.get("path", None),
-                        name,
+                        f"{name}_{j}",
                         kwargs.get("i", "unknown"),
                         first=first,
                         use_bpy=True,
@@ -1284,7 +1288,7 @@ def nodegroup_water_tap(nw: NodeWrangler, **kwargs):
                         nw,
                         output_geometry,
                         kwargs.get("path", None),
-                        name,
+                        f"{name}_{j}",
                         kwargs.get("i", "unknown"),
                         first=first,
                         use_bpy=True,
@@ -1306,7 +1310,7 @@ def nodegroup_water_tap(nw: NodeWrangler, **kwargs):
                         nw,
                         output_geometry,
                         kwargs.get("path", None),
-                        name,
+                        f"{name}_{j}",
                         kwargs.get("i", "unknown"),
                         first=first,
                         use_bpy=True,
@@ -1318,7 +1322,7 @@ def nodegroup_water_tap(nw: NodeWrangler, **kwargs):
                     nw,
                     output_geometry,
                     kwargs.get("path", None),
-                    name,
+                    f"{name}_{j}",
                     kwargs.get("i", "unknown"),
                     first=first,
                     use_bpy=True,

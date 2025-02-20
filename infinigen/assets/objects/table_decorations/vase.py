@@ -6,6 +6,7 @@
 import bpy
 from numpy.random import choice, randint, uniform
 
+from infinigen.assets.utils.decorate import read_co
 import infinigen.core.util.blender as butil
 from infinigen.assets.material_assignments import AssetList
 from infinigen.assets.objects.table_decorations.utils import (
@@ -23,8 +24,11 @@ from infinigen.assets.utils.object import (
     new_bbox,
     new_cube,
     save_obj_parts_join_objects,
-    save_obj_parts_add
+    save_obj_parts_add,
+    join_objects_save_whole
 )
+
+from infinigen.assets.objects.tableware.lid import LidFactory
 
 
 class VaseFactory(AssetFactory):
@@ -44,6 +48,7 @@ class VaseFactory(AssetFactory):
             )
 
         self.params.update(self.material_params)
+        self.lid_fac = LidFactory(factory_seed, coarse=coarse)
 
     def get_material_params(self):
         material_assignments = AssetList["VaseFactory"]()
@@ -99,7 +104,7 @@ class VaseFactory(AssetFactory):
             "Foot Height": uniform(0.01, 0.1),
             "Material": choice(["glass", "ceramic"]),
         }
-        print(parameters)
+        parameters['Profile Inner Radius'] = 1.0
 
         return parameters
 
@@ -117,6 +122,21 @@ class VaseFactory(AssetFactory):
         butil.modify_mesh(obj, "SOLIDIFY", apply=True, thickness=0.002)
         butil.modify_mesh(obj, "SUBSURF", apply=True, levels=2, render_levels=2)
         #save_obj_parts_add(obj, "vase")
+        save_obj_parts_add(butil.deep_clone_obj(obj, keep_materials=True, keep_modifiers=True), params['path'], params['i'], 'vase', first=True, use_bpy=True)
+        lid = self.lid_fac.create_asset(path=params['path'], i=params['i'], save=False)
+        size = self.params['Top Scale'] * self.params['Diameter']
+        co = read_co(lid)
+        co_ = read_co(obj)
+        scale = size * 2 / (co[:, 0].max() - co[:, 0].min())
+        lid.scale = (scale, scale, scale)
+        butil.apply_transform(lid, True)
+        lid.location = 0, 0, co_[:, 2].max() - co[:, 2].min()
+        butil.apply_transform(lid, True)
+        lid = butil.deep_clone_obj(lid, keep_materials=False, keep_modifiers=False)
+
+        save_obj_parts_add(lid, params['path'], params['i'], 'lid', first=False, use_bpy=True, material=self.material_params['Material'])
+        join_objects_save_whole(obj, params['path'], params['i'], 'vase', join=False, use_bpy=True)
+
 
         return obj
 

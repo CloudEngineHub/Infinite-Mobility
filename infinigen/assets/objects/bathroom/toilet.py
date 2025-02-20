@@ -7,6 +7,7 @@ import numpy as np
 from numpy.random import uniform
 
 from infinigen.assets.material_assignments import AssetList
+from infinigen.assets.utils.auxiliary_parts import random_auxiliary
 from infinigen.assets.utils.decorate import (
     read_center,
     read_co,
@@ -86,6 +87,9 @@ class ToiletFactory(AssetFactory):
             self.edge_wear = (
                 material_assignments["wear_tear"][1] if is_edge_wear else None
             )
+            self.use_aux_base = np.random.choice([True, False], p=[0.5, 0.5])
+            if self.use_aux_base:
+                self.aux_base = random_auxiliary("toilet_base")
 
     @property
     def mid_offset(self):
@@ -146,7 +150,10 @@ class ToiletFactory(AssetFactory):
             self.scratch.apply(obj)
         if self.edge_wear:
             self.edge_wear.apply(obj)
-        save_obj_parts_add([obj], params.get("path", None), params.get("i", "unknown"),"part", first=False, use_bpy=True)
+        if not self.use_aux_base:
+            save_obj_parts_add([obj], params.get("path", None), params.get("i", "unknown"),"toilet_tube", first=False, use_bpy=True)
+        else:
+            obj_ = butil.deep_clone_obj(obj)
         self.surface.apply(seat, clear=True, metal_color="plain")
         self.hardware_surface.apply(seat, "hardware", metal_color="natural")
         if self.scratch:
@@ -156,7 +163,7 @@ class ToiletFactory(AssetFactory):
         seat.location[1] -= 0.02
         depth = read_co(seat)[:, 1]
         depth = depth.max() - depth.min()
-        save_obj_parts_add([seat], params.get("path", None), params.get("i", "unknown"),"part", first=False, use_bpy=True, parent_obj_id="world", joint_info={
+        save_obj_parts_add([seat], params.get("path", None), params.get("i", "unknown"),"toilet_seat", first=False, use_bpy=True, parent_obj_id="world", joint_info={
             "name": get_joint_name("revolute"),
             "type": "revolute",
             "axis": (1, 0, 0),
@@ -174,7 +181,7 @@ class ToiletFactory(AssetFactory):
             self.edge_wear.apply(cover)
         cover.location[2] += 0.02
         butil.apply_transform(cover, True)
-        save_obj_parts_add([cover], params.get("path", None), params.get("i", "unknown"),"part", first=False, use_bpy=True, parent_obj_id="world", joint_info={
+        save_obj_parts_add([cover], params.get("path", None), params.get("i", "unknown"),"toilet_cover", first=False, use_bpy=True, parent_obj_id="world", joint_info={
             "name": get_joint_name("revolute"),
             "type": "revolute",
             "axis": (-1, 0, 0),
@@ -190,14 +197,31 @@ class ToiletFactory(AssetFactory):
             self.scratch.apply(stand)
         if self.edge_wear:
             self.edge_wear.apply(stand)
-        save_obj_parts_add([stand], params.get("path", None), params.get("i", "unknown"),"part", first=False, use_bpy=True)
+        if not self.use_aux_base:
+            save_obj_parts_add([stand], params.get("path", None), params.get("i", "unknown"),"toilet_control", first=False, use_bpy=True)
+        else:
+            stand_ = butil.deep_clone_obj(stand)
+        if self.use_aux_base:
+            base = self.aux_base[0]
+            base_o = butil.join_objects([obj_, stand_])
+            co = read_co(base_o)
+            scale = co[:, 0].max() - co[:, 0].min(), co[:, 1].max() - co[:, 1].min(), co[:, 2].max() - co[:, 2].min()
+            location = co[:, 0].min() + scale[0] / 2, co[:, 1].min() + scale[1] / 2, co[:, 2].min() + scale[2] / 2
+            base.rotation_euler = (np.pi / 2, 0, 0)
+            butil.apply_transform(base, True)
+            base.scale = scale
+            butil.apply_transform(base, True)
+            base.location = location
+            butil.apply_transform(base, True)
+            self.surface.apply(base, clear=True, metal_color="plain")
+            save_obj_parts_add([base], params.get("path", None), params.get("i", "unknown"),"toilet_base", first=False, use_bpy=True)
         self.surface.apply(back, clear=True, metal_color="plain")
         self.hardware_surface.apply(back, "hardware", metal_color="natural")
         if self.scratch:
             self.scratch.apply(back)
         if self.edge_wear:
             self.edge_wear.apply(back)
-        save_obj_parts_add([back], params.get("path", None), params.get("i", "unknown"),"part", first=False, use_bpy=True)
+        save_obj_parts_add([back], params.get("path", None), params.get("i", "unknown"),"toilet_back", first=False, use_bpy=True)
         obj = join_objects([obj, seat, cover, stand, back, tank, hardware])
         join_objects_save_whole(
             obj,
@@ -394,11 +418,11 @@ class ToiletFactory(AssetFactory):
         #save_obj_parts_add([tank, cap], path, i, name=["tank", "cap"])
         self.finalize_assets(tank)
         self.finalize_assets(cap)
-        save_obj_parts_add([tank], path, i, "part", first=True, use_bpy=True, parent_obj_id="world", joint_info={
+        save_obj_parts_add([tank], path, i, "tank_cap", first=True, use_bpy=True, parent_obj_id="world", joint_info={
             "name": get_joint_name("fixed"),
             "type": "fixed",
         })
-        save_obj_parts_add([cap], path, i, "part", first=False, use_bpy=True, parent_obj_id="world", joint_info={
+        save_obj_parts_add([cap], path, i, "tank_body", first=False, use_bpy=True, parent_obj_id="world", joint_info={
             "name": get_joint_name("prismatic"),
             "type": "prismatic",
             "axis": (0, 0, 1),
@@ -423,7 +447,7 @@ class ToiletFactory(AssetFactory):
             self.tank_height + self.tank_cap_height / 4,
         )
         butil.apply_transform(obj, True)
-        save_obj_parts_add([obj], path, i, name="part", first=False, use_bpy=True, parent_obj_id=1, joint_info={
+        save_obj_parts_add([obj], path, i, name="button", first=False, use_bpy=True, parent_obj_id=1, joint_info={
             "name": get_joint_name("prismatic"),
             "type": "prismatic",
             "axis": (0, 0, 1),
@@ -479,7 +503,7 @@ class ToiletFactory(AssetFactory):
             butil.modify_mesh(obj_1, "BEVEL", width=u, segments=2)
         self.finalize_assets(obj)
         self.finalize_assets(lever)
-        save_obj_parts_add([obj], path, i, name="part", first=False, use_bpy=True, parent_obj_id="world", joint_info={
+        save_obj_parts_add([obj], path, i, name="lever_spin", first=False, use_bpy=True, parent_obj_id="world", joint_info={
             "name": get_joint_name("revolute"),
             "type": "revolute",
             "axis": (0, 1, 0) if self.hardware_on_side else (1, 0, 0),
@@ -487,7 +511,7 @@ class ToiletFactory(AssetFactory):
                 "lower": 0,
                 "upper": np.pi / 2
             }})
-        save_obj_parts_add([lever], path, i, name="part", first=False, use_bpy=True, parent_obj_id=2, joint_info={
+        save_obj_parts_add([lever], path, i, name="lever_handle", first=False, use_bpy=True, parent_obj_id=2, joint_info={
             "name": get_joint_name("fixed"),
             "type": "fixed",
         })

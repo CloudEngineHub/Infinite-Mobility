@@ -61,6 +61,7 @@ First, download the repo and set up a conda environment (you may need to [instal
 ```bash
 git clone https://github.com/princeton-vl/infinigen.git
 cd infinigen
+git checkout 572bfe7
 conda create --name infinigen python=3.10
 conda activate infinigen
 ```

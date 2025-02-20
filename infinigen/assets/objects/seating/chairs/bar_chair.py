@@ -93,11 +93,16 @@ def geometry_assemble_chair(nw: NodeWrangler, **kwargs):
                 )
                 
                 output_geometry = separate_geometry
+                name_ = name
+                if name == "legs":
+                    name_ = f"{name}_{kwargs['Leg Style']}_{j}"
+                else:
+                    name_ = f"bar_{name}_{j}"
                 a = save_geometry(
                     nw,
                     output_geometry,
                     kwargs.get("path", None),
-                    name,
+                    name_,
                     kwargs.get("i", "unknown"),
                     first=first,
                 )
@@ -195,11 +200,22 @@ def geometry_assemble_chair(nw: NodeWrangler, **kwargs):
                                 #"substitute_mesh_idx": 12 if kwargs['Leg Pole Number'] == 5 else 8, ####
                                 #"origin_shift": origin_shift
                             }
+                        name_ = name
+                        if name == "legs":
+                            #name_ = f"{name}_{kwargs["Leg Style"]}_{j}"
+                            if k == 1:
+                                name_ = f"{name}_wheel"
+                            if k == 2:
+                                name_ = f"{name}_cap"
+                            if k == 3:
+                                name_ = f"{name}_spin"
+                            if k == 4:
+                                name_ = f"{name}_stretch"
                         a = save_geometry(  
                             nw,
                             output_geometry,
                             kwargs.get("path", None),
-                            name,
+                            name_,
                             kwargs.get("i", "unknown"),
                             first=first,
                             joint_info=joint_info,
@@ -214,6 +230,7 @@ def geometry_assemble_chair(nw: NodeWrangler, **kwargs):
                     output_geometry = separate_geometry
                     joint_info = None
                     parent_idx = None
+                    name_ = f"leg_{kwargs['Leg Style']}_down"
                     if(i == 1 and j == parts[1]):
                         parent_idx = last_idx
                         joint_info = {
@@ -228,18 +245,20 @@ def geometry_assemble_chair(nw: NodeWrangler, **kwargs):
                             },
                             "axis_1": (0, 0, 1),
                         }
+                        name_ = f"leg_{kwargs['Leg Style']}_upper"
                     elif i == 0:
                         parent_idx = 0
                         joint_info = {
                             "name": get_joint_name("fixed"),
                             "type": "fixed"
                         }
+                        name_ = f"bar_seat_{j}"
 
                     a = save_geometry(
                         nw,
                         output_geometry,
                         kwargs.get("path", None),
-                        name,
+                        name_,
                         kwargs.get("i", "unknown"),
                         first=first,
                         joint_info=joint_info,

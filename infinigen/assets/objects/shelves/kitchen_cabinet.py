@@ -557,7 +557,8 @@ class KitchenCabinetBaseFactory(AssetFactory):
             apply(obj_, shader=self.material_params["frame_material"], selection="frame")
             tagging.tag_system.relabel_obj(obj_)
             #obj_.data.materials.append(surface.shaderfunc_to_material(self.material_params["frame_material"]))
-            save_obj_parts_add(obj_, params.get("path", None), idx_, use_bpy=True, first=first, parent_obj_id=parent_id, joint_info=joint_info)
+            save_obj_parts_add(obj_, params.get("path", None), idx_, name="door" if door else"drawer",
+                             use_bpy=True, first=first, parent_obj_id=parent_id, joint_info=joint_info)
             first = False
         first =True
         bevel_upper = uniform(0, 30)
@@ -578,7 +579,7 @@ class KitchenCabinetBaseFactory(AssetFactory):
             bpy.context.object.modifiers["Bevel"].width_pct = bevel_upper
             bpy.context.object.modifiers["Bevel"].segments = segments
             bpy.ops.object.modifier_apply(modifier="Bevel")
-            save_obj_parts_add(c[0], params.get("path", None), idx_, use_bpy=True, first=False)
+            save_obj_parts_add(c[0], params.get("path", None), idx_, use_bpy=True, first=False, name="cabinet_frame")
             first =False
             join_objs.append(c[0])
 

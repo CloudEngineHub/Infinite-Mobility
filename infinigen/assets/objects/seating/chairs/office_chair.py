@@ -220,11 +220,22 @@ def geometry_assemble_chair(nw: NodeWrangler, **kwargs):
                                 #"substitute_mesh_idx": 10 if kwargs['Leg Pole Number'] == 5 else 6,
                                 #"origin_shift": origin_shift
                             }
+                        name_ = name
+                        if name == "legs":
+                            #name_ = f"{name}_{kwargs["Leg Style"]}_{j}"
+                            if k == 1:
+                                name_ = f"{name}_wheel"
+                            if k == 2:
+                                name_ = f"{name}_cap"
+                            if k == 3:
+                                name_ = f"{name}_spin"
+                            if k == 4:
+                                name_ = f"{name}_stretch"
                         a = save_geometry(  
                             nw,
                             output_geometry,
                             kwargs.get("path", None),
-                            name,
+                            name_,
                             kwargs.get("i", "unknown"),
                             first=first,
                             joint_info=joint_info,
@@ -241,6 +252,7 @@ def geometry_assemble_chair(nw: NodeWrangler, **kwargs):
                     output_geometry = separate_geometry
                     joint_info = None
                     parent_idx = None
+                    name_ = f"leg_{kwargs['Leg Style']}_down"
                     if(i == 1 and j == parts[1]):
                         parent_idx = last_idx
                         joint_info = {
@@ -252,6 +264,7 @@ def geometry_assemble_chair(nw: NodeWrangler, **kwargs):
                                 "upper": 0,
                             },
                         }
+                        name_ = f"leg_{kwargs['Leg Style']}_upper"
                     if i == 0:
                         def add_thickness(obj):
                             global co_seat
@@ -278,12 +291,6 @@ def geometry_assemble_chair(nw: NodeWrangler, **kwargs):
                             obj.name = "seat"
                             co_seat = read_co(obj)
 
-                            # print("1111")
-                            # input()
-                            # bpy.ops.object.modifier_add(type='SUBSURF')
-                            # bpy.context.object.modifiers["Subdivision"].levels = 2
-                            # bpy.context.object.modifiers["Subdivision"].render_levels = 2
-                            # bpy.ops.object.modifier_apply(modifier="Subdivision")
                         substitute = None
                         if kwargs.get("aux_seat_whole", None) is not None:
                             seat = butil.deep_clone_obj(kwargs['aux_seat_whole'][0])
@@ -328,7 +335,7 @@ def geometry_assemble_chair(nw: NodeWrangler, **kwargs):
                                 back.location = (0, co_s[:, 1].max(), co[:, 2].min() + back_h / 2)
                                 butil.apply_transform(back, True)
                                 co_b = read_co(back)
-                                save_obj_parts_add(back, kwargs.get("path", None), kwargs.get("i", "unknown"), "back", first=True, use_bpy=True, material=kwargs["TopMaterial"], parent_obj_id=1, joint_info={
+                                save_obj_parts_add(back, kwargs.get("path", None), kwargs.get("i", "unknown"), "chair_back", first=True, use_bpy=True, material=kwargs["TopMaterial"], parent_obj_id=1, joint_info={
                                     "name": get_joint_name("revolute"),
                                     "type": "revolute",
                                     "axis": (1, 0, 0),
@@ -342,12 +349,13 @@ def geometry_assemble_chair(nw: NodeWrangler, **kwargs):
                                 obj = seat
                                 return {"object": obj, "first": first}
                         after_separate = add_thickness
+                        name_ = f"seat"
 
                     a = save_geometry(
                         nw,
                         output_geometry,
                         kwargs.get("path", None),
-                        name,
+                        name_,
                         kwargs.get("i", "unknown"),
                         first=first,
                         joint_info=joint_info,
@@ -606,7 +614,7 @@ class OfficeChairFactory(AssetFactory):
             butil.apply_transform(arm, True)
             arm.location = (0, 0, co_seat[:, 2].min() * 1.02 + scale_h / 2)
             butil.apply_transform(arm, True)
-            save_obj_parts_add(arm, params.get("path"), params.get("i"), "arm", first=False, use_bpy=True, parent_obj_id=seat_idx, material=self.params["LegMaterial"], joint_info={
+            save_obj_parts_add(arm, params.get("path"), params.get("i"), "chair_arm", first=False, use_bpy=True, parent_obj_id=seat_idx, material=self.params["LegMaterial"], joint_info={
                  "name": get_joint_name("fixed"),
                  "type": "fixed"
             })
@@ -636,7 +644,7 @@ class OfficeChairFactory(AssetFactory):
             co = read_co(arm_l)
             id = np.argmax(co[:, 2])
             vertex_l = co[id]
-            res_l = save_obj_parts_add(arm_l, params.get("path"), params.get("i"), "arm", first=False, use_bpy=True, parent_obj_id=None, material=self.params["LegMaterial"])
+            res_l = save_obj_parts_add(arm_l, params.get("path"), params.get("i"), "chair_arm", first=False, use_bpy=True, parent_obj_id=None, material=self.params["LegMaterial"])
 
             arm_l_ = butil.spawn_cube()
             arm_l_.scale = (width * 1, width * 2, length * 0.3)
@@ -646,7 +654,7 @@ class OfficeChairFactory(AssetFactory):
             arm_l_.location = (pos[0] + width / 2 , pos[1], pos[2])
             butil.apply_transform(arm_l_, True)
             self.bevel(arm_l_)
-            res_l_ = save_obj_parts_add(arm_l_, params.get("path"), params.get("i"), "arm", first=False, use_bpy=True, parent_obj_id=seat_idx, joint_info={
+            res_l_ = save_obj_parts_add(arm_l_, params.get("path"), params.get("i"), "chair_arm", first=False, use_bpy=True, parent_obj_id=seat_idx, joint_info={
                  "name": get_joint_name("fixed"),
                  "type": "fixed"
             }, material=self.params["LegMaterial"])
@@ -676,7 +684,7 @@ class OfficeChairFactory(AssetFactory):
             co = read_co(arm_r)
             id = np.argmax(co[:, 2])
             vertex_r = co[id]
-            res_r = save_obj_parts_add(arm_r, params.get("path"), params.get("i"), "arm", first=False, use_bpy=True, parent_obj_id=None, material=self.params["LegMaterial"])
+            res_r = save_obj_parts_add(arm_r, params.get("path"), params.get("i"), "chair_arm", first=False, use_bpy=True, parent_obj_id=None, material=self.params["LegMaterial"])
 
             arm_r_ = butil.spawn_cube()
             arm_r_.scale = (width * 1, width * 2, length * 0.3)
@@ -686,7 +694,7 @@ class OfficeChairFactory(AssetFactory):
             arm_r_.location = (-pos[0] - width / 2 , pos[1], pos[2])
             butil.apply_transform(arm_r_, True)
             self.bevel(arm_r_)
-            res_r_ = save_obj_parts_add(arm_r_, params.get("path"), params.get("i"), "arm", first=False, use_bpy=True, parent_obj_id=seat_idx, joint_info={
+            res_r_ = save_obj_parts_add(arm_r_, params.get("path"), params.get("i"), "chair_arm", first=False, use_bpy=True, parent_obj_id=seat_idx, joint_info={
                  "name": get_joint_name("fixed"),
                  "type": "fixed"
             }, material=self.params["LegMaterial"])
@@ -719,7 +727,7 @@ class OfficeChairFactory(AssetFactory):
             stretcher_.location[2] = pos[2] - 0.03
             stretcher_.location[0] = self.params['Top Profile Width'] * self.params['Top Back Relative Width'] * 0.45
             butil.apply_transform(stretcher_, True)
-            res_s_ = save_obj_parts_add(stretcher_, params.get("path"), params.get("i"), "arm", first=False, use_bpy=True, parent_obj_id=seat_idx, joint_info={
+            res_s_ = save_obj_parts_add(stretcher_, params.get("path"), params.get("i"), "chair_arm", first=False, use_bpy=True, parent_obj_id=seat_idx, joint_info={
                  "name": get_joint_name("revolute_prismatic"),
                  "type": "revolute_prismatic",
                     "axis": (1, 0, 0),
@@ -744,7 +752,7 @@ class OfficeChairFactory(AssetFactory):
             stretcher__.location[2] = pos[2] - 0.03
             stretcher__.location[0] = -self.params['Top Profile Width'] * self.params['Top Back Relative Width'] * 0.45
             butil.apply_transform(stretcher__, True)
-            res_s__ = save_obj_parts_add(stretcher__, params.get("path"), params.get("i"), "arm", first=False, use_bpy=True, parent_obj_id=seat_idx, joint_info={
+            res_s__ = save_obj_parts_add(stretcher__, params.get("path"), params.get("i"), "chair_arm", first=False, use_bpy=True, parent_obj_id=seat_idx, joint_info={
                  "name": get_joint_name("revolute_prismatic"),
                  "type": "revolute_prismatic",
                     "axis": (1, 0, 0),
@@ -780,7 +788,7 @@ class OfficeChairFactory(AssetFactory):
             butil.apply_transform(handle, True)
             co = read_co(handle)
             center = (co[:, 0].max() + co[:, 0].min()) / 2, (co[:, 1].max() + co[:, 1].min()) / 2, (co[:, 2].max() + co[:, 2].min()) / 2
-            save_obj_parts_add(handle, params.get("path"), params.get("i"), "arm", first=False, use_bpy=True, parent_obj_id=res_l[0], joint_info={
+            save_obj_parts_add(handle, params.get("path"), params.get("i"), "chair_arm", first=False, use_bpy=True, parent_obj_id=res_l[0], joint_info={
                 "name": get_joint_name("revolute"),
                 "type": "revolute",
                 "axis": (1, 0, 0),
@@ -800,7 +808,7 @@ class OfficeChairFactory(AssetFactory):
             butil.apply_transform(handle_, True)
             co = read_co(handle_)
             center = (co[:, 0].max() + co[:, 0].min()) / 2, (co[:, 1].max() + co[:, 1].min()) / 2, (co[:, 2].max() + co[:, 2].min()) / 2
-            save_obj_parts_add(handle_, params.get("path"), params.get("i"), "arm", first=False, use_bpy=True, parent_obj_id=res_r[0], joint_info={
+            save_obj_parts_add(handle_, params.get("path"), params.get("i"), "chair_arm", first=False, use_bpy=True, parent_obj_id=res_r[0], joint_info={
                 "name": get_joint_name("revolute"),
                 "type": "revolute",
                 "axis": (1, 0, 0),
@@ -819,7 +827,7 @@ class OfficeChairFactory(AssetFactory):
             #write_co(arm_l, co)
             base = join_objects([base, stretcher])
             self.bevel(base, 0.002)
-            save_obj_parts_add(base, params.get("path"), params.get("i"), "arm", first=False, use_bpy=True, parent_obj_id=seat_idx, joint_info={
+            save_obj_parts_add(base, params.get("path"), params.get("i"), "chair_arm", first=False, use_bpy=True, parent_obj_id=seat_idx, joint_info={
                  "name": get_joint_name("fixed"),
                  "type": "fixed"
             }, material=self.params["LegMaterial"])

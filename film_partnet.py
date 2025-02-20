@@ -10,7 +10,58 @@ import urdfpy
 from PIL import ImageDraw, ImageFont
 from reconstruct_obj_according_tourdf import generate_whole
 import trimesh
+#from translate import Translator
+m = {
+    'microwave' : '微波炉',
+'fridge' : '冰箱',
+'cart' : '拖车',
+'mouse' : '鼠标',
+'door' : '门',
+'oven' : '烤箱',
+'stapler' : '订书机',
+'bottle' : '瓶子',
+'switch' : '开关',
+'washingmachine' : '洗衣机',
+'dispenser' : '喷雾器',
+'coffee_machine' : '咖啡机',
+'clock' : '钟',
+'foldingchair' : '折叠椅',
+'Remote' : '遥控器',
+'lighter' : '打火机',
+'table' : '桌子',
+'usb' : 'USB',
+'eyeglasses' : '眼镜',
+'lighter_' : '打火机_',
+'kettle' : '壶',
+'box' : '盒子',
+'phone' : '电话',
+'camera' : '相机',
+'laptop' : '笔记本电脑',
+'remote' : '遥控器',
+'trashcan' : '垃圾桶',
+'toilet' : '马桶',
+'scissors' : '剪刀',
+'chair' : '椅子',
+'faucet' : '水龙头',
+'display' : '显示器',
+'pen' : '笔',
+'pliers' : '钳',
+'fan' : '扇子',
+'safe' : '安全的',
+'toaster' : '烤面包机',
+'globe' : '地球',
+'bucket' : '桶',
+'cabinet' : '橱柜',
+'KitchenPot' : '厨房锅',
+'dishwasher' : '洗碗机',
+'printer' : '打印机',
+'lamp' : '灯',
+'suitcase' : '手提箱',
+'keyboard' : '键盘',
+'window' : '窗户',
+}
 
+c = ''
 
 def iter_tree(r, urdf_path, tree, links, reset_material=True):
     p_name = r.name
@@ -42,14 +93,15 @@ def find_all_objs_in_urdf(path, reset_material=True):
     links = tree.links
     iter_tree(r, path, tree, links, reset_material)
 
-def generate_text_image(image):
+def generate_text_image(image, catagory):
+    global c, m
     #image = Image.fromarray(image)
     # 创建绘图对象
     draw = ImageDraw.Draw(image)
     # 选择字体和大小
     font = ImageFont.truetype('/home/pjlab/下载/经典宋体简/res.ttf', 40)
     # 添加文字到图片上
-    draw.text((10, 10), '推车', font=font, fill=(0, 0, 0))
+    draw.text((10, 10), m[catagory], font=font, fill=(0, 0, 0))
     #return np.asarray(image)
 
 def add_noise_to_joint(joint):
@@ -80,6 +132,7 @@ def add_noise_to_joint(joint):
 
 
 def main(id, catagory):
+    global c
     #engine.set_log_level('warning')
 
     if False:
@@ -440,7 +493,7 @@ def main(id, catagory):
         rgba = viewer.window.get_picture("Color")
         rgba_img = (rgba * 255).clip(0, 255).astype("uint8")
         rgba_pil = Image.fromarray(rgba_img)
-        generate_text_image(rgba_pil)
+        generate_text_image(rgba_pil, catagory)
         rgba_pil.save(f"pics_/screenshot{step}.png")
         step += 1
         print(step)
@@ -457,21 +510,26 @@ def main(id, catagory):
 
 
 if __name__ == "__main__":
-    catagory = 'bucket'
-    max_number = 100
-    json_path = f'./partnet_catagory_json/{catagory}.json'
-    res = json.load(open(json_path))
-    # main(40, catagory)
-    # main(41, catagory)
-    # main(42, catagory)
-    # exit(0)
-    starting_number = 0
-    res = res[:max_number]
-    for i in range(len(res)):
-        i += starting_number
-        print(f"#########################################################################start {i} object##########################################################################")
-        try:
-            main(i, catagory)
-        except Exception as e:
-            print(e)
-        print(f"#########################################################################end {i} object##########################################################################")
+    catagory = ''
+    cs = os.listdir('./partnet_catagory_json')
+    for i in range(len(cs)):
+        cs[i] = cs[i].replace('.json', '')
+    done = os.listdir('./pics_/gifs_')
+    ds = ''.join(done)
+    for catagory in cs:
+        c = ''
+        if catagory in ds:
+            continue
+        max_number = 5
+        json_path = f'./partnet_catagory_json/{catagory}.json'
+        res = json.load(open(json_path))
+        starting_number = 0
+        res = res[:max_number]
+        for i in range(len(res)):
+            i += starting_number
+            print(f"#########################################################################start {i} object##########################################################################")
+            try:
+                main(i, catagory)
+            except Exception as e:
+                print(e)
+            print(f"#########################################################################end {i} object##########################################################################")

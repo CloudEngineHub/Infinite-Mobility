@@ -76,7 +76,7 @@ class HardwareFactory(AssetFactory):
         }
         
 
-        save_obj_parts_add(base, self.params.get("path", None), self.params.get("i", None), "base", first=False, use_bpy=True, parent_obj_id="world", joint_info=joint_info)
+        save_obj_parts_add(base, self.params.get("path", None), self.params.get("i", None), "hardware_base", first=False, use_bpy=True, parent_obj_id="world", joint_info=joint_info)
 
         rod = new_base_cylinder() if self.is_circular else new_cube()
         rod.scale = self.radius, self.radius, self.depth / 2
@@ -132,7 +132,7 @@ class HardwareFactory(AssetFactory):
         obj.scale = [1 + 1e-3] * 3
         butil.apply_transform(obj, True)
         self.finalize_assets(obj)
-        save_obj_parts_add(obj, self.params.get("path", None), self.params.get("i", None), "hook", first=True, use_bpy=True, parent_obj_id=2, joint_info={
+        save_obj_parts_add(obj, self.params.get("path", None), self.params.get("i", None), "holder", first=True, use_bpy=True, parent_obj_id=2, joint_info={
             "type": "fixed",
             "name": get_joint_name("fixed"),
         })
@@ -152,7 +152,7 @@ class HardwareFactory(AssetFactory):
         obj.scale = [1 + 1e-3] * 3
         butil.apply_transform(obj, True)
         self.finalize_assets(obj)
-        save_obj_parts_add(obj, self.params.get("path", None), self.params.get("i", None), "hook", first=True, use_bpy=True, parent_obj_id=2, joint_info={
+        save_obj_parts_add(obj, self.params.get("path", None), self.params.get("i", None), "bar", first=True, use_bpy=True, parent_obj_id=2, joint_info={
             "type": "fixed",
             "name": get_joint_name("fixed"),
         })
@@ -173,7 +173,7 @@ class HardwareFactory(AssetFactory):
         obj.scale = [1 + 1e-3] * 3
         butil.apply_transform(obj, True)
         self.finalize_assets(obj)
-        save_obj_parts_add(obj, self.params.get("path", None), self.params.get("i", None), "hook", first=True, use_bpy=True, parent_obj_id=2, joint_info={
+        save_obj_parts_add(obj, self.params.get("path", None), self.params.get("i", None), "ring", first=True, use_bpy=True, parent_obj_id=2, joint_info={
             "type": "flip_revolute",
             "name": get_joint_name("flip_revolute"),
             "axis": (1, 0, 0),

@@ -520,10 +520,10 @@ class PlateOnRackBaseFactory(AssetFactory):
                 }
             }
             if np.random.choice([True, False]):
-                save_obj_parts_add(plate, params.get("path"), i, "part", first=False, use_bpy=True,parent_obj_id=parent_id, joint_info=joint_info)
+                save_obj_parts_add(plate, params.get("path"), i, "plate", first=False, use_bpy=True,parent_obj_id=parent_id, joint_info=joint_info)
                 done = True
         if not done:
-            save_obj_parts_add(plate, params.get("path"), i, "part", first=False, use_bpy=True,parent_obj_id=parent_id, joint_info=joint_info)
+            save_obj_parts_add(plate, params.get("path"), i, "plate_rack", first=False, use_bpy=True,parent_obj_id=parent_id, joint_info=joint_info)
         whole = join_objects([rack, plate])
         join_objects_save_whole(whole, params.get("path"), i, use_bpy=True, join=False)
 

@@ -24,6 +24,7 @@ from infinigen.core.util.random import log_uniform
 
 from .pan import PanFactory
 from .lid import LidFactory
+from infinigen.assets.utils.auxiliary_parts import random_auxiliary
 
 
 class PotFactory(PanFactory):
@@ -53,6 +54,9 @@ class PotFactory(PanFactory):
             self.guard_type = "round"
             self.guard_depth = log_uniform(0.5, 1.0) * self.thickness
             self.scale = log_uniform(0.1, 0.15)
+            self.use_aux_pot = np.random.choice([True, False])
+            if self.use_aux_pot:
+                self.aux_pot = random_auxiliary('pot')
             #self.lid_fac = LidFactory(factory_seed)
 
     def post_init(self):
@@ -72,14 +76,38 @@ class PotFactory(PanFactory):
         lid = self.lid_fac.create_asset(**params, save=False)
         co_l = read_co(lid)
         co_p = read_co(obj)
-        lid.location = 0, 0, co_p[:, 2].max() - co_l[:, 2].min()
         scale_p = co_p[:, 1].max() - co_p[:, 1].min()
         scale_l = co_l[:, 1].max() - co_l[:, 1].min()
         scale = scale_p / scale_l
+        lid.location = 0, 0, co_p[:, 2].max() - co_l[:, 2].min() * scale
+        s = scale_p
         lid.scale = scale, scale, scale
         obj_ = butil.deep_clone_obj(obj, keep_materials=False, keep_modifiers=False)
         self.surface.apply(obj_, metal_color="bw+natural")
-        save_obj_parts_add([obj_], params['path'], params['i'], 'pot', first= True, use_bpy=True)
+        co_p = None
+        if self.use_aux_pot:
+            pot = butil.deep_clone_obj(self.aux_pot[0], keep_materials=False, keep_modifiers=False)
+            pot.rotation_euler = np.pi / 2, 0, np.pi / 2
+            butil.apply_transform(pot)
+            co = read_co(obj)
+            co_p = read_co(pot)
+            scale_p = co_p[:, 0].max() - co_p[:, 0].min(),  co_p[:, 1].max() - co_p[:, 1].min(), co_p[:, 2].max() - co_p[:, 2].min()
+            scale_t = co[:, 0].max() - co[:, 0].min(),  co[:, 1].max() - co[:, 1].min(), co[:, 2].max() - co[:, 2].min()
+            scale = scale_t[0] / scale_p[0], scale_t[0] / scale_p[0], scale_t[2] / scale_p[2]
+            pot.scale = scale
+            butil.apply_transform(pot)
+            pot.location = 0, 0, co[:, 2].max() - co_p[:, 2].max() * scale[2]
+            butil.apply_transform(pot, True)
+            self.surface.apply(pot, metal_color="bw+natural")
+            obj_ = pot
+        save_obj_parts_add([obj_], params['path'], params['i'], 'pot_base', first= True, use_bpy=True)
+        if co_p is not None:
+            co_p = read_co(pot)
+            scale = min(co_p[:, 0].max() - co_p[:, 0].min(), co_p[:, 1].max() - co_p[:, 1].min())
+            co_l = read_co(lid)
+            scale_l = min(co_l[:, 0].max() - co_l[:, 0].min(), co_l[:, 1].max() - co_l[:, 1].min())
+            lid.scale = scale / scale_l, scale / scale_l, scale / scale_l
+            butil.apply_transform(lid, True)
         save_obj_parts_add([lid], params['path'], params['i'], 'lid', first= False, use_bpy=True, parent_obj_id="world", joint_info={
             "name": get_joint_name("continuous_prismatic"),
             "type": "continuous_prismatic",

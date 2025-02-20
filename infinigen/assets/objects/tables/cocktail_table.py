@@ -454,7 +454,7 @@ class TableCocktailFactory(AssetFactory):
                 },
             }
             co_l = read_co(leg_)
-            save_obj_parts_add([leg_], self.ps['path'], self.ps['i'], "leg", first=True, use_bpy=True, material=[self.ms['LegMaterial'],self.scratch, self.edge_wear, self.clothes_scatter], parent_obj_id=parent_id, joint_info=joint_info)
+            save_obj_parts_add([leg_], self.ps['path'], self.ps['i'], "table_leg_upper_single_stand", first=True, use_bpy=True, material=[self.ms['LegMaterial'],self.scratch, self.edge_wear, self.clothes_scatter], parent_obj_id=parent_id, joint_info=joint_info)
         elif self.params['Leg Style'] == "straight":
             co = read_co(leg)
             h = max(co[:, 2])
@@ -492,8 +492,8 @@ class TableCocktailFactory(AssetFactory):
                 },
             }
             co_l = read_co(leg_)
-            save_obj_parts_add([leg_], self.ps['path'], self.ps['i'], "leg", first=True, use_bpy=True, material=[self.ms['LegMaterial'],self.scratch, self.edge_wear, self.clothes_scatter], parent_obj_id=parent_id, joint_info=joint_info)
-        save_obj_parts_add([leg], self.ps['path'], self.ps['i'], "leg", first=False, use_bpy=True, material=[self.ms['LegMaterial'],self.scratch, self.edge_wear, self.clothes_scatter])
+            save_obj_parts_add([leg_], self.ps['path'], self.ps['i'], "table_leg_upper_straight", first=True, use_bpy=True, material=[self.ms['LegMaterial'],self.scratch, self.edge_wear, self.clothes_scatter], parent_obj_id=parent_id, joint_info=joint_info)
+        save_obj_parts_add([leg], self.ps['path'], self.ps['i'], f"table_leg_lower_{self.params['Leg Style']}", first=False, use_bpy=True, material=[self.ms['LegMaterial'],self.scratch, self.edge_wear, self.clothes_scatter])
         top = bpy.ops.mesh.primitive_plane_add(
             size=2,
             enter_editmode=False,
@@ -538,13 +538,14 @@ class TableCocktailFactory(AssetFactory):
                 top.location = (0, 0, 0.01)
                 butil.apply_transform(leg_top_panel, True)
                 butil.apply_transform(top, True)
-                res = save_obj_parts_add([leg_top_panel], self.ps['path'], self.ps['i'], "leg", first=False, use_bpy=True, parent_obj_id=parent_id, joint_info=joint_info, material=[self.ms['TopMaterial'],self.scratch, self.edge_wear, self.clothes_scatter])
-                parent_id = res[0]
-                joint_info = {
-                    "name": get_joint_name("fixed"),
-                    "type": "fixed",
-                }
-        save_obj_parts_add([top], self.ps['path'], self.ps['i'], "leg", first=False, use_bpy=True, parent_obj_id=parent_id, joint_info=joint_info, material=[self.ms['TopMaterial'],self.scratch, self.edge_wear, self.clothes_scatter])
+                #res = save_obj_parts_add([leg_top_panel], self.ps['path'], self.ps['i'], "table_top_support", first=False, use_bpy=True, parent_obj_id=parent_id, joint_info=joint_info, material=[self.ms['TopMaterial'],self.scratch, self.edge_wear, self.clothes_scatter])
+                #parent_id = res[0]
+                #joint_info = {
+                #    "name": get_joint_name("fixed"),
+                #    "type": "fixed",
+                #}
+                top = join_objects([top, leg_top_panel])
+        save_obj_parts_add([top], self.ps['path'], self.ps['i'], "table_top", first=False, use_bpy=True, parent_obj_id=parent_id, joint_info=joint_info, material=[self.ms['TopMaterial'],self.scratch, self.edge_wear, self.clothes_scatter])
         node_utils.save_geometry_new(assets, 'whole',0, self.ps['i'], self.ps['path'], first=False, use_bpy=True)
 
 

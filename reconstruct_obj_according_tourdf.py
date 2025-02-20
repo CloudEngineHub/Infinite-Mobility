@@ -81,13 +81,13 @@ def find_all_urdfs(path)-> list[str]:
                 urdfs.append(os.path.join(root, file))
     return urdfs
 
-path = "/home/pjlab/datasets/partnet_mobility"
-for p in find_all_urdfs(path):
-    try:
-        generate_whole(p)
-        print(p, "done")
-    except:
-        print(p, "fail!!!!")
+# path = "/home/pjlab/datasets/partnet_mobility"
+# for p in find_all_urdfs(path):
+#     try:
+#         generate_whole(p)
+#         print(p, "done")
+#     except:
+#         print(p, "fail!!!!")
 
 
 #generate_whole(urdf_path)

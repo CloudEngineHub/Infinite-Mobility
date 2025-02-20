@@ -6,6 +6,7 @@ import math
 import os
 import json
 import urdfpy
+import sys
 
 def find_all_urdfs(path)-> list[str]:
     urdfs = []
@@ -44,14 +45,14 @@ def find_all_objs_in_urdf(path, reset_material=True):
     links = tree.links
     iter_tree(r, path, tree, links, reset_material)
 
-def main():
+def main(path):
     #engine.set_log_level('warning')
 
-    # if True:
-    #     sapien.render.set_camera_shader_dir("rt")
-    #     sapien.render.set_viewer_shader_dir("rt")
-    #     sapien.render.set_ray_tracing_samples_per_pixel(64)  # change to 256 for less noise
-    #     sapien.render.set_ray_tracing_denoiser("oidn") # change to "optix" or "oidn"
+    if True:
+        sapien.render.set_camera_shader_dir("rt")
+        sapien.render.set_viewer_shader_dir("rt")
+        sapien.render.set_ray_tracing_samples_per_pixel(64)  # change to 256 for less noise
+        sapien.render.set_ray_tracing_denoiser("oidn") # change to "optix" or "oidn"
 
 
     
@@ -61,9 +62,6 @@ def main():
     scene = sapien.Scene()
     #scene = sapien.Scene()  # Create an instance of simulation world (aka scene)
     scene.set_timestep(1 / 100.0)  # Set the simulation frequency
-    # scene_config = sapien.physx.PhysxSceneConfig()
-    # scene_config.gravity = np.array([0.0, 0.0, 0.0])
-    # sapien.physx.set_scene_config(scene_config)
 
     # NOTE: How to build (rigid bodies) is elaborated in create_actors.py
     scene.add_ground(altitude=-10, render_half_size=[200, 200])  # Add a ground
@@ -71,20 +69,10 @@ def main():
     # Add some lights so that you can observe the scene
     scene.set_ambient_light([0.5, 0.5, 0.5])
     scene.add_directional_light([0, 1, -1], [0.5, 0.5, 0.5])
-    #scene.set_ambient_light([-0.5, -0.5, -0.5])
 
-    #viewer = scene.create_viewer()  # Create a viewer (window)
-    #viewer = Viewer(resolutions=(640, 480))  # Create a viewer (window)
     viewer = Viewer()  # Create a viewer (window)
     viewer.set_scene(scene)  # Set the viewer to observe the scene
-    #viewer = scene.create_viewer()
-    #viewer.set_scene(scene)  # Set the viewer to observe the scene
-    # The coordinate frame in Sapien is: x(forward), y(left), z(upward)
-    # The principle axis of the camera is the x-axis
-    #viewer.set_camera_xyz(x=18, y=-20, z=19)
     viewer.set_camera_xyz(x=1.0504360713336667,y= -0.004402500000000004,z= 0.05151299999999994)
-    # The rotation of the free camera is represented as [roll(x), pitch(-y), yaw(-z)]
-    # The camera now looks at the origin
     viewer.set_camera_rpy(r=0, p=-np.pi / 2, y=  3.14)
     viewer.window.set_camera_parameters(near=0.05, far=200, fovy=1)
     near, far = 0.1, 100
@@ -112,11 +100,13 @@ def main():
 
     loader = scene.create_urdf_loader()
     robots = []
-    paths = find_all_urdfs("/home/pjlab/datasets/Banana_Articulated")
-    for i in range(500):
+    paths = []
+    if os.path.isdir(path):
+        paths = find_all_urdfs(path)
+    else:
+        paths = [path]
+    for i in range(len(paths)):
          try:
-            #  find_all_objs_in_urdf(f"/home/pjlab/projects/infinigen_sep_part_urdf/outputs/WindowFactory/{i}/scene.urdf", True)
-            #  robot = loader.load(f"/home/pjlab/projects/infinigen_sep_part_urdf/outputs/BottleFactory/{i}/scene.urdf")
              robot = loader.load(paths[i])
              r = i / 10
              c = i % 10
@@ -124,10 +114,6 @@ def main():
              robots.append(robot)
          except:
              pass
-    # robots.append(loader.load(f"/home/pjlab/datasets/partnet_mobility/35059/mobility.urdf"))
-    # robots[0].set_root_pose(sapien.Pose([0, 0, 0], [1, 0, 0, 0]))
-    # robots.append(loader.load("/home/pjlab/文档/xwechat_files/wxid_zzpdavudi54422_1196/msg/file/2025-01/export_cage/export/#0/#0.urdf"))
-    # robots[0].set_root_pose(sapien.Pose([0, 0, 0], [1, 0, 0, 0]))
     all_poses = []
     all_steps = []
     all_childs = []
@@ -154,12 +140,6 @@ def main():
             steps.append((upper - lower) * 2 / 300)
             valid_joints[valid_idx] = joint.name
             valid_joints_rev[joint.name] = valid_idx
-            # if not math.isinf(upper) and not math.isinf(lower):
-            #     poses.append((lower + upper) / 2)
-            # elif not math.isinf(lower):
-            #     poses.append(lower)
-            # else:
-            #     poses.append(0)
             poses.append(0)
             valid_idx += 1
         all_poses.append(poses)
@@ -215,7 +195,7 @@ def main():
                 all_entity_contacted[contact.bodies[1].entity.name] = 1
             else:
                 all_entity_contacted[contact.bodies[1].entity.name] += 1
-        for _ in range(1):  # render every 4 steps
+        for _ in range(1):  # render every step
             if mode == "all joints":
                 for i, robot in enumerate(robots):
                     poses = all_poses[i]
@@ -300,8 +280,6 @@ def main():
                                             break
                     if done:
                         continue
-                    print(joint.name)
-
                     limit = limit[0]
                     lower = limit[0]
                     upper = limit[1]
@@ -351,33 +329,12 @@ def main():
                     valid_idx += 1
                     joint_idx %= len(robot.get_joints())
                     valid_idx %= len(poses)
-
-
-
-
-            #x += step_x
-            # if x > 10 or x < 3:
-            #     step_x *= -1
-            #z += step_z
-            if x == 30:
-                step_x = 0
-                step_z = 0
-            # if z > 10 or z < 1:
-            #     step_z *= -1
-            #viewer.set_camera_xyz(x=x, y=0, z=z)
             scene.step()    
         scene.update_render()
         viewer.render()
-        #scene.update_render()  # sync pose from SAPIEN to renderer
-        # rgba = viewer.window.get_picture("Color")
-        # rgba_img = (rgba * 255).clip(0, 255).astype("uint8")
-        # rgba_pil = Image.fromarray(rgba_img)
-        # rgba_pil.save(f"pics/screenshot{step}.png")
-        # step += 1
-        #print(scene.get_contacts())
-        #print(step)
 
 
 
 if __name__ == "__main__":
-    main()
+    path = sys.argv[1]
+    main(path)

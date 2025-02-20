@@ -42,6 +42,10 @@ class LampFactory(AssetFactory):
             self.bulb_fac.params["Temperature"] * 0.6, 2500
         )
         self.bulb_fac.params["Wattage"] *= 0.5
+        self.use_aux_base = np.random.choice([True, False], p=[0.7, 0.3])
+        self.use_aux_base = True
+        if self.use_aux_base:
+            self.aux_base = random_auxiliary("lamp_base")
 
         self.dimensions = dimensions
         self.lamp_type = lamp_type
@@ -348,7 +352,7 @@ class LampFactory(AssetFactory):
                             "upper_1": 0
                         }
                     }
-                    res = save_obj_parts_add([part], params.get("path", None), i, name, first=first, use_bpy=True, material=[self.scratch, self.edge_wear], parent_obj_id=parent_id, joint_info=joint_info)
+                    res = save_obj_parts_add([part], params.get("path", None), i, "lamp_leg_upper", first=first, use_bpy=True, material=[self.scratch, self.edge_wear], parent_obj_id=parent_id, joint_info=joint_info)
                     if self.lamp_type == "DeskLamp" and not self.straight_desk_lamp and not self.is_chain_style_light:
                         pts = [
                             [0.0, 0.0, -0.2],
@@ -371,7 +375,7 @@ class LampFactory(AssetFactory):
                             "type": "fixed",
                             "axis": [0, 0, 1]
                         }
-                        res = save_obj_parts_add([obj], params.get("path", None), i, 'support', first=False, use_bpy=True, material=[self.scratch, self.edge_wear, self.params['BlackMaterial']], parent_obj_id=res[0], joint_info=joint_info)
+                        res = save_obj_parts_add([obj], params.get("path", None), i, 'lamp_support_curve', first=False, use_bpy=True, material=[self.scratch, self.edge_wear, self.params['BlackMaterial']], parent_obj_id=res[0], joint_info=joint_info)
                     elif self.lamp_type == "DeskLamp" and not self.straight_desk_lamp and self.is_chain_style_light:
                         for s in range(self.chain_segments):
                             seg = butil.deep_clone_obj(part, keep_materials=True)
@@ -397,7 +401,7 @@ class LampFactory(AssetFactory):
                                 },
                                 "origin_shift": (0, 0, -2 * self.params['StandRadius'])
                             }
-                            c = save_obj_parts_add([connector], params.get("path", None), i, 'connector', first=False, use_bpy=True, material=[self.scratch, self.edge_wear, self.params['BlackMaterial']], parent_obj_id=parent_id, joint_info=joint_info)
+                            c = save_obj_parts_add([connector], params.get("path", None), i, 'lamp_connector', first=False, use_bpy=True, material=[self.scratch, self.edge_wear, self.params['BlackMaterial']], parent_obj_id=parent_id, joint_info=joint_info)
                             parent_id = c[0]
                             joint_info = {
                                 "name": get_joint_name("revolute"),
@@ -409,7 +413,7 @@ class LampFactory(AssetFactory):
                                 },
                                 "origin_shift": (0, 0, self.params['StandRadius'] - 0.15 * self.h)
                             }
-                            res = save_obj_parts_add([seg], params.get("path", None), i, name, first=False, use_bpy=True, material=[self.scratch, self.edge_wear], parent_obj_id=parent_id, joint_info=joint_info)
+                            res = save_obj_parts_add([seg], params.get("path", None), i, "lamp_leg_seg", first=False, use_bpy=True, material=[self.scratch, self.edge_wear], parent_obj_id=parent_id, joint_info=joint_info)
 
                     self.params['StandRadius'] *= 1.2
                     part = butil.spawn_cube()
@@ -447,7 +451,26 @@ class LampFactory(AssetFactory):
                             "upper": 0.08 * self.params['StandRadius'] * 1.2
                         }
                     })
-                a = save_obj_parts_add([part], params.get("path", None), i, name, first=first, use_bpy=True, material=[self.scratch, self.edge_wear], parent_obj_id=parent_id, joint_info=joint_info)
+                if name == "lamp" and j == 1:
+                    if self.use_aux_base:
+                        aux_base = self.aux_base[0]
+                        aux_base.rotation_euler = (np.pi / 2, 0, np.pi / 2)
+                        butil.apply_transform(aux_base, True)
+                        #co_base = read_co(aux_base)
+                        co_part = read_co(part)
+                        aux_base.scale = (co_part[:, 0].max() - co_part[:, 0].min(), co_part[:, 1].max() - co_part[:, 1].min(), co_part[:, 2].max() - co_part[:, 2].min())
+                        aux_base.scale[2] *= np.random.uniform(1, 2.5)
+                        butil.apply_transform(aux_base, True)
+                        aux_base.location = (co_part[:, 0].max() + co_part[:, 0].min()) / 2, (co_part[:, 1].max() + co_part[:, 1].min()) / 2, (co_part[:, 2].max() + co_part[:, 2].min()) / 2
+                        butil.apply_transform(aux_base, True)
+                        part = aux_base
+                name_ = name
+                if name == "bulb_rack":
+                    name_ = f"bulb_rack_{j}"
+                if name == "lamp":
+                    name_ = f"lamp_{j}"
+
+                a = save_obj_parts_add([part], params.get("path", None), i, name_, first=first, use_bpy=True, material=[self.scratch, self.edge_wear], parent_obj_id=parent_id, joint_info=joint_info)
                 first = False
         join_objects_save_whole([obj], params.get("path", None), i, join=False, use_bpy=True)
         return obj

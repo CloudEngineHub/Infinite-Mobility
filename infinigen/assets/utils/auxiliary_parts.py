@@ -17,7 +17,14 @@ ALL_AUXILIARY_CATAGORY = [
     "tv_supports",
     "table_top",
     "knob_handle",
-    "lamp_shade"
+    "lamp_shade",
+    "revolute_botton",
+    "toilet_base",
+    "tap_pipe",
+    "pot",
+    "lid",
+    "buttons",
+    "lamp_base"
 ]
 
 AUXILIARY_PATH = "/home/pjlab/datasets/parts"
@@ -54,14 +61,16 @@ def sample_auxiliary(catagory, id):
         return None
     #if catagory == "handles":
     if f"{catagory}_{id}" in LOADED_AUXILIARY:
-        return deep_clone_obj(LOADED_AUXILIARY[f"{catagory}_{id}"])
+        res = LOADED_AUXILIARY[f"{catagory}_{id}"]
+        return deep_clone_obj(res[0]), res[1]
     catagory_path = f"{AUXILIARY_PATH}/{catagory}/{id}/whole/whole/whole.obj"
     bpy.ops.wm.obj_import(filepath=catagory_path)
     des = {}
     if os.path.exists(f"{AUXILIARY_PATH}/{catagory}/{id}/whole/whole/whole.txt"):
         des = parse_description(f"{AUXILIARY_PATH}/{catagory}/{id}/whole/whole/whole.txt")
     obj = bpy.context.object
-    LOADED_AUXILIARY[f"{catagory}_{id}"] = deep_clone_obj(obj, keep_materials=False, keep_modifiers=False)
+    des['id'] = id
+    LOADED_AUXILIARY[f"{catagory}_{id}"] = deep_clone_obj(obj, keep_materials=False, keep_modifiers=False), des
     return obj, des
     #return None
 

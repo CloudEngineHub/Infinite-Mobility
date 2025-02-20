@@ -25,6 +25,7 @@ from infinigen.core.util.blender import delete
 from infinigen.core.util.math import FixedSeed
 import bpy
 import random
+from infinigen.assets.utils.auxiliary_parts import random_auxiliary
 
 
 class MicrowaveFactory(AssetFactory):
@@ -38,6 +39,9 @@ class MicrowaveFactory(AssetFactory):
                 self.get_material_params()
             )
         self.params.update(self.material_params)
+        self.use_aux_botton = np.random.choice([True, False], p=[0.8, 0.2])
+        if self.use_aux_botton:
+            self.aux_botton = random_auxiliary("revolute_botton")
 
     def get_material_params(self):
         material_assignments = AssetList["MicrowaveFactory"]()
@@ -200,7 +204,7 @@ class MicrowaveFactory(AssetFactory):
                         ng_inputs=self.params,
                         apply=True,
                     )
-                save_obj_parts_add([body], self.ps['path'], self.ps['i'], "body", first=False, use_bpy=True, parent_obj_id=parent_id, joint_info=joint_info, material=material)
+                save_obj_parts_add([body], self.ps['path'], self.ps['i'], "microwave_body", first=False, use_bpy=True, parent_obj_id=parent_id, joint_info=joint_info, material=material)
             elif i == 3:
                 material = None#[[self.shaders['Surface_'], "Out"], [self.shaders['BlackGlass_'], "In"]]
                 parent_id = "world"
@@ -354,6 +358,13 @@ class MicrowaveFactory(AssetFactory):
                     bpy.context.object.modifiers["Smooth"].iterations = 100
                     bpy.ops.object.modifier_apply(modifier="Smooth")
                     buttons = []
+                    use_aux_button = np.random.choice([True, False], p=[0.9, 0.1])
+                    use_aux_button = True
+                    
+                    if use_aux_button:
+                        all_same = np.random.choice([True, False], p=[0.5, 0.5])
+                    #all_same = False
+                    aux_button = None
                     for i in range(self.button_lines):
                         for j in range(3):
                             button = butil.spawn_cube()
@@ -366,8 +377,32 @@ class MicrowaveFactory(AssetFactory):
                                 offset=button_height / 8, offset_pct=0, segments=8, release_confirm=True, face_strength_mode="ALL"
                             )
                             bpy.ops.object.mode_set(mode='OBJECT')
+                            butil.apply_transform(button, True)
+                            new_btn = False
+                            if use_aux_button:
+                                if not all_same:
+                                    new_btn = True
+                                    aux_button = butil.deep_clone_obj(random_auxiliary('buttons')[0], keep_materials=False, keep_modifiers=False)
+                                elif aux_button is None:
+                                    new_btn = True
+                                    aux_button = butil.deep_clone_obj(random_auxiliary('buttons')[0], keep_materials=False, keep_modifiers=False)
+                                #aux_button = aux_button[0]
+                                if new_btn:
+                                    aux_button.rotation_euler = np.pi / 2, 0, np.pi / 2
+                                    butil.apply_transform(aux_button, True)
+                                    co = read_co(button)
+                                    co_ = read_co(aux_button)
+                                    scale = co[:, 0].max() - co[:, 0].min(), co[:, 1].max() - co[:, 1].min(), co[:, 2].max() - co[:, 2].min()
+                                    scale_t = co_[:, 0].max() - co_[:, 0].min(), co_[:, 1].max() - co_[:, 1].min(), co_[:, 2].max() - co_[:, 2].min()
+                                    s = scale[0] / scale_t[0], scale[1] / scale_t[1], scale[2] / scale_t[2] 
+                                    aux_button.scale = s
+                                    butil.apply_transform(aux_button, True)
+                                    aux_button.location = (self.params['Depth'] + self.params['DoorThickness'], panel_co[:, 1].min() + j * (button_width) + (j)* gap+ button_width * 1.5, self.params['Height'] * 0.15 + i * (button_height) * 1.3)
+                                    butil.apply_transform(aux_button, True)
+                                    button = aux_button
                             self.shaders['Rotate_'].apply(button, rough=True)
-                            save_obj_parts_add([button], self.ps['path'], self.ps['i'], "button", first=False, use_bpy=True, parent_obj_id="world", joint_info={
+
+                            save_obj_parts_add([butil.deep_clone_obj(button, keep_materials=True, keep_modifiers=True)], self.ps['path'], self.ps['i'], "button", first=False, use_bpy=True, parent_obj_id="world", joint_info={
                                 "name": get_joint_name("prismatic"),
                                 "type": "prismatic",
                                 "axis": (1, 0, 0),
@@ -376,15 +411,29 @@ class MicrowaveFactory(AssetFactory):
                                     "upper": 0,
                                 },
                             }, material=material)
-                    res = save_obj_parts_add([rotate], self.ps['path'], self.ps['i'], "rotate", first=False, use_bpy=True, parent_obj_id=parent_id, joint_info={
+                    rotate = butil.join_objects([rotate, indicator])
+                    if self.use_aux_botton:
+                        botton = butil.deep_clone_obj(self.aux_botton[0], keep_materials=False, keep_modifiers=False)
+                        botton.rotation_euler = (np.pi / 2, 0, np.pi / 2)
+                        butil.apply_transform(botton, True)
+                        co_b = read_co(rotate)
+                        scale = co_b[:, 0].max() - co_b[:, 0].min(), co_b[:, 1].max() - co_b[:, 1].min(), co_b[:, 2].max() - co_b[:, 2].min()
+                        botton.scale = scale
+                        butil.apply_transform(botton, True)
+                        botton.location = (co_b[:, 0].min() + scale[0] / 2, co_b[:, 1].min() + scale[1] / 2, co_b[:, 2].min() + scale[2] / 2)
+                        butil.apply_transform(botton, True)
+                        rotate = botton
+                        self.shaders['Rotate_'].apply(rotate, rough=random.choice([True, False]))
+
+                    res = save_obj_parts_add([rotate], self.ps['path'], self.ps['i'], "botton", first=False, use_bpy=True, parent_obj_id=parent_id, joint_info={
                         "name": get_joint_name("continuous"),
                         "type": "continuous",
                         "axis": (1, 0, 0),
                     })
-                    save_obj_parts_add([indicator], self.ps['path'], self.ps['i'], "indicator", first=False, use_bpy=True, parent_obj_id=res[0], joint_info={
-                        "name": get_joint_name("fixed"),
-                        "type": "fixed",
-                    })
+                    # save_obj_parts_add([indicator], self.ps['path'], self.ps['i'], "indicator", first=False, use_bpy=True, parent_obj_id=res[0], joint_info={
+                    #     "name": get_joint_name("fixed"),
+                    #     "type": "fixed",
+                    # })
 
                 except Exception as e:
                     print(e)

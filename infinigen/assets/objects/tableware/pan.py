@@ -71,7 +71,7 @@ class PanFactory(TablewareFactory):
         origin2lowest(obj, vertical=True)
         obj.scale = [self.scale] * 3
         butil.apply_transform(obj)
-        save_obj_parts_add(obj, params['path'], params['i'], "base", first=True, use_bpy=True, material=[self.surface])
+        save_obj_parts_add(obj, params['path'], params['i'], "pan_base", first=True, use_bpy=True, material=[self.surface])
         lid = self.lid_fac.create_asset(save=False)
         co = self.co_base * self.scale
         co_l = read_co(lid)

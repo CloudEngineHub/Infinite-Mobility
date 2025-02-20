@@ -1,50 +1,76 @@
-
 <div align="center">
-<img src="docs/images/infinigen.png" width="300"></img>
+<img src="logo.png" width="1000"></img>
 </div>
 
-# [Infinigen: Infinite Photorealistic Worlds Using Procedural Generation](https://infinigen.org)
-
+# [Infinite Mobility: Scaling High-fidelity Articulated Object Synthesize using Procedural Generation]()
 [**Getting Started**](#getting-started)
-| [**Website**](https://infinigen.org/)
-| [**Intro Video**](https://www.youtube.com/watch?v=6tgspeI-GHY)
 | [**Papers**](#papers)
 | [**Documentation**](#documentation)
 | [**Contributing**](#contributing)
 
+## What is this?
+This repo is about the procedural generation of articulated objects like this.
 <div align="center">
-<a href="https://youtu.be/6tgspeI-GHY"> <img src="docs/images/video_thumbnail.png" width="500"></a>
+<img src="./gifs/cabinet.gif" width="500"></img>
 </div>
 
 ## Getting Started
 
-First, follow our [Installation Instructions](docs/Installation.md).
+First, follow installation instruction of Infinigen to setup the basic emnvironment [Installation Instructions](docs/Installation.md).  
+__important: we are based on an earlier version of Infinigen, it could break the pipeline if the newest version is installed__   
+Then, just run setup.py to configure our dependency.  
+Finally, download our part dataset [here]() and configure dataset path in [python code](infinigen/assets/utils/auxiliary_parts.py).  
+It should work just fine now!🎊 
 
-### Hello Room: Getting Started with Infinigen Indoors
+## Generate
+We provide a script for you to generate as many articulated objects as you like!
+```bash
+python paralled_generate.py <Factory Name> <Number> <MaxProcess>
+```
+Results will be in outputs folder in the form of URDF.
 
-<p align="center">
-  <img src="docs/images/hello_room/dining_blender.png" width="300" />
-  <img src="docs/images/hello_room/dining.png" width="300" />
-  <img src="docs/images/hello_room/dining_depth.png" width="300" />
-  <img src="docs/images/hello_room/dining_obj.png" width="300" />
-</p>
+For Factory Name we support now, refer to the form below.
+| Factory Name |
+|----|
+| OfficeChairFactory  |
+| BarChairFactory  |
+| BeverageFridgeFactory  |    
+| DishwasherFactory  |  
+| MicrowaveFactory  |   
+| OvenFactory  | 
+| TVFactory|  
+| TapFactory  | 
+| ToiletFactory  |  
+| HardwareFactory |  
+| LitedoorFactory |   
+| LampFactory |  
+| PlateOnRackBaseFactory |  
+| KitchenCabinetFactory |   
+| VaseFactory |   
+| BottleFactory |   
+| CocktailTableFactory |  
+| DiningTableFactory| 
+| PotFactory |
+| PanFactory |   
+| LidFactory |
+| WindowFactory |  
 
-See instructions & example commands for Infinigen-Indoors in [HelloRoom.md](docs/HelloRoom.md)
-
-### Hello World: Getting Started with Infinigen Nature
-
-<p align="center">
-  <img src="docs/images/hello_world/Image0048_00_00.png" width="300" />
-  <img src="docs/images/hello_world/Depth0048_00_00.png" width="300" />
-  <img src="docs/images/hello_world/SurfaceNormal_0001_00_00.png" width="300" />
-  <img src="docs/images/hello_world/InstanceSegmentation_0001_00_00.png" width="300" />
-</p>
-
-See instructions & example commands for Infinigen-Nature in [HelloWorld.md](docs/HelloWorld.md)
+## Visualize
+```bash
+python show.py <path to your urdf or dir of your urdfs>
+```
+<div align="center">
+<img src="./gifs/chair.gif" width="1000"></img>
+</div>
 
 ## Papers
 
-If you use Infinigen in your work, please cite our academic papers:
+If you use Infinite Mobility in your work, please cite following academic papers:
+
+<h3 align="center"><a href="">Infinite Mobility: Scaling High-fidelity Articulated Object Synthesize using Procedural Generation</a></h3>
+<p align="center">
+Coming soon!
+</p>
 
 <h3 align="center"><a href="https://arxiv.org/pdf/2306.09310">Infinite Photorealistic Worlds using Procedural Generation</a></h3>
 <p align="center">
@@ -104,69 +130,12 @@ Conference on Computer Vision and Pattern Recognition (CVPR) 2024
 }
 ```
 
-## Documentation
-
-- [Installation Guide](docs/Installation.md)
-- ["Hello World": Generate your first Infinigen-Nature scene](docs/HelloWorld.md)
-- ["Hello Room": Generate your first Infinigen-Indoors scene](docs/HelloRoom.md)
-- [Configuring Infinigen](docs/ConfiguringInfinigen.md)
-- [Downloading pre-generated data](docs/PreGeneratedData.md)
-- [Generating individual assets](docs/GeneratingIndividualAssets.md)
-- [Exporting to external fileformats (OBJ, OpenUSD, etc)](docs/ExportingToExternalFileFormats.md)
-- [Extended ground-truth](docs/GroundTruthAnnotations.md)
-- [Implementing new materials & assets](docs/ImplementingAssets.md)
-- [Generating fluid simulations](docs/GeneratingFluidSimulations.md)
-
-Please see our [project roadmap](https://infinigen.org/roadmap) and follow us at [https://twitter.com/PrincetonVL](https://twitter.com/PrincetonVL) for updates. 
-
 ## Contributing
 
 We welcome contributions! You can contribute in many ways:
-- **Contribute code to this repository** - We welcome code contributions. More guidelines coming soon.
-- **Contribute procedural generators** - `infinigen/nodes/node_transpiler/dev_script.py` provides tools to convert artist-friendly [Blender Nodes](https://docs.blender.org/manual/en/2.79/render/blender_render/materials/nodes/introduction.html) into python code. Tutorials and guidelines coming soon.
-- **Contribute pre-generated data** - Anyone can contribute their computing power to create data and share it with the community. Please stay tuned for a repository of pre-generated data.
+- **Contribute code to Infinigen repository** - Procedural generators for more categories with interactive parts are still needed, we are happy to update our articulation modifications as Infinigen evolves! 
+- **Contribute more diverse parts with fine geometry** - Compared to original infinigen, our work introduces substitution of certain parts with collected meshes. A more diversed parts dataset would boost our performance in many applications! 
 
 ### Getting Help
-
-Please post this repository's Github Issues page for help. Please run your command with `--debug`, and let us know:
-- What is your computing setup, including OS version, CPU, RAM, GPU(s) and any drivers?
-- What version of the code are you using (link a commit hash), and what if any modifications have you made (new configs, code edits)
-- What exact command did you run?
-- What were the output logs of the command you ran? 
-    - If using `manage_jobs`, look in `outputs/MYJOB/MYSEED/logs/` to find the right one.
-    - What was the exact python error and stacktrace, if applicable?
-
-### Acknowledgements
-
-Infinigen wouldn't be possible without the fantastic work of the [Blender Foundation](https://www.blender.org/) and it's open-source contributors. Infinigen uses many open source projects, with special thanks to [Land-Lab](https://github.com/landlab/landlab), [BlenderProc](https://github.com/DLR-RM/BlenderProc) [Blender-FLIP-Fluids](https://github.com/rlguy/Blender-FLIP-Fluids) and [Blender-Differential-Growth](https://github.com/inca/blender-differential-growth).
-
-We thank [Thomas Kole](https://blenderartists.org/u/ThomasKole) for providing procedural clouds.
-
-We learned tremendously from online tutorials of 
-[Andrew Price](https://www.youtube.com/channel/UCOKHwx1VCdgnxwbjyb9Iu1g),
-[Artisans of Vaul](https://www.youtube.com/@ArtisansofVaul),
-[Bad Normals](https://www.youtube.com/@BadNormals),
-[Blender Tutorial Channel](https://www.youtube.com/@BlenderTutorialChannel),
-[blenderbitesize](https://www.youtube.com/@blenderbitesize),
-[Blendini](http://www.youtube.com/watch?v=sHr8LjfX09c),
-[Bradley Animation](https://www.youtube.com/@bradleyanimation120),
-[CGCookie](https://www.youtube.com/watch?v=lPAYX8z9i8M),
-[CGRogue](https://www.youtube.com/@PixelicaCG),
-[Creative Shrimp](https://www.youtube.com/@CreativeShrimp),
-[CrowdRender](https://www.youtube.com/@Crowdrender),
-[Dr. Blender](https://www.youtube.com/@DrBlender),
-[HEY Pictures](https://www.youtube.com/channel/UCo5rv1z-PPrCh-C7OvO2VAA),
-[Ian Hubert](https://www.youtube.com/@IanHubert2),
-[Kev Binge](https://www.youtube.com/@KevBinge),
-[Lance Phan](https://www.youtube.com/@LancePhan),
-[MaxEdge](https://www.youtube.com/@MaxEdge420),
-[Mr. Cheebs](https://www.youtube.com/@MrCheebs),
-[PixelicaCG](https://www.youtube.com/@PixelicaCG),
-[Polyfjord](https://www.youtube.com/@Polyfjord),
-[Robbie Tilton](https://www.youtube.com/@RobbieTilton),
-[Ryan King Art](https://www.youtube.com/@RyanKingArt),
-[Sam Bowman](https://www.youtube.com/@snow_mamba) and
-[yogigraphics](https://www.youtube.com/@yojigraphics).
-These tutorials provided procedural generators for our early experimentation and served as inspiration for our own implementations in the official release of Infinigen. They are acknowledged in file header comments where applicable. 
-
-Infinigen has evolved significantly since the version described in our CVPR paper. It now features some procedural code obtained from the internet under CC-0 licenses, which are marked with code comments where applicable - no such code was present in the system for the CVPR version.
+If you are having difficulties running scripts in our repo, please open issues!
+We are happy to provide supports and have discussions!

@@ -35,7 +35,6 @@ class LidFactory(AssetFactory):
             self.hardware_type = None
             self.rim_height = uniform(1, 2) * self.thickness
             self.handle_type = np.random.choice(["handle", "knob"])
-            self.handle_type = "knob"
             if self.handle_type == "knob":
                 self.handle_height = self.x_length * uniform(0.1, 0.15)
             else:
@@ -58,11 +57,13 @@ class LidFactory(AssetFactory):
             self.scratch, self.edge_wear = material_assignments["wear_tear"]
             self.scratch = None if uniform() > scratch_prob else self.scratch
             self.edge_wear = None if uniform() > edge_wear_prob else self.edge_wear
-            self.use_aux_knob = np.random.choice([True, False])
-            self.use_aux_knob = True
+            #self.use_aux_knob = np.random.choice([True, False])
+            self.use_aux_knob = np.random.choice([True, False]) if self.handle_type == "knob" else False
             if self.use_aux_knob:
                 self.aux_knob = random_auxiliary("knob_handle")
-                print(self.aux_knob)
+            self.use_aux_lid = np.random.choice([True, False], p=[0.7, 0.3])
+            if self.use_aux_lid:
+                self.aux_lid = random_auxiliary("lid")
 
     def create_asset(self, save=True,**params) -> bpy.types.Object:
         self.ps = params
@@ -104,6 +105,18 @@ class LidFactory(AssetFactory):
         obj = join_objects(parts)
         if save:
             join_objects_save_whole(obj, params.get("path", None), params.get("i", "unknown"), name="part", use_bpy=True, join=False)
+        if self.use_aux_lid:
+            lid = butil.deep_clone_obj(self.aux_lid[0], keep_materials=False, keep_modifiers=False)
+            lid.rotation_euler = np.pi / 2, 0, np.pi / 2
+            butil.apply_transform(lid, True)
+            co = read_co(obj)
+            scale = co[:, 0].max() - co[:, 0].min(), co[:, 1].max() - co[:, 1].min(), co[:, 2].max() - co[:, 2].min()
+            lid.scale = scale
+            butil.apply_transform(lid, True)
+            self.surface.apply(
+                lid, clear=True if self.is_glass else None, metal_color="bw+natural"
+            )
+            obj = lid
         return obj
 
     def add_rim(self):
@@ -152,8 +165,29 @@ class LidFactory(AssetFactory):
         obj.location = 0, -self.thickness, z_offset
         butil.apply_transform(obj, True)
         self.handle_surface.apply(obj)
+        co = read_co(obj)
+        bottom = co[:, 2].min()
+        scale = co[:, 0].max() - co[:, 0].min(), co[:, 1].max() - co[:, 1].min(), co[:, 2].max() - co[:, 2].min()
+        bar = butil.spawn_cylinder()
+        bar.rotation_euler = 0, np.pi / 2, 0
+        butil.apply_transform(bar, True)
+        bar.scale = scale[0] / 2, self.thickness / 5, self.thickness / 5
+        bar.location = 0, 0, bottom
+        self.handle_surface.apply(bar)
+        obj = join_objects([obj, bar])
+        co = read_co(obj)
+        joint_info = {
+            "name": get_joint_name("revolute"),
+            "type": "revolute",
+            "axis": [1, 0, 0],
+            "limit": {
+                "lower": -np.pi / 2,
+                "upper": np.pi / 2,
+            },
+            "origin_shift": [0, 0, -(co[:, 2].max() - co[:, 2].min()) / 2 + self.thickness / 5],
+        }
         if save:
-            save_obj_parts_add([obj], self.ps.get("path", None), self.ps.get("i", "unknown"), "part", first=True, use_bpy=True)
+            save_obj_parts_add([obj], self.ps.get("path", None), self.ps.get("i", "unknown"), "lid_handle", first=True, use_bpy=True, parent_obj_id="world", joint_info=joint_info)
         return obj
 
     def add_knob(self, path="outputs/knob", i="unknown", save=True):

@@ -364,18 +364,10 @@ class WindowFactory(AssetFactory):
                             #joint_info[i] = joint_info[i]
                             joint_info[i] = copy.deepcopy(joint_info[i])
                             joint_info[i]["axis"] = [1, 0, 0]
-                            # if i % int(self.params["PanelVAmount"]) == 1:
-                            #     joint_info[i]['limit']['lower'] = 0
-                            # if i % int(self.params["PanelVAmount"]) == 0:
-                            #     joint_info[i]['limit']['upper'] = 0
                             if i <= int(self.params["PanelHAmount"]):
                                 joint_info[i]['limit']['lower'] = 0
                             if i > int(self.params["PanelHAmount"]) * (int(self.params["PanelVAmount"]) - 1):
                                 joint_info[i]['limit']['upper'] = 0
-                            #print(i, self.params["PanelVAmount"], joint_info[i])
-                        #print(joint_info)
-                            #joint_info[i]["origin_shift"] = random.choice(([0, 0, 0], [-width / 2, 0, 0], [width / 2, 0, 0])) if joint_info[i]["axis"] == [0, 1, 0] else random.choice(([0, 0, 0], [0, -width / 2, 0], [0, width / 2, 0]))
-                    print(name, k, parent_id)
                     res = save_geometry_new(obj, name, k, params.get("i", None), params.get("path", None), first, use_bpy=True, separate=True, parent_obj_id=parent_id, joint_info=joint_info, material=material)
                     if res:
                         first = False
@@ -404,7 +396,6 @@ class WindowFactory(AssetFactory):
                                 "upper": 0,
                             }
                         }
-                    print(name, k, parent_id)
                     res = save_geometry_new(obj, name, k, params.get("i", None), params.get("path", None), first, use_bpy=True, parent_obj_id=parent_id, joint_info=joint_info)
                     if res:
                         last_id = res[0]
