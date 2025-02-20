@@ -5,7 +5,6 @@
 # [Infinite Mobility: Scaling High-fidelity Articulated Object Synthesize using Procedural Generation]()
 [**Getting Started**](#getting-started)
 | [**Papers**](#papers)
-| [**Documentation**](#documentation)
 | [**Contributing**](#contributing)
 
 ## What is this?
