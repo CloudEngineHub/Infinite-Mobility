@@ -12,6 +12,12 @@ This repo is about the procedural generation of articulated objects like this.
 <img src="./gifs/cabinet.gif" width="500"></img>
 </div>
 
+## TO DO
+- [x] Initial release of the code
+- [ ] Make installation more self-contained
+- [ ] Add usd format support
+- [ ] Generate interactive environment with infinigen layout solvers.
+
 ## Getting Started
 
 First, follow installation instruction of Infinigen to setup the basic environment [Installation Instructions](docs/Installation.md).  
@@ -91,8 +97,3 @@ We welcome contributions! You can contribute in many ways:
 ### Getting Help
 If you are having difficulties running scripts in our repo, please open issues!
 We are happy to provide supports and have discussions!
-
-## TO DO
-- [ ] Make installation more self-contained
-- [ ] Add usd format support
-- [ ] Generate interactive environment with infinigen layout solvers.
