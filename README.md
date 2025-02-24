@@ -27,7 +27,7 @@ Then, please run setup.py to configure our dependencies.
 ```bash
 python setup.py
 ```
-Next, download our part dataset [here](https://github.com/yinoqifu00/Infinite-Mobility/releases/tag/v0.0.1) 
+Next, download our part dataset [here](https://github.com/Intern-Nexus/Infinite-Mobility/releases/tag/v0.0.1) 
 Finally, configure dataset path in [python code](infinigen/assets/utils/auxiliary_parts.py) line 30.
 For example, if part dataset is /datasets/parts
 ```python
