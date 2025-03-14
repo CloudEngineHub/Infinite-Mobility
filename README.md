@@ -2,7 +2,7 @@
 <img src="logo.png" width="1000"></img>
 </div>
 
-# [Infinite Mobility: Scaling High-fidelity Articulated Object Synthesize using Procedural Generation]()
+# [Infinite Mobility: Scalable High-Fidelity Synthesis of Articulated Objects via Procedural Generation]()
 [**Getting Started**](#getting-started)
 | [**Contributing**](#contributing)
 
