@@ -9,7 +9,7 @@
 ## What is this?
 This repo is about the procedural generation of articulated objects like this.
 <div align="center">
-<img src="./gifs/cabinet.gif" width="500"></img>
+<img src="./gifs/output__.gif" width="500"></img>
 </div>
 
 ## TO DO
