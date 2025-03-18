@@ -47,30 +47,28 @@ python paralled_generate.py OfficeChairFactory 100 10
 Results will be in outputs folder in the form of URDF.
 
 For Factory Name we support now, refer to the form below.
-| Factory Name |
-|----|
-| OfficeChairFactory  |
-| BarChairFactory  |
-| BeverageFridgeFactory  |    
-| DishwasherFactory  |  
-| MicrowaveFactory  |   
-| OvenFactory  | 
-| TVFactory|  
-| TapFactory  | 
-| ToiletFactory  |  
-| HardwareFactory |  
-| LitedoorFactory |   
-| LampFactory |  
-| PlateOnRackBaseFactory |  
-| KitchenCabinetFactory |   
-| VaseFactory |   
-| BottleFactory |   
-| CocktailTableFactory |  
-| DiningTableFactory| 
-| PotFactory |
-| PanFactory |   
-| LidFactory |
-| WindowFactory |  
+| Factory Name |GIFs|
+|----|----|
+| OfficeChairFactory  | <img src="./gifs/10.gif" width="300"></img> |
+| BarChairFactory  |<img src="./gifs/1.gif" width="300"></img> |
+| BeverageFridgeFactory  |<img src="./gifs/2.gif" width="300"></img> |    
+| DishwasherFactory  |  <img src="./gifs/3.gif" width="300"></img> |
+| MicrowaveFactory  |   <img src="./gifs/9.gif" width="300"></img> |
+| OvenFactory  | <img src="./gifs/11.gif" width="300"></img> |
+| TVFactory|  <img src="./gifs/23.gif" width="300"></img> |
+| TapFactory  | <img src="./gifs/18.gif" width="300"></img> |
+| ToiletFactory  |  <img src="./gifs/19.gif" width="300"></img> |
+| LitedoorFactory |   <img src="./gifs/8.gif" width="300"></img> |
+| LampFactory |  <img src="./gifs/7.gif" width="300"></img> |
+| PlateOnRackBaseFactory |  <img src="./gifs/13.gif" width="300"></img> |
+| KitchenCabinetFactory |   <img src="./gifs/6.gif" width="300"></img> |
+| VaseFactory |   <img src="./gifs/21.gif" width="300"></img> |
+| BottleFactory |   <img src="./gifs/4.gif" width="300"></img> |
+| CocktailTableFactory |  <img src="./gifs/16.gif" width="300"></img> |
+| DiningTableFactory| <img src="./gifs/17.gif" width="300"></img> |
+| PotFactory |<img src="./gifs/14.gif" width="300"></img> |
+| PanFactory |   <img src="./gifs/12.gif" width="300"></img> |
+| WindowFactory |  <img src="./gifs/22.gif" width="300"></img> |
 
 ## Visualize
 ```bash
