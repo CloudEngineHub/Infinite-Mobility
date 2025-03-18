@@ -7,9 +7,9 @@
 | [**Contributing**](#contributing)
 
 ## What is this?
-This repo is about the procedural generation of articulated objects like this.
+This repo is about the procedural generation of articulated objects like those in this scene.
 <div align="center">
-<img src="./gifs/output__.gif" width="500"></img>
+<img src="./gifs/output__.gif" width="1000"></img>
 </div>
 
 ## TO DO
