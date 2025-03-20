@@ -92,6 +92,10 @@ We welcome contributions! You can contribute in many ways:
 - **Contribute code to Infinigen repository** - Procedural generators for more categories with interactive parts are still needed, we are happy to update our articulation modifications as Infinigen evolves! 
 - **Contribute more diverse parts with fine geometry** - Compared to original infinigen, our work introduces substitution of certain parts with collected meshes. A more diversed parts dataset would boost our performance in many applications! 
 
+## Join Us
+
+We are seeking engineers, interns, researchers, and PhD candidates. If you have an interest in 3D content generation, please send your resume to lvzhaoyang@pjlab.org.cn.
+
 ### Getting Help
 If you are having difficulties running scripts in our repo, please open issues!
 We are happy to provide supports and have discussions!
