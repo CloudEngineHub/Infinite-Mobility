@@ -5,6 +5,7 @@
 # [Infinite Mobility: Scalable High-Fidelity Synthesis of Articulated Objects via Procedural Generation]()
 [**Getting Started**](#getting-started)
 | [**Contributing**](#contributing)
+| [**Join Us**](#join-us)
 
 ## What is this?
 This repo is about the procedural generation of articulated objects like those in this scene.
