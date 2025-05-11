@@ -436,7 +436,7 @@ class OvenFactory(AssetFactory):
         x = co_[:, 0].min() + button_thickness / 2
         z = co_[:, 2].min() - button_scale
         use_aux_button = np.random.choice([True, False], p=[0.9, 0.1])
-        #use_aux_button = True
+        use_aux_button = False
         all_same = True
         if use_aux_button:
             all_same = np.random.choice([True, False], p=[0.5, 0.5])
