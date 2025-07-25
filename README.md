@@ -59,14 +59,14 @@ For Factory Name we support now, refer to the form below.
 | TVFactory|  <img src="./gifs/23.gif" width="300"></img> |
 | TapFactory  | <img src="./gifs/18.gif" width="300"></img> |
 | ToiletFactory  |  <img src="./gifs/19.gif" width="300"></img> |
-| LitedoorFactory |   <img src="./gifs/8.gif" width="300"></img> |
+| LiteDoorFactory |   <img src="./gifs/8.gif" width="300"></img> |
 | LampFactory |  <img src="./gifs/7.gif" width="300"></img> |
 | PlateOnRackBaseFactory |  <img src="./gifs/13.gif" width="300"></img> |
 | KitchenCabinetFactory |   <img src="./gifs/6.gif" width="300"></img> |
 | VaseFactory |   <img src="./gifs/21.gif" width="300"></img> |
 | BottleFactory |   <img src="./gifs/4.gif" width="300"></img> |
-| CocktailTableFactory |  <img src="./gifs/16.gif" width="300"></img> |
-| DiningTableFactory| <img src="./gifs/17.gif" width="300"></img> |
+| TableCocktailFactory |  <img src="./gifs/16.gif" width="300"></img> |
+| TableDiningFactory| <img src="./gifs/17.gif" width="300"></img> |
 | PotFactory |<img src="./gifs/14.gif" width="300"></img> |
 | PanFactory |   <img src="./gifs/12.gif" width="300"></img> |
 | WindowFactory |  <img src="./gifs/22.gif" width="300"></img> |
